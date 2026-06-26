@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (Lint, TypeCheck, Test, Build)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 11
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm --filter @fixly/shared-types build && pnpm --filter @fixly/shared-utils build && pnpm --filter @fixly/ui build
+
+      - name: Lint desktop
+        run: pnpm --filter @fixly/desktop lint
+
+      - name: Type check desktop
+        run: pnpm --filter @fixly/desktop typecheck
+
+      - name: Test desktop
+        run: pnpm --filter @fixly/desktop test
+
+      - name: Build desktop
+        run: pnpm --filter @fixly/desktop build
+
+  backend:
+    name: Backend (Lint, TypeCheck, Test)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: apps/backend
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint backend
+        working-directory: apps/backend
+        run: ruff check app/
+
+      - name: Type check backend
+        working-directory: apps/backend
+        run: mypy app/
+
+      - name: Test backend
+        working-directory: apps/backend
+        run: pytest tests/ -v

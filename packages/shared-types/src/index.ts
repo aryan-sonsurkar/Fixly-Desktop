@@ -1,0 +1,120 @@
+export type Status = "pending" | "in_progress" | "completed" | "cancelled";
+
+export type Priority = "low" | "medium" | "high" | "urgent";
+
+export type Theme = "dark" | "light" | "system";
+
+export type NotificationType =
+  | "assignment_reminder"
+  | "due_date"
+  | "daily_briefing"
+  | "pomodoro"
+  | "email"
+  | "system";
+
+export type AiContextType = "chat" | "code" | "study" | "pdf" | "image";
+
+export type AiRole = "user" | "assistant";
+
+export interface User {
+  id: string;
+  email: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  xp: number;
+  streak: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Assignment {
+  id: string;
+  user_id: string;
+  subject_id: string | null;
+  title: string;
+  description: string | null;
+  status: Status;
+  priority: Priority;
+  due_date: string | null;
+  source: "manual" | "gmail" | "google_classroom";
+  ai_draft: string | null;
+  ai_draft_generated: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Subject {
+  id: string;
+  user_id: string;
+  name: string;
+  color: string | null;
+  created_at: string;
+}
+
+export interface Attachment {
+  id: string;
+  assignment_id: string;
+  user_id: string;
+  file_name: string;
+  file_type: string | null;
+  file_size: number | null;
+  storage_path: string;
+  created_at: string;
+}
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  title: string;
+  message: string | null;
+  type: NotificationType;
+  read: boolean;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface StudySession {
+  id: string;
+  user_id: string;
+  subject_id: string | null;
+  duration_minutes: number;
+  started_at: string;
+  ended_at: string | null;
+  created_at: string;
+}
+
+export interface PomodoroSession {
+  id: string;
+  user_id: string;
+  focus_duration: number;
+  break_duration: number;
+  cycles_completed: number;
+  total_focus_minutes: number;
+  date: string;
+  created_at: string;
+}
+
+export interface AiMessage {
+  id: string;
+  user_id: string;
+  role: AiRole;
+  content: string;
+  model: string | null;
+  tokens_used: number | null;
+  context_type: AiContextType | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface ApiResponse<T> {
+  data: T;
+  error: string | null;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}

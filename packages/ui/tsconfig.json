@@ -1,0 +1,9 @@
+{
+  "extends": "@fixly/typescript-config/react.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "jsx": "react-jsx"
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@fixly/backend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "uvicorn app.main:app --reload --port 8000",
+    "build": "echo 'Backend build not configured yet'",
+    "lint": "ruff check app/",
+    "typecheck": "mypy app/",
+    "test": "pytest tests/ -v",
+    "clean": "rm -rf __pycache__ .ruff_cache .mypy_cache"
+  }
+}

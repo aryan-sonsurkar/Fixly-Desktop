@@ -1,0 +1,37 @@
+{
+  "name": "fixly-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Fixly - AI-powered academic operating system",
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "dev:desktop": "pnpm --filter @fixly/desktop dev",
+    "dev:backend": "pnpm --filter @fixly/backend dev",
+    "build": "turbo run build",
+    "build:desktop": "pnpm --filter @fixly/desktop build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,json,css,md}\"",
+    "clean": "turbo run clean",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css}": [
+      "prettier --write"
+    ]
+  },
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.8"
+  }
+}
