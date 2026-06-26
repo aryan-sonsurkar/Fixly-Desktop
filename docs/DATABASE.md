@@ -10,7 +10,16 @@ All tables use Row Level Security (RLS). The `profiles` table references `auth.u
 | id | UUID | PK, references auth.users(id) |
 | email | TEXT | NOT NULL |
 | full_name | TEXT | nullable |
+| display_name | TEXT | nullable |
 | avatar_url | TEXT | nullable |
+| education_type | TEXT | nullable |
+| education_year | TEXT | nullable |
+| college_name | TEXT | nullable |
+| university_board | TEXT | nullable |
+| branch_stream | TEXT | nullable |
+| division | TEXT | nullable |
+| roll_number | TEXT | nullable |
+| onboarding_completed | BOOLEAN | DEFAULT false |
 | xp | INTEGER | DEFAULT 0 |
 | streak | INTEGER | DEFAULT 0 |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() |
@@ -22,9 +31,13 @@ All tables use Row Level Security (RLS). The `profiles` table references `auth.u
 | id | UUID | PK, DEFAULT gen_random_uuid() |
 | user_id | UUID | FK, NOT NULL, references profiles(id) |
 | theme | TEXT | DEFAULT 'dark' |
+| daily_goal_hours | INTEGER | DEFAULT 0 |
 | pomodoro_focus | INTEGER | DEFAULT 25 |
 | pomodoro_break | INTEGER | DEFAULT 5 |
 | notification_enabled | BOOLEAN | DEFAULT true |
+| assignment_reminders | BOOLEAN | DEFAULT true |
+| daily_briefing | BOOLEAN | DEFAULT true |
+| email_monitoring | BOOLEAN | DEFAULT false |
 | email_sync_enabled | BOOLEAN | DEFAULT false |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() |
 | updated_at | TIMESTAMPTZ | DEFAULT NOW() |
@@ -36,6 +49,8 @@ All tables use Row Level Security (RLS). The `profiles` table references `auth.u
 | user_id | UUID | FK, NOT NULL, references profiles(id) |
 | name | TEXT | NOT NULL |
 | color | TEXT | nullable |
+| icon | TEXT | nullable |
+| credits | INTEGER | nullable |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() |
 
 ### assignments

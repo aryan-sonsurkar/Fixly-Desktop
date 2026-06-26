@@ -48,7 +48,42 @@ export interface Subject {
   user_id: string;
   name: string;
   color: string | null;
+  icon: string | null;
+  credits: number | null;
   created_at: string;
+}
+
+export interface Profile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+  education_type: string | null;
+  education_year: string | null;
+  college_name: string | null;
+  university_board: string | null;
+  branch_stream: string | null;
+  division: string | null;
+  roll_number: string | null;
+  xp: number;
+  streak: number;
+  onboarding_completed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Settings {
+  id: string;
+  theme: "dark" | "light" | "system";
+  daily_goal_hours: number;
+  pomodoro_focus: number;
+  pomodoro_break: number;
+  notification_enabled: boolean;
+  assignment_reminders: boolean;
+  daily_briefing: boolean;
+  email_monitoring: boolean;
+  email_sync_enabled: boolean;
 }
 
 export interface Attachment {

@@ -3,6 +3,10 @@ import { LoginPage } from "@/pages/login";
 import { RegisterPage } from "@/pages/register";
 import { ForgotPasswordPage } from "@/pages/forgot-password";
 import { VerifyEmailPage } from "@/pages/verify-email";
+import { OnboardingPage } from "@/pages/onboarding";
+import { SettingsPage } from "@/pages/settings";
+import { SubjectsPage } from "@/pages/subjects";
+import { ProfilePage } from "@/pages/profile";
 import { PlaceholderRoute } from "@/components/placeholder-route";
 import { ProtectedRoute } from "@/components/protected-route";
 
@@ -31,6 +35,10 @@ const router = createMemoryRouter(
     {
       path: "/verify-email",
       element: <VerifyEmailPage />,
+    },
+    {
+      path: "/onboarding",
+      element: <OnboardingPage />,
     },
     {
       path: "/",
@@ -74,7 +82,15 @@ const router = createMemoryRouter(
         },
         {
           path: "settings",
-          element: <PlaceholderRoute name="Settings" />,
+          element: <SettingsPage />,
+        },
+        {
+          path: "subjects",
+          element: <SubjectsPage />,
+        },
+        {
+          path: "profile",
+          element: <ProfilePage />,
         },
       ],
     },

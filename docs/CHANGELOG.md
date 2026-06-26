@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.3.0] — 2026-06-26
+
+### Added
+- Onboarding wizard — multi-step form (Personal, Academic, Institution, Preferences, Subjects) with progress indicator
+- Profile page — view and edit academic identity (personal, academic, institution fields)
+- Settings page — theme (dark/light/system), daily goal, pomodoro durations, notification toggles
+- Subject management page — full CRUD with color picker, icon, credits
+- Protected route onboarding check — redirects to /onboarding if profile incomplete
+- Academic profile fields: display_name, education_type, education_year, college_name, university_board, branch_stream, division, roll_number, onboarding_completed
+- Extended settings: daily_goal_hours, assignment_reminders, daily_briefing, email_monitoring
+- Extended subjects: icon, credits
+- Backend profile endpoints: GET/PUT /profile/me, GET/PUT /profile/settings, POST /profile/onboarding, GET /profile/onboarding/status
+- Backend subject endpoints: GET/POST /subjects, GET/PUT/DELETE /subjects/:id
+- ProfileService, ProfileRepository, SubjectService, SubjectRepository
+- Profile, Settings, Subject Pydantic schemas with validation
+- Frontend API service module for profile and subject calls (profile-service.ts)
+- Database migration: 20250101000001_academic_profile.sql
+
+### Changed
+- Router: added /onboarding, /settings, /subjects, /profile routes
+- ProtectedRoute: checks onboarding status and redirects to /onboarding
+- shared-types: Subject extended with icon, credits; added Profile and Settings interfaces
+- api/v1/__init__.py: registered profile_router and subjects_router
+
 ## [0.2.0] — 2026-06-26
 
 ### Added

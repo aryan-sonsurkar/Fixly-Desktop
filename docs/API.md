@@ -69,6 +69,73 @@ Exchange a Google OAuth code for a session.
 Request: `{ "code": string, "redirect_uri": string }`
 Response: `{ "access_token": string, "refresh_token": string, "user": object }`
 
+## Profile
+
+### GET /api/v1/profile/me
+Get the current user's full profile including academic fields.
+
+Headers: Authorization: Bearer {token}
+Response: `ProfileResponse`
+
+### PUT /api/v1/profile/me
+Update the current user's profile.
+
+Request: `ProfileUpdate` (partial)
+Response: `ProfileResponse`
+
+### GET /api/v1/profile/settings
+Get the current user's settings.
+
+Headers: Authorization: Bearer {token}
+Response: `SettingsResponse`
+
+### PUT /api/v1/profile/settings
+Update settings.
+
+Request: `SettingsUpdate` (partial)
+Response: `SettingsResponse`
+
+### POST /api/v1/profile/onboarding
+Complete the onboarding flow. Saves profile, settings, and initial subjects in one request.
+
+Request: `OnboardingRequest` (profile, settings, subjects[])
+Response: `{ "profile": ProfileResponse, "settings": SettingsResponse }`
+
+### GET /api/v1/profile/onboarding/status
+Check if the current user has completed onboarding.
+
+Response: `{ "onboarding_completed": boolean }`
+
+## Subjects
+
+### GET /api/v1/subjects
+List all subjects for the current user.
+
+Headers: Authorization: Bearer {token}
+Response: `Subject[]`
+
+### POST /api/v1/subjects
+Create a new subject.
+
+Request: `{ "name": string, "color"?: string, "icon"?: string, "credits"?: number }`
+Response: `Subject`
+
+### GET /api/v1/subjects/:id
+Get a single subject.
+
+Response: `Subject`
+
+### PUT /api/v1/subjects/:id
+Update a subject.
+
+Request: `SubjectUpdate` (partial)
+Response: `Subject`
+
+### DELETE /api/v1/subjects/:id
+Delete a subject.
+
+Response: `{ "message": string }`
+
 ## Dashboard
 
 ### GET /api/v1/dashboard
