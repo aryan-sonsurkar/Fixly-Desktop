@@ -83,3 +83,70 @@ User Action → React Component → Custom Hook
 All colors are defined as HSL CSS custom properties. No hardcoded hex values.
 
 See `apps/desktop/src/styles/globals.css` for the full token set.
+
+## Authentication Flow
+
+### Session Lifecycle
+
+```
+App Launch → restoreSession() (secure storage)
+  ├─ Tokens found → POST /auth/refresh → valid?
+  │   ├─ Yes → store new tokens → /dashboard
+  │   └─ No → GET /auth/me with old token → valid?
+  │       ├─ Yes → restore session → /dashboard
+  │       └─ No → clear tokens → /login
+  └─ No tokens → /login
+```
+
+### Sign In Flow
+
+```
+Login Page → React Hook Form + Zod validation
+  → POST /api/v1/auth/signin (via Axios)
+  → FastAPI → AuthService → AuthRepository → Supabase Auth
+  → Response: { access_token, refresh_token, user }
+  → setTokens() in Tauri secure store
+  → setAuth() in Zustand store
+  → Navigate to /dashboard
+```
+
+### Sign Up Flow
+
+```
+Register Page → Form validation (name, email, password, confirm)
+  → POST /api/v1/auth/signup
+  → FastAPI → AuthService → AuthRepository → Supabase Auth
+  → Response: { access_token, refresh_token, user }
+  Set verification_required? → /verify-email
+  Session created? → /dashboard
+```
+
+### Token Refresh Flow (Automatic)
+
+```
+Axios interceptor detects 401
+  → clearTokens() from secure storage
+  → Navigate to /login
+  (Automatic refresh happens on app launch via POST /auth/refresh)
+```
+
+### Google OAuth Flow
+
+```
+Login Page → Click "Google" button
+  → GET /api/v1/auth/google/url
+  → Open system browser to OAuth URL
+  → User authenticates with Google
+  → Supabase redirects to callback URL with auth code
+  → POST /api/v1/auth/google/callback
+  → Exchange code for session
+  → Store tokens → Navigate to /dashboard
+```
+
+### Secure Storage
+
+- JWT access and refresh tokens are stored using `@tauri-apps/plugin-store`
+- Tokens are persisted to disk in an encrypted Tauri store (`auth.json`)
+- On app launch, tokens are restored from secure storage
+- On sign out or invalid session, tokens are cleared from storage
+- Fallback to in-memory storage when Tauri APIs are unavailable (e.g., during dev in browser)

@@ -1,4 +1,8 @@
 import { createMemoryRouter, RouterProvider as ReactRouterProvider } from "react-router-dom";
+import { LoginPage } from "@/pages/login";
+import { RegisterPage } from "@/pages/register";
+import { ForgotPasswordPage } from "@/pages/forgot-password";
+import { VerifyEmailPage } from "@/pages/verify-email";
 import { PlaceholderRoute } from "@/components/placeholder-route";
 import { ProtectedRoute } from "@/components/protected-route";
 
@@ -14,7 +18,19 @@ const router = createMemoryRouter(
   [
     {
       path: "/login",
-      element: <PlaceholderRoute name="Login" />,
+      element: <LoginPage />,
+    },
+    {
+      path: "/register",
+      element: <RegisterPage />,
+    },
+    {
+      path: "/forgot-password",
+      element: <ForgotPasswordPage />,
+    },
+    {
+      path: "/verify-email",
+      element: <VerifyEmailPage />,
     },
     {
       path: "/",
@@ -64,7 +80,7 @@ const router = createMemoryRouter(
     },
   ],
   {
-    initialEntries: ["/dashboard"],
+    initialEntries: ["/login"],
   },
 );
 

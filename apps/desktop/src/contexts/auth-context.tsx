@@ -89,7 +89,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const success = await refreshSession();
       if (!success) {
-        // Try with existing access token to get current user
         try {
           const response = await apiClient.get("/api/v1/auth/me", {
             headers: { Authorization: `Bearer ${tokens.accessToken}` },

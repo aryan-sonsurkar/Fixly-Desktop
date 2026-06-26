@@ -6,32 +6,68 @@ All endpoints except authentication require a Bearer JWT token in the Authorizat
 
 ## Authentication
 
-### POST /api/v1/auth/login
+### POST /api/v1/auth/signup
+Create a new account.
+
+Request: `{ "email": string, "password": string, "full_name"?: string }`
+Response: `{ "access_token": string, "refresh_token": string, "user": object }`
+Errors: `UNAUTHORIZED` — duplicate email, weak password
+
+### POST /api/v1/auth/signin
+Sign in with email and password.
+
 Request: `{ "email": string, "password": string }`
-Response: `{ "access_token": string, "refresh_token": string, "user": User }`
+Response: `{ "access_token": string, "refresh_token": string, "user": object }`
+Errors: `UNAUTHORIZED` — invalid credentials, email not confirmed
 
-### POST /api/v1/auth/register
-Request: `{ "email": string, "password": string, "full_name": string }`
-Response: `{ "user": User }`
+### POST /api/v1/auth/signout
+Sign out the current session.
 
-### POST /api/v1/auth/logout
 Headers: Authorization: Bearer {token}
-Response: `{ "message": "Logged out" }`
+Response: `{ "message": string }`
 
 ### POST /api/v1/auth/refresh
-Request: `{ "refresh_token": string }`
-Response: `{ "access_token": string }`
+Refresh an expired access token using a refresh token.
 
-### POST /api/v1/auth/reset-password
-Request: `{ "email": string }`
-Response: `{ "message": "Reset email sent" }`
+Request: `{ "refresh_token": string }`
+Response: `{ "access_token": string, "refresh_token": string, "user": object }`
+Errors: `UNAUTHORIZED` — invalid or expired refresh token
 
 ### GET /api/v1/auth/me
-Response: `{ "user": User }`
+Get the currently authenticated user profile.
 
-### PUT /api/v1/auth/profile
-Request: `{ "full_name"?: string, "avatar_url"?: string }`
-Response: `{ "user": User }`
+Headers: Authorization: Bearer {token}
+Response: `{ "id": string, "email": string, "profile": object | null, "user_metadata": object | null }`
+
+### POST /api/v1/auth/forgot-password
+Send a password reset email.
+
+Request: `{ "email": string }`
+Response: `{ "message": string }`
+
+### POST /api/v1/auth/reset-password
+Reset password using an access token from the reset email.
+
+Request: `{ "access_token": string, "new_password": string }`
+Response: `{ "message": string }`
+Validation: Password must be at least 8 chars, contain uppercase, lowercase, and a number.
+
+### POST /api/v1/auth/resend-verification
+Resend the email verification email.
+
+Request: `{ "email": string }`
+Response: `{ "message": string }`
+
+### GET /api/v1/auth/google/url
+Get the Google OAuth authorization URL.
+
+Response: `{ "url": string }`
+
+### POST /api/v1/auth/google/callback
+Exchange a Google OAuth code for a session.
+
+Request: `{ "code": string, "redirect_uri": string }`
+Response: `{ "access_token": string, "refresh_token": string, "user": object }`
 
 ## Dashboard
 
@@ -56,7 +92,7 @@ Request: Partial<Assignment>
 Response: `{ "assignment": Assignment }`
 
 ### DELETE /api/v1/assignments/:id
-Response: `{ "message": "Deleted" }`
+Response: `{ "message": string }`
 
 ### POST /api/v1/assignments/:id/generate-draft
 Response: `{ "ai_draft": string }`
@@ -100,7 +136,7 @@ Response: `{ "connected": boolean, "email"?: string, "last_synced"?: string }`
 Response: `{ "assignments_detected": number, "new_assignments": Assignment[] }`
 
 ### DELETE /api/v1/email/disconnect
-Response: `{ "message": "Disconnected" }`
+Response: `{ "message": string }`
 
 ## Uploads
 
@@ -109,7 +145,7 @@ Request: Multipart file
 Response: `{ "attachment": Attachment }`
 
 ### DELETE /api/v1/upload/:id
-Response: `{ "message": "Deleted" }`
+Response: `{ "message": string }`
 
 ## Notifications
 
@@ -121,7 +157,7 @@ Response: `{ "notifications": Notification[] }`
 Response: `{ "notification": Notification }`
 
 ### PUT /api/v1/notifications/read-all
-Response: `{ "message": "All marked as read" }`
+Response: `{ "message": string }`
 
 ## Study Sessions
 

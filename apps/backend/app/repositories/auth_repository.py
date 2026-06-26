@@ -48,3 +48,30 @@ class AuthRepository:
         response = client.table("profiles").select("*").eq("id", user_id).single().execute()
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
         return data.get("data") or data
+
+    async def reset_password_for_email(self, email: str) -> None:
+        client = get_supabase()
+        client.auth.reset_password_email(email)
+
+    async def update_user(self, access_token: str, password: str) -> dict[str, Any]:
+        client = get_supabase()
+        response = client.auth.admin.update_user_by_id(access_token, {"password": password})
+        return response.model_dump() if hasattr(response, "model_dump") else dict(response)
+
+    async def resend_verification(self, email: str) -> None:
+        client = get_supabase()
+        client.auth.resend({"email": email, "type": "signup"})
+
+    def get_google_auth_url(self, redirect_uri: str) -> str:
+        client = get_supabase()
+        result = client.auth.sign_in_with_oauth(
+            {"provider": "google", "options": {"redirect_to": redirect_uri}}
+        )
+        return result.url
+
+    async def exchange_code_for_session(self, code: str, redirect_uri: str) -> dict[str, Any]:
+        client = get_supabase()
+        response = client.auth.exchange_code_for_session(
+            {"auth_code": code, "redirect_to": redirect_uri}  # type: ignore[typeddict-item]
+        )
+        return response.model_dump() if hasattr(response, "model_dump") else dict(response)

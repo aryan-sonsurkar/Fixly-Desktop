@@ -25,6 +25,9 @@ class AuthService:
                 "user": user,
             }
         except Exception as e:
+            error_msg = str(e).lower()
+            if "already exists" in error_msg or "already registered" in error_msg:
+                raise AuthenticationError("An account with this email already exists.")
             logger.error("Sign up failed", extra={"error": str(e), "email": email})
             raise AuthenticationError("Sign up failed. Please try again.")
 
@@ -39,6 +42,9 @@ class AuthService:
                 "user": user,
             }
         except Exception as e:
+            error_msg = str(e).lower()
+            if "email not confirmed" in error_msg:
+                raise AuthenticationError("Please verify your email before signing in.")
             logger.error("Sign in failed", extra={"error": str(e), "email": email})
             raise AuthenticationError("Invalid email or password.")
 
@@ -83,3 +89,45 @@ class AuthService:
             "profile": profile or {},
             "user_metadata": user.get("user_metadata", {}),
         }
+
+    async def forgot_password(self, email: str) -> None:
+        try:
+            await self.repository.reset_password_for_email(email)
+        except Exception as e:
+            logger.error("Forgot password failed", extra={"error": str(e), "email": email})
+            raise AuthenticationError("Could not send reset email. Please try again.")
+
+    async def reset_password(self, access_token: str, new_password: str) -> None:
+        try:
+            await self.repository.update_user(access_token, new_password)
+        except Exception as e:
+            logger.error("Reset password failed", extra={"error": str(e)})
+            raise AuthenticationError("Could not reset password. The link may have expired.")
+
+    async def resend_verification(self, email: str) -> None:
+        try:
+            await self.repository.resend_verification(email)
+        except Exception as e:
+            logger.error("Resend verification failed", extra={"error": str(e), "email": email})
+            raise AuthenticationError("Could not resend verification email.")
+
+    async def get_google_auth_url(self) -> str:
+        try:
+            return self.repository.get_google_auth_url("fixly://auth/callback")
+        except Exception as e:
+            logger.error("Failed to get Google auth URL", extra={"error": str(e)})
+            raise AuthenticationError("Could not initiate Google authentication.")
+
+    async def handle_google_callback(self, code: str, redirect_uri: str) -> dict[str, Any]:
+        try:
+            result = await self.repository.exchange_code_for_session(code, redirect_uri)
+            session = result.get("session") or {}
+            user = result.get("user") or {}
+            return {
+                "access_token": session.get("access_token", ""),
+                "refresh_token": session.get("refresh_token", ""),
+                "user": user,
+            }
+        except Exception as e:
+            logger.error("Google auth callback failed", extra={"error": str(e)})
+            raise AuthenticationError("Google authentication failed.")
