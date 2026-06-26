@@ -1,18 +1,21 @@
 import socket
 import sys
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.v1 import routers
 from app.config import settings
+from app.core.exceptions import FixlyError, fixly_exception_handler
 from app.core.logging import get_logger, setup_logging
 
 logger = get_logger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     setup_logging()
     logger.info(
         "Fixly backend starting",
@@ -38,8 +41,14 @@ app.add_middleware(
 )
 
 
+app.add_exception_handler(FixlyError, fixly_exception_handler)  # type: ignore[arg-type]
+
+for router in routers:
+    app.include_router(router, prefix="/api/v1")
+
+
 @app.get("/health")
-async def health():
+async def health() -> dict[str, str]:
     return {"status": "ok", "version": "0.1.0", "environment": settings.environment}
 
 

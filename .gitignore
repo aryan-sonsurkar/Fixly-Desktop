@@ -50,3 +50,8 @@ coverage/
 # Misc
 *.tsbuildinfo
 .eslintcache
+
+# Supabase
+supabase/.temp/
+supabase/.branches/
+supabase/.env

@@ -1,5 +1,6 @@
 import axios from "axios";
 import { createLogger } from "@/lib/logger";
+import { getAccessToken, clearTokens } from "@/lib/secure-storage";
 
 const logger = createLogger("api-client");
 
@@ -19,7 +20,11 @@ const apiClient = axios.create({
 });
 
 apiClient.interceptors.request.use(
-  (config) => {
+  async (config) => {
+    const token = await getAccessToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     logger.debug(`Request: ${config.method?.toUpperCase()} ${config.url}`);
     return config;
   },
@@ -34,10 +39,15 @@ apiClient.interceptors.response.use(
     logger.debug(`Response: ${response.status} ${response.config.url}`);
     return response;
   },
-  (error) => {
+  async (error) => {
     if (error.response) {
       const { status, data } = error.response;
       logger.error(`API Error ${status}:`, data);
+
+      if (status === 401) {
+        await clearTokens();
+        window.location.hash = "#/login";
+      }
     } else if (error.request) {
       logger.error("Network error: No response received");
     } else {
