@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@fixly/ui";
@@ -11,7 +11,6 @@ import {
   type AssignmentsQuery,
 } from "@/lib/assignment-service";
 import { getSubjects } from "@/lib/profile-service";
-import { createLogger } from "@/lib/logger";
 import { AssignmentCard } from "@/components/assignment-card";
 import { AssignmentFormDialog } from "@/components/assignment-form-dialog";
 import { AssignmentDetailDialog } from "@/components/assignment-detail-dialog";
@@ -20,8 +19,6 @@ import { FilterBar } from "@/components/filter-bar";
 import { AssignmentEmptyState } from "@/components/assignment-empty-state";
 import { AssignmentSkeleton } from "@/components/assignment-skeleton";
 import type { Assignment } from "@fixly/shared-types";
-
-const logger = createLogger("assignments-page");
 
 type ViewMode = "list" | "board";
 

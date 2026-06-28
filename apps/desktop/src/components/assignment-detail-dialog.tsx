@@ -2,10 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Button } from "@fixly/ui";
 import { getAssignment, getAssignmentAttachments, uploadAttachment, deleteAttachment } from "@/lib/assignment-service";
-import { createLogger } from "@/lib/logger";
 import type { Assignment } from "@fixly/shared-types";
 
-const logger = createLogger("assignment-detail-dialog");
 
 interface AssignmentDetailDialogProps {
   assignmentId: string | null;

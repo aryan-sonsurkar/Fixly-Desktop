@@ -150,9 +150,87 @@ All tables use Row Level Security (RLS). The `profiles` table references `auth.u
 | refresh_token | TEXT | nullable (encrypted) |
 | token_expires_at | TIMESTAMPTZ | nullable |
 | sync_enabled | BOOLEAN | DEFAULT true |
+| sync_status | TEXT | DEFAULT 'idle', CHECK (idle, syncing, error, paused) |
+| sync_error | TEXT | nullable |
+| total_emails | INTEGER | DEFAULT 0 |
+| last_message_id | TEXT | nullable |
 | last_synced_at | TIMESTAMPTZ | nullable |
+| daily_briefing_enabled | BOOLEAN | DEFAULT true |
+| briefing_time | TEXT | DEFAULT '08:00' |
+| auto_create_assignments | BOOLEAN | DEFAULT false |
+| confidence_threshold | REAL | DEFAULT 0.70 |
+| attachment_download | BOOLEAN | DEFAULT true |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() |
 | updated_at | TIMESTAMPTZ | DEFAULT NOW() |
+
+### email_messages
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK, DEFAULT gen_random_uuid() |
+| user_id | UUID | FK, NOT NULL, references auth.users(id) ON DELETE CASCADE |
+| account_id | UUID | FK, NOT NULL, references email_accounts(id) ON DELETE CASCADE |
+| message_id | TEXT | NOT NULL |
+| thread_id | TEXT | nullable |
+| subject | TEXT | DEFAULT '' |
+| from_name | TEXT | nullable |
+| from_email | TEXT | NOT NULL |
+| to_emails | TEXT[] | DEFAULT '{}' |
+| cc_emails | TEXT[] | DEFAULT '{}' |
+| body_text | TEXT | nullable |
+| body_html | TEXT | nullable |
+| received_at | TIMESTAMPTZ | NOT NULL |
+| is_read | BOOLEAN | DEFAULT false |
+| is_starred | BOOLEAN | DEFAULT false |
+| has_attachments | BOOLEAN | DEFAULT false |
+| labels | TEXT[] | DEFAULT '{}' |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() |
+| UNIQUE(user_id, message_id) | | |
+
+### email_classifications
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK, DEFAULT gen_random_uuid() |
+| email_id | UUID | FK, NOT NULL, references email_messages(id) ON DELETE CASCADE |
+| user_id | UUID | FK, NOT NULL, references auth.users(id) |
+| category | TEXT | NOT NULL, CHECK (assignment, exam, project, notice, holiday, event, general, spam) |
+| confidence | REAL | NOT NULL DEFAULT 0 |
+| is_reviewed | BOOLEAN | DEFAULT false |
+| user_feedback | TEXT | nullable |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() |
+| UNIQUE(email_id) | | |
+
+### email_assignments
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK, DEFAULT gen_random_uuid() |
+| email_id | UUID | FK, NOT NULL, references email_messages(id) ON DELETE CASCADE |
+| user_id | UUID | FK, NOT NULL, references auth.users(id) |
+| subject | TEXT | nullable |
+| title | TEXT | nullable |
+| due_date | TIMESTAMPTZ | nullable |
+| priority | TEXT | DEFAULT 'medium', CHECK (low, medium, high, urgent) |
+| teacher_name | TEXT | nullable |
+| description | TEXT | nullable |
+| course | TEXT | nullable |
+| confidence | REAL | NOT NULL DEFAULT 0 |
+| status | TEXT | DEFAULT 'pending', CHECK (pending, approved, edited, rejected, converted) |
+| assignment_id | UUID | nullable |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() |
+| UNIQUE(email_id) | | |
+
+### email_attachments
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK, DEFAULT gen_random_uuid() |
+| email_id | UUID | FK, NOT NULL, references email_messages(id) ON DELETE CASCADE |
+| document_id | UUID | FK, nullable, references documents(id) ON DELETE SET NULL |
+| user_id | UUID | FK, NOT NULL, references auth.users(id) |
+| filename | TEXT | NOT NULL |
+| file_type | TEXT | nullable |
+| file_size | INTEGER | DEFAULT 0 |
+| storage_path | TEXT | nullable |
+| processed | BOOLEAN | DEFAULT false |
+| created_at | TIMESTAMPTZ | DEFAULT NOW()
 
 ### analytics
 | Column | Type | Constraints |
@@ -182,6 +260,12 @@ All tables use Row Level Security (RLS). The `profiles` table references `auth.u
 - `messages.conversation_id` → `conversations.id` (N:1, cascade delete)
 - `messages.user_id` → `profiles.id` (1:N)
 - `email_accounts.user_id` → `profiles.id` (1:N)
+- `email_messages.user_id` → `profiles.id` (1:N)
+- `email_messages.account_id` → `email_accounts.id` (N:1, cascade delete)
+- `email_classifications.email_id` → `email_messages.id` (1:1, cascade delete)
+- `email_assignments.email_id` → `email_messages.id` (1:1, cascade delete)
+- `email_attachments.email_id` → `email_messages.id` (N:1, cascade delete)
+- `email_attachments.document_id` → `documents.id` (N:1, set null on delete)
 - `analytics.user_id` → `profiles.id` (1:N)
 
 ## RLS Policies

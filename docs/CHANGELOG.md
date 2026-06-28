@@ -1,6 +1,78 @@
 # Changelog
 
-## [0.5.0] — 2026-06-26
+## [0.9.0] — 2026-06-28
+
+### Added
+- Email Intelligence — automated email classification and assignment extraction
+- Backend: EmailService, EmailClassifier (AI via PromptManager), DuplicateDetector, EmailSyncWorker
+- API endpoints: accounts CRUD, sync, messages, review queue, daily briefing, dashboard stats
+- Email classification: assignment, exam, project, notice, holiday, event, general, spam
+- Auto-extraction: due dates, priorities, teacher names, courses from assignment emails
+- Review queue: approve/edit/reject detected assignments with manual override
+- Daily briefing: AI-generated academic summary of unread emails and pending reviews
+- Dashboard stats: account overview, unread counts, recent academic emails, sync status
+- Frontend email page: inbox with search, read/unread, classification badges, review queue, account management
+- 4 database tables: email_messages, email_classifications, email_assignments, email_attachments
+- Database migration: 20250101000009_email_intelligence.sql
+- `.gitattributes` for consistent LF line endings across environments
+
+### Changed
+- README: Node.js requirement updated from >= 20 to >= 22
+- CI workflow: removed `version: 11` from pnpm/action-setup (reads from packageManager field)
+- CI workflow: added desktop Vite build step (build:ci, no Tauri/Rust dependency)
+- CI workflow: added pip caching for Python dependencies
+- Desktop lint script: removed deprecated `--ext` flag
+- Desktop build script: added `build:ci` for Vite-only builds in CI
+- Lint warnings fixed across 4 files (unused imports removed)
+
+### Fixed
+- DuplicateDetector: uses lightweight `get_messages_light` query
+- `_classify_and_extract`: extracted as separate method with per-message error handling
+- `_parse_response`: marked as `@staticmethod` for clarity
+- Unused `cast` import removed from email_service.py
+
+## [0.7.0] — 2026-06-27
+
+### Added
+- Premium Pomodoro Timer & Focus Workspace
+- Backend: PomodoroSession schema, PomodoroRepository, PomodoroService, API endpoints
+- Focus workspace with timer states (focus, break, long_break, idle)
+- Session logging with focus/break duration, cycles, date tracking
+- Frontend: usePomodoroTimer hook, pomodoro-store, pomodoro-service
+- Pomodoro page with animated circular timer, cycle counter, daily stats
+- Full-screen focus mode with distraction-free interface
+- Configurable durations: focus (25/30/45/60), short break (5/10/15), long break (15/20/30)
+- Daily progress tracking (completed cycles, total focus minutes)
+- PWA-like behavior with document title and favicon updates
+- Keyboard shortcuts: Space (toggle), Escape (quit)
+- Study scoring integration: pomodoro sessions earn XP
+- Database migration: 20250101000007_pomodoro_enhancements.sql
+
+## [0.8.0] — 2026-06-27
+
+### Added
+- AI Document Intelligence — OCR, PDF analysis, document classification
+- Backend: DocumentService, OCRService, PDFService, DocumentContextService
+- API endpoints: document upload, list, get, delete, OCR, PDF analysis, batch
+- Document classification with AI (notes, textbook, slides, handout, exam, other)
+- OCR text extraction for images and scanned documents
+- PDF text extraction with page-by-page analysis
+- Context extraction: topics, formulas, code snippets, diagrams
+- Reading session logging with XP tracking
+- Frontend: Documents page with file upload, document list, analysis display
+- Document store with TanStack Query integration
+- Database migration: 20250101000008_document_intelligence.sql
+
+## [0.6.0] — 2026-06-27
+
+### Added
+- Study system: XP, streaks, scoring engine, calendar heatmap
+- Study scoring: per-activity XP (assignments, pomodoro, AI study, reading, OCR, PDF, quiz, flashcard, revision, email, manual)
+- Daily goal bonus: 250 XP when daily goal is met
+- Streak tracking with consecutive day calculation
+- Calendar heatmap component with color intensity based on XP earned
+- Study page with activity log, stats, calendar heatmap
+- Study scoring unit tests (20 tests)
 
 ### Added
 - AI Platform — complete AI infrastructure for the entire Fixly ecosystem

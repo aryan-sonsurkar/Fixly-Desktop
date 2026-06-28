@@ -233,17 +233,70 @@ Response: `{ "ollama": bool, "gemini": bool }`
 
 ## Email
 
-### POST /api/v1/email/connect
-Response: `{ "auth_url": string }`
+### POST /api/v1/email/accounts/connect
+Connect a new email account.
 
-### GET /api/v1/email/status
-Response: `{ "connected": boolean, "email"?: string, "last_synced"?: string }`
+Request: `{ "email": string, "provider": "gmail"|"outlook"|"icloud"|"other", "access_token": string, "refresh_token"?: string }`
+Response: `EmailAccount`
+Errors: duplicate email, invalid token
 
-### POST /api/v1/email/sync
-Response: `{ "assignments_detected": number, "new_assignments": Assignment[] }`
+### GET /api/v1/email/accounts
+List all connected email accounts.
 
-### DELETE /api/v1/email/disconnect
+Response: `EmailAccount[]`
+
+### PUT /api/v1/email/accounts/:id
+Update email account settings.
+
+Request: `EmailAccountUpdate` (partial: sync_enabled, daily_briefing_enabled, briefing_time, auto_create_assignments, confidence_threshold, attachment_download)
+Response: `EmailAccount`
+
+### DELETE /api/v1/email/accounts/:id
+Disconnect and delete an email account.
+
 Response: `{ "message": string }`
+
+### POST /api/v1/email/accounts/:id/sync
+Sync email messages from the provider.
+
+Response: `{ "account_id": string, "synced": number, "duration_ms": number }`
+
+### GET /api/v1/email/messages
+List email messages.
+
+Query: `?account_id={id}&page=1&page_size=50&unread_only=true&search={query}`
+Response: `{ "messages": EmailMessage[], "total": number, "page": number, "page_size": number }`
+
+### GET /api/v1/email/messages/:id
+Get a single email message with classification and assignment data.
+
+Response: `EmailMessage`
+
+### PUT /api/v1/email/messages/:id/read
+Mark an email message as read.
+
+Response: `EmailMessage`
+
+### GET /api/v1/email/review-queue
+Get pending email-to-assignment conversions.
+
+Response: `EmailAssignment[]`
+
+### PUT /api/v1/email/review-queue/:id
+Approve, edit, or reject a detected assignment.
+
+Request: `{ "status": "approved"|"edited"|"rejected", "edits"?: { title?, description?, subject?, due_date?, priority? } }`
+Response: `EmailAssignment`
+
+### POST /api/v1/email/briefing
+Generate an AI daily academic briefing from unread emails and pending queue.
+
+Response: `{ "content": string, "conversation_id": string, "generated_at": string }`
+
+### GET /api/v1/email/dashboard
+Get email dashboard statistics.
+
+Response: `{ "accounts_connected": number, "unread_academic": number, "pending_review": number, "recent_emails": EmailMessage[], "last_sync": string|null }`
 
 ## Uploads
 

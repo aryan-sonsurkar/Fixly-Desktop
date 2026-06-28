@@ -169,6 +169,50 @@ Providers (Ollama, Gemini) call `PromptManager.build()` indirectly through `AISe
 - Auto-titling: first message becomes conversation title
 - Provider name and token count stored per message
 
+### Email Intelligence Architecture
+
+The Email Intelligence system uses a layered approach with specialized components:
+
+```
+Email API (FastAPI) → /api/v1/email/*
+    ↓
+EmailService (orchestration, business logic)
+    ↓
+Email Classifier ─── Duplicate Detector ─── Sync Worker
+    ↓                         ↓                  ↓
+AI Service             EmailRepository     Provider API (Gmail/Outlook)
+    ↓                         ↓
+PromptManager           Supabase PostgreSQL
+```
+
+**Components:**
+
+1. **EmailClassifier** — Uses AIService (via PromptManager) to classify emails into 8 categories: assignment, exam, project, notice, holiday, event, general, spam. Extracts assignment metadata (title, due date, priority, teacher, course) from assignment-categorized emails.
+
+2. **DuplicateDetector** — Prevents duplicate assignment creation by comparing message_id, from_email, and subject against the last 100 messages. Uses lightweight `get_messages_light()` query.
+
+3. **EmailSyncWorker** — Orchestrates syncing with email providers. Currently uses a `_fetch_messages()` placeholder — replace with Gmail API / Microsoft Graph in production. Tracks sync status, errors, and duration per account.
+
+4. **Review Queue** — Human-in-the-loop: detected assignments with confidence < 95% go to a review queue. Users can approve, edit (modify title/description/due_date/priority/subject), or reject. Approved/edited items auto-create real assignments.
+
+5. **Daily Briefing** — AI-generated summary of unread emails, recent messages, and pending reviews. Includes study recommendations and focus areas.
+
+**Classification Flow:**
+```
+New email → AI classifies → category + confidence
+  ├─ assignment + >= 70% confidence → check duplicates
+  │   ├─ duplicate → skip
+  │   └─ new → create review queue entry (or auto-create if >= 95%)
+  └─ other → store classification only
+```
+
+**Database Tables:**
+- `email_accounts` — connected accounts with sync state and settings
+- `email_messages` — fetched messages with read/star/label state
+- `email_classifications` — AI classifications per message (unique per email_id)
+- `email_assignments` — detected assignments pending/approved/rejected/converted
+- `email_attachments` — extracted email attachments
+
 ### Sidecar Architecture
 In production, Tauri launches the Python backend as a managed sidecar process. The backend binds to a dynamic port and communicates the port number to the frontend via Tauri IPC. No ports are hardcoded.
 

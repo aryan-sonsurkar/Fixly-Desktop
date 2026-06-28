@@ -18,11 +18,11 @@
   },
   "lint-staged": {
     "*.{ts,tsx}": [
-      "eslint --fix",
-      "prettier --write"
+      "pnpm exec eslint --fix",
+      "pnpm exec prettier --write"
     ],
     "*.{json,md,css}": [
-      "prettier --write"
+      "pnpm exec prettier --write"
     ]
   },
   "packageManager": "pnpm@11.9.0",

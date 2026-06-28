@@ -20,7 +20,7 @@ Instead of switching between Gmail, Notes, WhatsApp, Calendar, AI chatbots, task
 
 ### Prerequisites
 
-- Node.js >= 20
+- Node.js >= 22
 - pnpm >= 9
 - Python >= 3.12
 - Rust (latest stable)

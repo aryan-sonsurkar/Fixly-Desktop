@@ -8,6 +8,7 @@ import { DashboardPage } from "@/pages/dashboard";
 import { AssignmentsPage } from "@/pages/assignments";
 import AIPage from "@/pages/ai";
 import { StudyPage } from "@/pages/study";
+import { EmailPage } from "@/pages/email";
 import { PomodoroPage } from "@/pages/pomodoro";
 import { DocumentsPage } from "@/pages/documents";
 import { SettingsPage } from "@/pages/settings";
@@ -86,6 +87,10 @@ const router = createMemoryRouter(
         {
           path: "notifications",
           element: <PlaceholderRoute name="Notifications" />,
+        },
+        {
+          path: "email",
+          element: <EmailPage />,
         },
         {
           path: "study",
