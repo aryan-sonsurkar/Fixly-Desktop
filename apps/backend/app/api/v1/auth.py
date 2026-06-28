@@ -66,7 +66,9 @@ async def forgot_password(body: ForgotPasswordRequest) -> dict[str, str]:
 @router.post("/reset-password")
 async def reset_password(body: ResetPasswordRequest) -> dict[str, str]:
     service = AuthService()
-    await service.reset_password(body.access_token, body.new_password)
+    payload = await service.validate_token(body.access_token)
+    user_id = payload.get("sub", "")
+    await service.reset_password(user_id, body.new_password)
     return {"message": "Password reset successfully"}
 
 

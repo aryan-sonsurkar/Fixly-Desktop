@@ -176,20 +176,60 @@ Response: `{ "subject": Subject }`
 ## AI
 
 ### POST /api/v1/ai/chat
-Request: `{ "message": string, "history"?: AiMessage[] }`
-Response: `{ "response": string, "model": string }`
+Send a message and get an AI response. Creates or continues a conversation.
 
-### POST /api/v1/ai/code
-Request: `{ "prompt": string, "language"?: string }`
-Response: `{ "response": string, "code"?: string }`
+Request: `{ "message": string, "conversation_id"?: string, "stream"?: boolean }`
+Response: `{ "message": Message, "conversation": Conversation }`
+Status: 503 `AI_UNAVAILABLE` if no provider is reachable
 
-### POST /api/v1/ai/study
-Request: `{ "topic": string, "context"?: string }`
-Response: `{ "notes": string, "summary": string }`
+### POST /api/v1/ai/regenerate
+Regenerate the last assistant message in a conversation.
 
-### POST /api/v1/ai/analyze-file
-Request: Multipart (file + optional prompt)
-Response: `{ "analysis": string, "extracted_text"?: string }`
+Request: `{ "conversation_id": string, "message_id": string }`
+Response: `{ "message": Message, "conversation": Conversation }`
+
+### GET /api/v1/ai/conversations
+List all conversations for the current user, ordered by most recent.
+
+Response: `Conversation[]`
+
+### POST /api/v1/ai/conversations
+Create a new empty conversation.
+
+Request: `{ "title"?: string }`
+Response: `Conversation`
+
+### GET /api/v1/ai/conversations/:id
+Get a conversation with all its messages.
+
+Response: `{ ...Conversation, messages: Message[] }`
+
+### PUT /api/v1/ai/conversations/:id
+Rename a conversation.
+
+Request: `{ "title": string }`
+Response: `Conversation`
+
+### DELETE /api/v1/ai/conversations/:id
+Delete a conversation and all its messages.
+
+Response: `{ "message": string }`
+
+### GET /api/v1/ai/settings
+Get AI settings for the current user.
+
+Response: `{ "preferred_provider": "auto"|"ollama"|"gemini", "temperature": float, "max_tokens": int, "streaming": bool, "system_prompt": string|null, "ollama_available": bool, "gemini_available": bool }`
+
+### PUT /api/v1/ai/settings
+Update AI settings.
+
+Request: `AISettingsUpdate` (partial)
+Response: `AISettingsResponse`
+
+### GET /api/v1/ai/providers
+Check availability of all AI providers.
+
+Response: `{ "ollama": bool, "gemini": bool }`
 
 ## Email
 

@@ -118,17 +118,25 @@ All tables use Row Level Security (RLS). The `profiles` table references `auth.u
 | date | DATE | DEFAULT CURRENT_DATE |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() |
 
-### ai_history
+### conversations
 | Column | Type | Constraints |
 |--------|------|-------------|
 | id | UUID | PK, DEFAULT gen_random_uuid() |
+| user_id | UUID | FK, NOT NULL, references profiles(id) ON DELETE CASCADE |
+| title | TEXT | DEFAULT 'New conversation' |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() |
+| updated_at | TIMESTAMPTZ | DEFAULT NOW() |
+
+### messages
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | UUID | PK, DEFAULT gen_random_uuid() |
+| conversation_id | UUID | FK, NOT NULL, references conversations(id) ON DELETE CASCADE |
 | user_id | UUID | FK, NOT NULL, references profiles(id) |
-| role | TEXT | NOT NULL |
+| role | TEXT | NOT NULL, CHECK (role IN ('user', 'assistant', 'system')) |
 | content | TEXT | NOT NULL |
-| model | TEXT | nullable |
-| tokens_used | INTEGER | nullable |
-| context_type | TEXT | nullable |
-| metadata | JSONB | nullable |
+| provider | TEXT | nullable |
+| tokens | INTEGER | nullable |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() |
 
 ### email_accounts
@@ -170,7 +178,9 @@ All tables use Row Level Security (RLS). The `profiles` table references `auth.u
 - `notifications.user_id` → `profiles.id` (1:N)
 - `study_sessions.user_id` → `profiles.id` (1:N)
 - `pomodoro_sessions.user_id` → `profiles.id` (1:N)
-- `ai_history.user_id` → `profiles.id` (1:N)
+- `conversations.user_id` → `profiles.id` (1:N)
+- `messages.conversation_id` → `conversations.id` (N:1, cascade delete)
+- `messages.user_id` → `profiles.id` (1:N)
 - `email_accounts.user_id` → `profiles.id` (1:N)
 - `analytics.user_id` → `profiles.id` (1:N)
 

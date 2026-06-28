@@ -1,5 +1,61 @@
 # Changelog
 
+## [0.5.0] — 2026-06-26
+
+### Added
+- AI Platform — complete AI infrastructure for the entire Fixly ecosystem
+- Backend AI layer: schemas, repository, service, provider abstraction
+- Ollama provider — local LLM support via Ollama API (llama3.2)
+- Gemini provider — Google Gemini 2.0 Flash via REST API
+- Auto-routing: Ollama → Gemini → graceful error with provider health checks
+- Prompt Manager — centralized prompt routing with domain-specific builders:
+  - SystemPromptBuilder (academic context, profile, subjects)
+  - AssignmentPromptBuilder, CodingPromptBuilder, StudyPromptBuilder
+  - SummaryPromptBuilder, BriefingPromptBuilder
+- Conversation management: create, list, get, rename, delete conversations
+- Message persistence with provider name and token count
+- Auto-titling: first message becomes conversation title
+- Auto-overdue: marks pending/in_progress assignments as overdue on access
+- Frontend AI page with conversation sidebar and chat window
+- Real-time chat with send message, regenerate, markdown rendering
+- Markdown renderer with headings, lists, inline code, bold, dividers
+- Code blocks with language label and copy button
+- Typing indicator animation (Framer Motion)
+- AI settings dialog: provider selection, temperature, max tokens, streaming, system prompt
+- Frontend Zustand store for AI state management
+- TanStack Query integration for conversations and messages
+- Database migration: 20250101000003_ai_platform.sql (conversations + messages tables)
+- Provider availability endpoints for frontend status indicators
+
+### Changed
+- Router: AI route now renders AIPage instead of placeholder
+- AppLayout sidebar: AI Assistant navigation item points to /ai page
+- Instantiated PromptManager replaces PromptBuilder throughout AIService
+- Backend typecheck: 58 source files, 0 mypy errors
+- Settings table now stores AI configuration (preferred_provider, temperature, max_tokens, streaming, system_prompt)
+
+## [0.4.0] — 2026-06-26
+
+### Added
+- Assignment management system with full CRUD
+- Dashboard page with daily briefing, stats overview, XP display, recent assignments
+- AppLayout with sidebar navigation (collapsible, icons, active state)
+- Bulk actions for assignments (complete, archive, delete, pin/unpin, favorite/unfavorite)
+- List and board (kanban) views for assignments
+- Filter bar with search, status, priority, subject, favorites filters
+- Paginated assignment list with sort options
+- Assignment detail dialog with attachment upload/delete
+- Assignment form dialog (create/edit mode)
+- File uploads through backend (/api/v1/upload endpoint)
+- Supabase Storage integration for attachments
+- Backend stats endpoint with 9 metrics
+- Overdue auto-detection on list/get/stats access
+
+### Changed
+- Router: dashboard, assignments use real pages with AppLayout Outlet
+- ProtectedLayout replaced with AppLayout (sidebar + header + Outlet)
+- Project scope increased to 58 backend source files
+
 ## [0.3.0] — 2026-06-26
 
 ### Added

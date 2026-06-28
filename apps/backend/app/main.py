@@ -10,6 +10,7 @@ from app.api.v1 import routers
 from app.config import settings
 from app.core.exceptions import FixlyError, fixly_exception_handler
 from app.core.logging import get_logger, setup_logging
+from app.prompts.registry import init_registry
 
 logger = get_logger(__name__)
 
@@ -17,6 +18,7 @@ logger = get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     setup_logging()
+    init_registry()
     logger.info(
         "Fixly backend starting",
         extra={"environment": settings.environment, "version": "0.1.0"},

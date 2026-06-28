@@ -48,8 +48,126 @@ The React frontend has zero direct Supabase SDK access. All communication flows 
 ### Repository Pattern
 All database operations are encapsulated in repository modules. Services never import the Supabase SDK directly. This makes the data layer testable and swappable.
 
-### AI Provider Abstraction
-The AI service routes requests through a provider chain: Ollama (primary) → Gemini (fallback) → Future providers. The frontend never knows which provider generated a response.
+### AI Platform Architecture
+
+The AI system uses a layered provider architecture:
+
+```
+AI API (FastAPI)
+    ↓
+AIService (routing, conversation management)
+    ↓
+PromptManager → SystemPromptBuilder, AssignmentPromptBuilder, etc.
+    ↓
+AIProvider Interface (abstract base)
+    ↓
+OllamaProvider ─── GeminiProvider ─── Future Providers
+```
+
+**Provider Routing Logic:**
+1. If `preferred_provider` is `"auto"`: try Ollama first → Gemini fallback → error
+2. If a specific provider is set: check availability → use it → error if unavailable
+3. Provider availability is checked per-request via health check endpoints
+
+### Prompt Management System
+
+All AI prompts pass through a centralized Prompt Management System.
+
+```
+AI Provider (Ollama / Gemini)
+    ↓  requests prompt
+PromptManager.build(PromptType, user_id, **kwargs)
+    ↓
+PromptRegistry.get(PromptType)
+    ↓  returns PromptTemplate (template string + metadata)
+Utils.resolve_variables(template, context, kwargs)
+    ↓  substitutes {user_name}, {subjects}, {current_date}, ...
+Final rendered prompt string
+```
+
+**Architecture:**
+
+```
+app/prompts/
+├── __init__.py          — Exports: PromptManager, PromptType, PromptTemplate, get_registry
+├── manager.py           — PromptManager: loads context, resolves variables, returns prompt
+├── registry.py          — PromptType enum, PromptTemplate dataclass, PromptRegistry, auto_discover
+├── utils.py             — resolve_variables(), count_placeholders()
+└── templates/
+    ├── __init__.py       — Empty (auto-discovered)
+    ├── system.py         — System prompt with academic context
+    ├── assignment.py     — Assignment assistance
+    ├── coding.py         — Coding tutor
+    ├── study.py          — Study assistant
+    ├── summary.py        — Content summarization (PromptType.SUMMARIZE)
+    ├── briefing.py       — Daily briefing
+    ├── pdf.py            — PDF document analysis
+    ├── screenshot.py     — Screenshot/image analysis
+    ├── ocr.py            — OCR text extraction
+    ├── email.py          — Email drafting/reply
+    └── planner.py        — Academic planning
+```
+
+**Prompt Lifecycle:**
+
+1. **Registration** — When the system starts, `auto_discover()` scans `app/prompts/templates/` and registers every module that exports `PROMPT` (a `PromptTemplate`) and `PROMPT_TYPE` (a `PromptType`). No manual registration is needed.
+
+2. **Building** — A request arrives at `PromptManager.build(PromptType, user_id, **kwargs)`:
+   - The registry looks up the template by `PromptType`
+   - If `requires_context=True` and `user_id` is provided, user context (profile, subjects) is loaded from repositories
+   - `resolve_variables()` replaces all `{variable}` placeholders with values from context and kwargs
+   - Auto-injected variables: `{user_name}`, `{education_type}`, `{branch}`, `{year}`, `{college}`, `{subjects}`, `{current_date}`
+   - Explicit kwargs override auto-injected values
+
+3. **Consumption** — The rendered string is passed to the AI provider as the system prompt or feature prompt.
+
+**Prompt Registry:**
+- Singleton `PromptRegistry` holds a `dict[PromptType, PromptTemplate]`
+- Access via `get_registry()` — lazily triggers auto-discovery on first access
+- `register(prompt_type, template)` for programmatic registration
+- `get(prompt_type)` raises `KeyError` if type is unknown
+
+**Prompt Versioning:**
+Each `PromptTemplate` carries metadata:
+- `name` — unique identifier
+- `version` — semantic version (e.g. "1.0.0")
+- `description` — what this prompt does
+- `author` — who created it
+- `last_updated` — ISO date of last change
+
+**Variable Injection:**
+- Auto-injected from user profile: `{user_name}`, `{education_type}`, `{branch}`, `{year}`, `{college}`
+- Auto-injected from subjects: `{subjects}` (comma-separated list)
+- Auto-injected date: `{current_date}` (ISO format)
+- Feature-specific kwargs: `{assignment_title}`, `{due_date}`, `{subject}`, `{content}`, `{email_context}`, `{assignment_load}`, etc.
+- Missing variables are left as-is (e.g. `{unknown_var}` stays `{unknown_var}`)
+- Explicit kwargs always override context values
+
+**Extensibility:**
+Adding a new AI feature requires zero changes to existing code:
+1. Create `app/prompts/templates/my_new_feature.py` with `PROMPT` and `PROMPT_TYPE` exports
+2. Call `PromptManager.build(PromptType.MY_FEATURE, user_id, **kwargs)` from your service
+
+Examples of future features that follow this pattern:
+- AI Flashcards → `templates/flashcards.py`
+- Quiz Generator → `templates/quiz.py`
+- Exam Preparation → `templates/exam.py`
+- Career Assistant → `templates/career.py`
+- Resume Review → `templates/resume.py`
+- Interview Coach → `templates/interview.py`
+
+**Testing:**
+- 18 unit tests in `tests/test_prompts.py` covering registry, variable resolution, template metadata, and PromptManager.build()
+- Tests verify: registration, lookup errors, variable replacement, missing variable handling, kwargs overrides, context injection, and all template metadata
+
+**Provider Interaction:**
+Providers (Ollama, Gemini) call `PromptManager.build()` indirectly through `AIService._format_messages()`, which uses `PromptType.SYSTEM` for the system prompt. Feature-specific prompts will be delivered as separate calls when those features are built.
+
+**Conversation System:**
+- Conversations and messages stored in PostgreSQL via Supabase
+- Messages are ordered by `created_at`
+- Auto-titling: first message becomes conversation title
+- Provider name and token count stored per message
 
 ### Sidecar Architecture
 In production, Tauri launches the Python backend as a managed sidecar process. The backend binds to a dynamic port and communicates the port number to the frontend via Tauri IPC. No ports are hardcoded.

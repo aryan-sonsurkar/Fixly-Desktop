@@ -33,14 +33,32 @@ export interface Assignment {
   subject_id: string | null;
   title: string;
   description: string | null;
-  status: Status;
+  status: "pending" | "in_progress" | "completed" | "cancelled" | "overdue";
   priority: Priority;
   due_date: string | null;
-  source: "manual" | "gmail" | "google_classroom";
+  estimated_study_time: number | null;
+  tags: string[] | null;
+  notes: string | null;
+  completion_date: string | null;
+  is_archived: boolean;
+  is_pinned: boolean;
+  is_favorite: boolean;
+  source: "manual" | "email" | "ai";
   ai_draft: string | null;
   ai_draft_generated: boolean;
   created_at: string;
   updated_at: string;
+}
+
+export interface Attachment {
+  id: string;
+  assignment_id: string;
+  user_id: string;
+  file_name: string;
+  file_type: string | null;
+  file_size: number | null;
+  storage_path: string;
+  created_at: string;
 }
 
 export interface Subject {
@@ -84,17 +102,6 @@ export interface Settings {
   daily_briefing: boolean;
   email_monitoring: boolean;
   email_sync_enabled: boolean;
-}
-
-export interface Attachment {
-  id: string;
-  assignment_id: string;
-  user_id: string;
-  file_name: string;
-  file_type: string | null;
-  file_size: number | null;
-  storage_path: string;
-  created_at: string;
 }
 
 export interface Notification {

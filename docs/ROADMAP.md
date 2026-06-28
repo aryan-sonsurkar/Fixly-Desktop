@@ -1,13 +1,13 @@
 # Roadmap
 
 ## Phase 1 — Foundation (Current)
-- Monorepo setup and architecture
-- Authentication system (email + Google login)
-- Dashboard with daily briefing
-- Assignment management (CRUD, priorities, due dates)
-- AI Assistant (Ollama + Gemini routing)
-- Email intelligence (Gmail OAuth, auto-detection)
-- File upload and attachment management
+- ✅ Monorepo setup and architecture
+- ✅ Authentication system (email + Google login)
+- ✅ Dashboard with daily briefing
+- ✅ Assignment management (CRUD, priorities, due dates)
+- ✅ AI Assistant (Ollama + Gemini routing)
+- ⬜ Email intelligence (Gmail OAuth, auto-detection)
+- ✅ File upload and attachment management
 
 ## Phase 2 — Productivity
 - Pomodoro timer with focus/break cycles
@@ -42,25 +42,33 @@
 - Google Calendar sync
 - Shared workspaces and collaboration
 
-## Milestones
+## Completed Milestones
 
-### v0.1.0 (Current)
+### v0.1.0 ✅
 Project scaffolding, monorepo, architecture, documentation, CI/CD
 
-### v0.2.0
-Authentication, user profiles, settings
+### v0.2.0 ✅
+Authentication, user profiles, settings, onboarding
 
-### v0.3.0
-Dashboard, subjects, assignments core
+### v0.3.0 ✅
+Dashboard, subjects, assignments core (CRUD, priorities, due dates, file uploads)
 
-### v0.4.0
-AI Assistant with file analysis
+### v0.4.0 ✅
+Dashboard page with daily briefing, XP/streak, stats overview, recent assignments, sidebar navigation
 
-### v0.5.0
-Email intelligence, Gmail integration
+### v0.5.0 ✅
+AI Platform — Ollama + Gemini provider routing, conversation management, prompt manager, chat UI with markdown rendering and code blocks
 
-### v0.6.0
-Pomodoro, notifications, analytics
+## Upcoming Milestones
+
+### v0.6.0 (Next)
+Email intelligence, Gmail OAuth integration, auto-detection of assignments from email
+
+### v0.7.0
+Pomodoro timer, notifications, analytics dashboard
+
+### v0.8.0
+PDF intelligence (summarization, Q&A), OCR, study assistant
 
 ### v1.0.0
-Production release — all Phase 1-2 features
+Production release — all Phase 1-2 features polished
