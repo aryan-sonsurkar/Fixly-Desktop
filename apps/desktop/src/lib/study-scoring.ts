@@ -49,7 +49,7 @@ export function calculateStreak(dates: string[]): { current: number; longest: nu
   const today = new Date().toISOString().slice(0, 10);
 
   let current = 0;
-  let checkDate = new Date(today + "T00:00:00Z");
+  const checkDate = new Date(today + "T00:00:00Z");
   const checkStr = () => checkDate.toISOString().slice(0, 10);
   while (sorted.includes(checkStr())) {
     current++;
