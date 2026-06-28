@@ -148,6 +148,79 @@ export interface AiMessage {
   created_at: string;
 }
 
+export type Mood = "great" | "good" | "okay" | "bad" | "terrible";
+
+export type ActivityType =
+  | "pomodoro"
+  | "assignment"
+  | "ai_study"
+  | "reading"
+  | "manual"
+  | "email"
+  | "ocr"
+  | "pdf_analysis"
+  | "quiz"
+  | "flashcard"
+  | "revision";
+
+export interface CalendarDay {
+  date: string;
+  study_points: number;
+  total_study_minutes: number;
+  mood: Mood | null;
+  productivity_rating: number | null;
+  has_notes?: boolean;
+}
+
+export interface CalendarResponse {
+  year: number;
+  days: CalendarDay[];
+}
+
+export interface DayDetail {
+  date: string;
+  total_study_minutes: number;
+  pomodoro_sessions: number;
+  assignments_completed: number;
+  subjects_studied: string[];
+  ai_conversations: number;
+  study_points: number;
+  mood: Mood | null;
+  productivity_rating: number | null;
+  notes: string | null;
+}
+
+export interface StudySessionLog {
+  id: string;
+  user_id: string;
+  activity_type: ActivityType;
+  points: number;
+  duration_minutes: number;
+  subject_id: string | null;
+  metadata: Record<string, unknown>;
+  session_date: string;
+  created_at: string;
+}
+
+export interface StudyStatistics {
+  current_streak: number;
+  longest_streak: number;
+  total_study_points: number;
+  total_study_hours: number;
+  average_daily_study_minutes: number;
+  assignments_finished: number;
+  pomodoros_completed: number;
+  weekly_trend: Array<{ date: string; points: number }>;
+  monthly_trend: Array<{ date: string; points: number }>;
+  top_subjects?: Array<{ id: string; name: string; points: number }>;
+  total_study_days: number;
+}
+
+export interface StudyStreak {
+  current_streak: number;
+  longest_streak: number;
+}
+
 export interface ApiResponse<T> {
   data: T;
   error: string | null;

@@ -3,6 +3,8 @@ import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Card, CardHeader, CardTitle, CardContent, Button, Skeleton } from "@fixly/ui";
 import { getDashboard } from "@/lib/dashboard-service";
+import { getStudyStatistics, getCalendar } from "@/lib/study-service";
+import { getHeatmapColor } from "@/lib/study-scoring";
 
 function formatGreeting(displayName: string): string {
   const hour = new Date().getHours();
@@ -137,6 +139,18 @@ export function DashboardPage() {
     queryFn: getDashboard,
   });
 
+  const { data: studyStats } = useQuery({
+    queryKey: ["study-statistics"],
+    queryFn: getStudyStatistics,
+  });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const year = new Date().getFullYear();
+  const { data: calData } = useQuery({
+    queryKey: ["study-calendar", year],
+    queryFn: () => getCalendar(year),
+  });
+
   if (isLoading) return <DashboardSkeleton />;
   if (!data) return null;
 
@@ -144,6 +158,8 @@ export function DashboardPage() {
   const greeting = formatGreeting(profile.display_name);
   const dailyGoalHours = data.settings.daily_goal_hours || 0;
   const completedHoursToday = 0;
+
+  const todayPoints = calData?.days?.find((d: { date: string }) => d.date === today)?.study_points || 0;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6">
@@ -220,6 +236,101 @@ export function DashboardPage() {
           color={stats.overdue > 0 ? "border-l-4 border-l-red-500" : ""}
           icon="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
         />
+      </div>
+
+      {studyStats && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
+          <StatCard
+            label="Current Streak"
+            value={`${studyStats.current_streak} day${studyStats.current_streak !== 1 ? "s" : ""}`}
+            color={studyStats.current_streak > 0 ? "border-l-4 border-l-orange-500" : ""}
+            icon="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"
+          />
+          <StatCard
+            label="Study Points"
+            value={studyStats.total_study_points}
+            color="border-l-4 border-l-purple-500"
+            icon="M13 10V3L4 14h7v7l9-11h-7z"
+          />
+          <StatCard
+            label="Study Hours"
+            value={studyStats.total_study_hours}
+            color="border-l-4 border-l-blue-500"
+            icon="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+          <StatCard
+            label="Today"
+            value={`${todayPoints} pts`}
+            color={todayPoints > 0 ? "border-l-4 border-l-green-500" : ""}
+            icon="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {calData && calData.days && (
+          <Card className="lg:col-span-1">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-base">Study Heatmap</CardTitle>
+              <Link to="/study">
+                <Button variant="ghost" size="sm">View</Button>
+              </Link>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-0.5">
+                {calData.days.slice(-70).map((d: { date: string; study_points: number }) => (
+                  <div
+                    key={d.date}
+                    className={`h-2.5 w-2.5 rounded-sm ${getHeatmapColor(d.study_points)}`}
+                    title={`${d.date}: ${d.study_points} pts`}
+                  />
+                ))}
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span>Less</span>
+                <div className="h-2.5 w-2.5 rounded-sm bg-muted" />
+                <div className="h-2.5 w-2.5 rounded-sm bg-purple-300/40 dark:bg-purple-900/30" />
+                <div className="h-2.5 w-2.5 rounded-sm bg-purple-400/60 dark:bg-purple-800/50" />
+                <div className="h-2.5 w-2.5 rounded-sm bg-purple-600 dark:bg-purple-500" />
+                <span>More</span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-base">Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3">
+              <Link to="/study" className="flex flex-col items-center gap-2 rounded-lg border bg-muted/30 p-4 text-sm transition-colors hover:bg-accent">
+                <svg className="h-6 w-6 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span>Study Diary</span>
+              </Link>
+              <Link to="/pomodoro" className="flex flex-col items-center gap-2 rounded-lg border bg-muted/30 p-4 text-sm transition-colors hover:bg-accent">
+                <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Start Pomodoro</span>
+              </Link>
+              <Link to="/assignments" className="flex flex-col items-center gap-2 rounded-lg border bg-muted/30 p-4 text-sm transition-colors hover:bg-accent">
+                <svg className="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>New Assignment</span>
+              </Link>
+              <Link to="/ai" className="flex flex-col items-center gap-2 rounded-lg border bg-muted/30 p-4 text-sm transition-colors hover:bg-accent">
+                <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+                <span>AI Study</span>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
