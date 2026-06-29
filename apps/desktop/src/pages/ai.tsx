@@ -4,6 +4,7 @@ import { ChatWindow } from "@/components/ai/chat-window";
 import { ConversationInfoPanel } from "@/components/ai/conversation-info-panel";
 import { AISettingsDialog } from "@/components/ai/ai-settings-dialog";
 import { useAIStore } from "@/stores/ai-store";
+import { useDashboardStore } from "@/stores/dashboard-store";
 import * as aiService from "@/lib/ai-service";
 
 export default function AIPage() {
@@ -11,7 +12,9 @@ export default function AIPage() {
     setSettings, setSettingsOpen, setInfoPanelOpen, infoPanelOpen, error, setError,
   } = useAIStore();
 
+  const { data: dashboardData } = useDashboardStore();
   const [loading, setLoading] = useState(true);
+  const [showContext, setShowContext] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -19,7 +22,7 @@ export default function AIPage() {
         const s = await aiService.getAISettings();
         setSettings(s);
       } catch {
-        // silently fail; user can access settings
+        // silently fail
       } finally {
         setLoading(false);
       }
@@ -31,10 +34,17 @@ export default function AIPage() {
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between border-b bg-card px-4 py-2">
         <div className="flex items-center gap-3">
-          <h1 className="text-sm font-semibold">AI Assistant</h1>
-          {loading && (
-            <span className="text-xs text-muted-foreground">Loading...</span>
-          )}
+          <h1 className="text-sm font-semibold">AI Workspace</h1>
+          {loading && <span className="text-xs text-muted-foreground">Loading...</span>}
+          <button
+            type="button"
+            onClick={() => setShowContext(!showContext)}
+            className={`rounded-lg px-2.5 py-1 text-xs transition-colors ${
+              showContext ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            Context
+          </button>
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -69,11 +79,7 @@ export default function AIPage() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
           </svg>
           <span className="flex-1">{error}</span>
-          <button
-            type="button"
-            onClick={() => setError(null)}
-            className="rounded p-0.5 hover:bg-destructive/20"
-          >
+          <button type="button" onClick={() => setError(null)} className="rounded p-0.5 hover:bg-destructive/20">
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -85,9 +91,49 @@ export default function AIPage() {
         <div className="w-72 flex-shrink-0">
           <ConversationSidebar />
         </div>
+
+        {showContext && dashboardData && (
+          <div className="w-64 flex-shrink-0 border-r bg-card/50 p-4 overflow-y-auto">
+            <h3 className="mb-3 text-xs font-semibold uppercase text-muted-foreground">Workspace Context</h3>
+            <div className="space-y-3 text-sm">
+              <div>
+                <span className="text-xs text-muted-foreground">Assignments</span>
+                <p className="font-medium">{dashboardData.stats?.total || 0} total</p>
+                <p className="text-xs text-muted-foreground">
+                  {dashboardData.stats?.pending || 0} pending · {dashboardData.stats?.overdue || 0} overdue
+                </p>
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground">Focus</span>
+                <p className="font-medium">{dashboardData.stats?.completion_percentage || 0}% complete</p>
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground">Subjects</span>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {(dashboardData.subjects || []).slice(0, 4).map((s: any) => (
+                    <span
+                      key={s.id}
+                      className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px]"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: s.color || "#6366f1" }} />
+                      {s.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div className="pt-2 border-t">
+                <p className="text-[10px] text-muted-foreground">
+                  Context is auto-injected into prompts. No manual selection needed.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex-1 overflow-hidden">
           <ChatWindow />
         </div>
+
         <ConversationInfoPanel />
       </div>
 

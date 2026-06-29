@@ -1,8 +1,11 @@
 import { Outlet, NavLink } from "react-router-dom";
 import { useUIStore } from "@/stores/ui-store";
 import { useAuthContext } from "@/contexts/auth-context";
+import { useSearchStore } from "@/stores/search-store";
 import { Button } from "@fixly/ui";
 import { cn } from "@fixly/shared-utils";
+import { CommandPalette } from "@/components/command-palette";
+import { ToastContainer } from "@/components/toast-container";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
@@ -11,6 +14,7 @@ const navItems = [
   { to: "/pomodoro", label: "Pomodoro", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" },
   { to: "/documents", label: "Documents", icon: "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" },
   { to: "/email", label: "Email", icon: "M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" },
+  { to: "/planner", label: "Planner", icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" },
   { to: "/study", label: "Study", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
   { to: "/settings", label: "Settings", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" },
 ];
@@ -22,6 +26,7 @@ const bottomNavItems = [
 export function AppLayout() {
   const { sidebarOpen, toggleSidebar } = useUIStore();
   const { user, signOut } = useAuthContext();
+  const { setOpen: setSearchOpen } = useSearchStore();
 
   return (
     <div className="flex h-screen bg-background">
@@ -95,21 +100,47 @@ export function AppLayout() {
       </aside>
 
       <main className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-14 items-center justify-end gap-3 border-b bg-card px-6">
-          <div className="flex items-center gap-3">
+        <header className="flex h-14 items-center justify-end gap-2 border-b bg-card px-4">
+          <button
+            type="button"
+            onClick={() => setSearchOpen(true)}
+            className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent transition-colors mr-auto max-w-xs w-full"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <span>Search anything...</span>
+            <kbd className="ml-auto hidden rounded border bg-muted px-1.5 py-0.5 text-[10px] sm:inline-block">Ctrl+K</kbd>
+          </button>
+
+          <div className="flex items-center gap-1">
+            <NavLink
+              to="/notifications"
+              className="relative rounded-lg p-2 text-muted-foreground hover:bg-accent"
+              title="Notifications"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+              </svg>
+            </NavLink>
+
             <NavLink
               to="/profile"
-              className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent transition-colors"
             >
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
                 {(user?.profile?.full_name || user?.email || "U").charAt(0).toUpperCase()}
               </div>
-              <span className="hidden md:inline truncate max-w-[120px]">
+              <span className="hidden md:inline truncate max-w-[100px]">
                 {user?.profile?.full_name || user?.email}
               </span>
             </NavLink>
+
             <Button variant="ghost" size="sm" onClick={signOut}>
-              Sign out
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+              </svg>
+              <span className="hidden sm:inline ml-1">Sign out</span>
             </Button>
           </div>
         </header>
@@ -118,6 +149,9 @@ export function AppLayout() {
           <Outlet />
         </div>
       </main>
+
+      <CommandPalette />
+      <ToastContainer />
     </div>
   );
 }

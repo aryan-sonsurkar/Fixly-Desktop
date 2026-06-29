@@ -17,7 +17,9 @@ from app.schemas.ai import (
     MessageResponse,
     RegenerateRequest,
 )
+from app.schemas.planner import PlanResponse, RevisionPlanRequest
 from app.services.ai_service import AIService
+from app.services.planner_service import PlannerService
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -162,3 +164,28 @@ async def update_ai_settings(
 async def check_providers() -> dict[str, bool]:
     service = AIService()
     return await service.check_availability()
+
+
+@router.post("/plan/daily", response_model=PlanResponse)
+async def daily_plan(
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    service = PlannerService()
+    return await service.generate_daily_plan(current_user["id"])
+
+
+@router.post("/plan/weekly", response_model=PlanResponse)
+async def weekly_plan(
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    service = PlannerService()
+    return await service.generate_weekly_plan(current_user["id"])
+
+
+@router.post("/plan/revision", response_model=PlanResponse)
+async def revision_plan(
+    body: RevisionPlanRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    service = PlannerService()
+    return await service.generate_revision_plan(current_user["id"], body.subject_ids)

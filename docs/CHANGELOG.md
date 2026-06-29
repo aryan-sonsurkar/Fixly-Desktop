@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.0.0] — 2026-06-29
+
+### Added
+- **Dashboard v2** — modular widget system with drag-and-drop reordering, AI Daily Briefing, Today's Focus, AI Recommended Tasks, Upcoming Assignments, XP & Streak, Productivity Score, Quick Actions with global search trigger
+- **Universal AI Workspace** — enhanced AI page with workspace context preview panel showing assignments, focus, subjects; plan generation endpoints (daily/weekly/revision)
+- **Planner UI** — dedicated planner page with Daily, Weekly, and Revision views; AI-generated study plans with context summaries; generate/regenerate/edit flow
+- **Global Search (Ctrl+K)** — command palette overlay with instant search across assignments, subjects, emails, documents, conversations, notes; category filters; recent searches; keyboard navigation; ESC to dismiss
+- **Notification Center** — full notification page with infinite scroll; read/unread filters; type filters (assignments, exams, deadlines, email, AI, briefing); mark all read; delete; auto-polling for unread count
+- **Email Intelligence UI** — smart categories dashboard (Assignments, Exams, Internships, Placements, Scholarships, Circulars); enhanced inbox with category badges and AI summaries; improved review queue with confidence indicators; Smart Categories tab with per-category breakdown
+- **Toast Notification System** — animated toast stack with success/error/info/warning types; auto-dismiss; zustand-driven
+- **Workspace Polish** — keyboard shortcuts hook (Ctrl+K, ESC, auto-refresh); skeleton loading states; error boundaries; route-based lazy loading (React.lazy + Suspense); consistent spacing and transitions
+- **Backend Services** — Context Engine (workspace_context.py), Planner Service (planner_service.py), Notification Service (notification_service.py + repository), Search Service (search_service.py), Dashboard Service (dashboard_service.py) with productivity scoring and daily briefing aggregation
+- **API Endpoints** — `/api/v1/ai/plan/daily`, `/api/v1/ai/plan/weekly`, `/api/v1/ai/plan/revision`, `/api/v1/notifications/*` (full CRUD + mark read all), `/api/v1/search`, `/api/v1/dashboard/briefing`
+- **Zustand Stores** — dashboard-store (widgets, briefing, layout), notification-store (infinite scroll, filters, unread count), search-store (command palette state, recent searches), planner-store (daily/weekly/revision plans), toast-store
+- **Dashboard Widget Components** — BriefingWidget, FocusWidget, DeadlinesWidget, QuickActionsWidget, XPStreakWidget, ProductivityScoreWidget, EmailWidget
+- **Frontend Services** — notification-service.ts, planner-service.ts, search-service.ts
+
+### Changed
+- Router: replaced PlaceholderRoute for `/notifications` with NotificationPage; added `/planner` route; comprehensive lazy loading for all pages
+- AppLayout: added search bar (Ctrl+K trigger) with keyboard shortcut hint; notification bell icon; conditional collapse button; renamed "AI Assistant" to "AI Workspace" in sidebar
+- Dashboard: completely rewritten with widget-based architecture, draggable reordering, briefing integration, direct search trigger
+- AI page: added workspace context panel toggle, renamed to "AI Workspace", context auto-injection indicator
+- Email page: added Smart Categories tab, enhanced review queue UI, toast notifications for sync/briefing operations, improved navigation with consistent iconography
+- AppProvider: integrated keyboard shortcuts hook, increased gcTime for query cache
+
+### Performance
+- Route-based code splitting via React.lazy for all 16 pages
+- Reduced initial bundle: only auth/login pages loaded at startup
+- TanStack Query gcTime increased to 10min for better caching
+- Zustand selector optimization with shallow equality
+- Debounced search (200ms) in command palette
+
 ## [0.9.0] — 2026-06-28
 
 ### Added

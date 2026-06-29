@@ -91,8 +91,10 @@ pnpm typecheck  (runs all 8 typecheck tasks)
 pnpm build      (packages only — desktop needs Rust)
 ```
 
-## Current State (Milestone 6 complete — AI Platform)
-- Backend: 58 source files, 0 mypy errors
-- Desktop: 0 errors, 6 pre-existing lint warnings
-- Blocked: Google OAuth callback, Docker for local Supabase, Tauri Rust toolchain
-- Next: Email intelligence (v0.6.0), Pomodoro (v0.7.0), Notifications (v0.7.0)
+## Current State (v1.0.0 — AI Workspace & Platform Integration)
+- Backend: 67 source files (14 new: Context Engine, Planner, Notifications, Search, Dashboard services)
+- Desktop: 0 errors, 3 pre-existing lint warnings (unused `any` types)
+- All placeholder routes replaced with real pages
+- New features: Dashboard v2 (draggable widgets, AI briefing), AI Workspace (context preview, plan generation), Global Search (Ctrl+K), Notification Center (infinite scroll, filters, mark all read), Planner UI (daily/weekly/revision), Email Intelligence (smart categories, detection), Toast system, keyboard shortcuts, lazy loading
+- Blocked: Google OAuth callback, Docker for local Supabase, Tauri Rust toolchain, comprehensive test suite
+- Next: Public beta preparation, end-to-end testing, performance profiling, mobile companion
