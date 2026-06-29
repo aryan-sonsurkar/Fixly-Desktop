@@ -51,6 +51,30 @@
     --input: 217.2 33% 17%;
     --ring: 212.7 26% 83%;
   }
+
+  .dark-cyberpunk {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 95%;
+    --card: 240 10% 5.9%;
+    --card-foreground: 0 0% 95%;
+    --primary: 252 87% 67%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 5% 12%;
+    --secondary-foreground: 0 0% 95%;
+    --accent: 252 30% 18%;
+    --accent-foreground: 0 0% 95%;
+    --muted: 240 5% 12%;
+    --muted-foreground: 240 5% 64.9%;
+    --success: 142 76% 50%;
+    --success-foreground: 0 0% 0%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 0%;
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 95%;
+    --border: 240 5% 20%;
+    --input: 240 5% 20%;
+    --ring: 252 87% 67%;
+  }
 }
 
 @layer base {

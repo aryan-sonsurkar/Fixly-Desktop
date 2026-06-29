@@ -20,6 +20,13 @@ class PromptType(str, Enum):
     OCR = "ocr"
     EMAIL = "email"
     PLANNER = "planner"
+    DAILY_MISSION = "daily_mission"
+    PRODUCTIVITY_COACH = "productivity_coach"
+    RESCHEDULER = "rescheduler"
+    RISK_DETECTOR = "risk_detector"
+    WEEKLY_REVIEW = "weekly_review"
+    INSIGHTS = "insights"
+    SMART_COMMANDS = "smart_commands"
 
 
 @dataclass

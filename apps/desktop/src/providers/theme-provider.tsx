@@ -11,14 +11,15 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEYS.THEME);
-    if (stored === "light" || stored === "dark") {
+    if (stored === "light" || stored === "dark" || stored === "dark-cyberpunk") {
       setTheme(stored);
     }
   }, [setTheme]);
 
   useEffect(() => {
     const root = document.documentElement;
-    root.classList.toggle("dark", theme === "dark");
+    root.classList.remove("light", "dark", "dark-cyberpunk");
+    root.classList.add(theme);
     localStorage.setItem(STORAGE_KEYS.THEME, theme);
   }, [theme]);
 

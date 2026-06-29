@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { ConversationSidebar } from "@/components/ai/conversation-sidebar";
 import { ChatWindow } from "@/components/ai/chat-window";
 import { ConversationInfoPanel } from "@/components/ai/conversation-info-panel";
@@ -6,6 +6,7 @@ import { AISettingsDialog } from "@/components/ai/ai-settings-dialog";
 import { useAIStore } from "@/stores/ai-store";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import * as aiService from "@/lib/ai-service";
+import { interpretCommand } from "@/lib/copilot-service";
 
 export default function AIPage() {
   const {
@@ -15,6 +16,10 @@ export default function AIPage() {
   const { data: dashboardData } = useDashboardStore();
   const [loading, setLoading] = useState(true);
   const [showContext, setShowContext] = useState(false);
+  const [copilotMode, setCopilotMode] = useState(false);
+  const [smartInput, setSmartInput] = useState("");
+  const [smartLoading, setSmartLoading] = useState(false);
+  const [smartResult, setSmartResult] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -30,6 +35,20 @@ export default function AIPage() {
     load();
   }, [setSettings]);
 
+  const handleSmartCommand = useCallback(async () => {
+    if (!smartInput.trim()) return;
+    setSmartLoading(true);
+    setSmartResult(null);
+    try {
+      const result = await interpretCommand(smartInput);
+      setSmartResult(result.content);
+    } catch {
+      setSmartResult("Sorry, I couldn't process that command. Please try again.");
+    } finally {
+      setSmartLoading(false);
+    }
+  }, [smartInput]);
+
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between border-b bg-card px-4 py-2">
@@ -44,6 +63,17 @@ export default function AIPage() {
             }`}
           >
             Context
+          </button>
+          <button
+            type="button"
+            onClick={() => setCopilotMode(!copilotMode)}
+            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+              copilotMode
+                ? "bg-violet-500/10 text-violet-500 border border-violet-500/30"
+                : "text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            Copilot
           </button>
         </div>
         <div className="flex items-center gap-1">
@@ -87,6 +117,51 @@ export default function AIPage() {
         </div>
       )}
 
+      {copilotMode && (
+        <div className="border-b border-violet-500/20 bg-violet-500/5 px-4 py-3">
+          <div className="mx-auto max-w-2xl">
+            <div className="mb-2 flex items-center gap-2">
+              <svg className="h-4 w-4 text-violet-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+              </svg>
+              <span className="text-xs font-semibold text-violet-500">Copilot Mode</span>
+              <span className="text-[10px] text-muted-foreground">
+                Type a command or ask anything about your academics
+              </span>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={smartInput}
+                onChange={(e) => setSmartInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSmartCommand();
+                  }
+                }}
+                placeholder='e.g. "Plan my weekend", "What am I forgetting?", "I have football tonight"'
+                className="flex-1 rounded-lg border bg-card px-3 py-2 text-sm outline-none transition-colors focus:border-violet-500/50"
+                disabled={smartLoading}
+              />
+              <button
+                type="button"
+                onClick={handleSmartCommand}
+                disabled={smartLoading || !smartInput.trim()}
+                className="rounded-lg bg-violet-500 px-4 py-2 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {smartLoading ? "Thinking..." : "Send"}
+              </button>
+            </div>
+            {smartResult && (
+              <div className="mt-2 rounded-lg border border-violet-500/20 bg-card/50 p-3 text-xs text-muted-foreground whitespace-pre-wrap">
+                {smartResult}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-1 overflow-hidden">
         <div className="w-72 flex-shrink-0">
           <ConversationSidebar />
@@ -100,7 +175,7 @@ export default function AIPage() {
                 <span className="text-xs text-muted-foreground">Assignments</span>
                 <p className="font-medium">{dashboardData.stats?.total || 0} total</p>
                 <p className="text-xs text-muted-foreground">
-                  {dashboardData.stats?.pending || 0} pending · {dashboardData.stats?.overdue || 0} overdue
+                  {dashboardData.stats?.pending || 0} pending &middot; {dashboardData.stats?.overdue || 0} overdue
                 </p>
               </div>
               <div>
