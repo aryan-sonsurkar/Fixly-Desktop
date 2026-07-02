@@ -3,6 +3,7 @@ import { createMemoryRouter, RouterProvider as ReactRouterProvider } from "react
 import { Skeleton } from "@fixly/ui";
 import { ProtectedRoute } from "@/components/protected-route";
 import { AppLayout } from "@/components/app-layout";
+import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 const LoginPage = lazy(() => import("@/pages/login").then((m) => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import("@/pages/register").then((m) => ({ default: m.RegisterPage })));
@@ -22,6 +23,26 @@ const ProfilePage = lazy(() => import("@/pages/profile").then((m) => ({ default:
 const NotificationPage = lazy(() => import("@/pages/notifications").then((m) => ({ default: m.NotificationPage })));
 const PlannerPage = lazy(() => import("@/pages/planner").then((m) => ({ default: m.PlannerPage })));
 
+function NotFoundPage() {
+  return (
+    <div className="flex h-screen items-center justify-center bg-background p-6">
+      <div className="text-center">
+        <h1 className="text-6xl font-bold text-muted-foreground">404</h1>
+        <p className="mt-2 text-lg text-muted-foreground">Page not found</p>
+        <a
+          href="/dashboard"
+          className="mt-4 inline-flex items-center gap-2 text-sm text-primary hover:underline"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Back to dashboard
+        </a>
+      </div>
+    </div>
+  );
+}
+
 function LazyLoad({ children }: { children: React.ReactNode }) {
   return (
     <Suspense fallback={<div className="p-6 space-y-4"><Skeleton className="h-8 w-48" /><Skeleton className="h-4 w-64" /><div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}</div></div>}>
@@ -31,6 +52,7 @@ function LazyLoad({ children }: { children: React.ReactNode }) {
 }
 
 function ProtectedLayout() {
+  useKeyboardShortcuts();
   return (
     <ProtectedRoute>
       <AppLayout />
@@ -59,12 +81,12 @@ const router = createMemoryRouter(
         { path: "email", element: <LazyLoad><EmailPage /></LazyLoad> },
         { path: "planner", element: <LazyLoad><PlannerPage /></LazyLoad> },
         { path: "study", element: <LazyLoad><StudyPage /></LazyLoad> },
-        { path: "analytics", element: <LazyLoad><StudyPage /></LazyLoad> },
         { path: "settings", element: <LazyLoad><SettingsPage /></LazyLoad> },
         { path: "subjects", element: <LazyLoad><SubjectsPage /></LazyLoad> },
         { path: "profile", element: <LazyLoad><ProfilePage /></LazyLoad> },
       ],
     },
+    { path: "*", element: <NotFoundPage /> },
   ],
   { initialEntries: ["/login"] },
 );

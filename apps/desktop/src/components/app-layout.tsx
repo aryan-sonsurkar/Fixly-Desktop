@@ -31,24 +31,32 @@ export function AppLayout() {
 
   return (
     <div className="flex h-screen bg-background">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-foreground focus:shadow-lg focus:ring-2 focus:ring-primary"
+      >
+        Skip to main content
+      </a>
       <aside
         className={cn(
           "flex flex-col border-r bg-card transition-all duration-300",
           sidebarOpen ? "w-56" : "w-16",
         )}
+        aria-label="Main navigation"
       >
         <div className="flex h-14 items-center gap-2 border-b px-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground" aria-hidden="true">
             F
           </div>
           {sidebarOpen && <span className="text-sm font-semibold">Fixly</span>}
         </div>
 
-        <nav className="flex-1 space-y-1 overflow-y-auto p-2">
+        <nav className="flex-1 space-y-1 overflow-y-auto p-2" aria-label="Pages">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
+              aria-label={sidebarOpen ? undefined : item.label}
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
@@ -58,7 +66,7 @@ export function AppLayout() {
                 )
               }
             >
-              <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
               </svg>
               {sidebarOpen && <span className="truncate">{item.label}</span>}
@@ -71,6 +79,7 @@ export function AppLayout() {
             <NavLink
               key={item.to}
               to={item.to}
+              aria-label={sidebarOpen ? undefined : item.label}
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
@@ -80,7 +89,7 @@ export function AppLayout() {
                 )
               }
             >
-              <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
               </svg>
               {sidebarOpen && <span className="truncate">{item.label}</span>}
@@ -90,9 +99,10 @@ export function AppLayout() {
           <button
             type="button"
             onClick={toggleSidebar}
+            aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
           >
-            <svg className={cn("h-5 w-5 shrink-0 transition-transform", sidebarOpen && "rotate-180")} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <svg className={cn("h-5 w-5 shrink-0 transition-transform", sidebarOpen && "rotate-180")} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
             </svg>
             {sidebarOpen && <span className="truncate">Collapse</span>}
@@ -100,7 +110,7 @@ export function AppLayout() {
         </div>
       </aside>
 
-      <main className="flex flex-1 flex-col overflow-hidden">
+      <main id="main-content" className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 items-center justify-end gap-2 border-b bg-card px-4">
           <button
             type="button"

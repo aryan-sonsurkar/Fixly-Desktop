@@ -40,11 +40,14 @@ export function RegisterPage() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<RegisterForm>({
     resolver: zodResolver(registerSchema),
     defaultValues: { name: "", email: "", password: "", confirmPassword: "" },
   });
+
+  const watchedPassword = watch("password");
 
   const onSubmit = async (data: RegisterForm) => {
     setError(null);
@@ -154,9 +157,7 @@ export function RegisterPage() {
               <div
                 key={level}
                 className={`h-1 flex-1 rounded-full transition-colors ${
-                  level <= passwordStrength(
-                    (document.getElementById("password") as HTMLInputElement)?.value || ""
-                  )
+                    level <= passwordStrength(watchedPassword || "")
                     ? level <= 2
                       ? "bg-destructive"
                       : level <= 3

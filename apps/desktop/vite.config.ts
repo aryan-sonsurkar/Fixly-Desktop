@@ -17,4 +17,18 @@ export default defineConfig({
       ignored: ["**/src-tauri/**"],
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+          motion: ["framer-motion"],
+          query: ["@tanstack/react-query"],
+          forms: ["react-hook-form", "@hookform/resolvers", "zod"],
+          ui: ["@fixly/ui", "@fixly/shared-types", "@fixly/shared-utils"],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 300,
+  },
 });

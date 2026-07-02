@@ -8,6 +8,7 @@ import { generateDailyPlan } from "@/lib/planner-service";
 import { getDailyMission, assessRisk } from "@/lib/copilot-service";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useSearchStore } from "@/stores/search-store";
+import { createLogger } from "@/lib/logger";
 import { BriefingWidget } from "@/components/dashboard/briefing-widget";
 import { FocusWidget } from "@/components/dashboard/focus-widget";
 import { DeadlinesWidget } from "@/components/dashboard/deadlines-widget";
@@ -68,8 +69,8 @@ export function DashboardPage() {
     try {
       const plan = await generateDailyPlan();
       setBriefing(plan);
-    } catch {
-      // silently fail
+    } catch (err) {
+      createLogger("dashboard").error("Failed to generate briefing", err);
     } finally {
       setBriefingLoading(false);
     }
@@ -80,8 +81,8 @@ export function DashboardPage() {
     try {
       const result = await getDailyMission();
       setMission(result);
-    } catch {
-      // silently fail
+    } catch (err) {
+      createLogger("dashboard").error("Failed to generate mission", err);
     } finally {
       setMissionLoading(false);
     }
@@ -92,8 +93,8 @@ export function DashboardPage() {
     try {
       const result = await assessRisk();
       setRisk(result);
-    } catch {
-      // silently fail
+    } catch (err) {
+      createLogger("dashboard").error("Failed to assess risk", err);
     } finally {
       setRiskLoading(false);
     }
