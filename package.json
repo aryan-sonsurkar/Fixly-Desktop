@@ -1,7 +1,7 @@
 {
   "name": "fixly-monorepo",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Fixly - AI-powered academic operating system",
   "scripts": {
     "dev": "turbo run dev --parallel",

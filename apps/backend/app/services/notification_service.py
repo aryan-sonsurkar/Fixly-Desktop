@@ -16,7 +16,7 @@ class NotificationService:
     def __init__(self) -> None:
         self.repository = NotificationRepository()
 
-    async def notify(self, user_id: str, ntype: str, title: str, message: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def notify(self, user_id: str, ntype: str, title: str, message: str, data: dict[str, Any] | None = None) -> dict[str, Any]:  # noqa: E501
         if ntype not in NOTIFICATION_TYPES:
             raise ValueError(f"Invalid notification type: {ntype}")
         return await self.repository.create(user_id, {

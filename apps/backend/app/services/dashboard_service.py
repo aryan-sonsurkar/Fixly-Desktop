@@ -50,7 +50,7 @@ class DashboardService:
         today_xp = (today_session or {}).get("study_points", 0)
 
         try:
-            recent_docs = await self.document_repo.list_documents(user_id, limit=5)
+            recent_docs = await self.document_repo.get_recent_documents(user_id, limit=5)
         except Exception:
             recent_docs = []
 
@@ -91,7 +91,7 @@ class DashboardService:
                 "weekly_cycles": pomodoro_data.get("weekly_cycles", 0),
             },
             "documents": {
-                "recent": [{"id": d.get("id"), "name": d.get("original_name", "Untitled"), "type": d.get("doc_type", "")} for d in recent_docs],
+                "recent": [{"id": d.get("id"), "name": d.get("original_name", "Untitled"), "type": d.get("doc_type", "")} for d in recent_docs],  # noqa: E501
             },
             "productivity_score": productivity_score,
             "unread_notifications": unread_notif_count,

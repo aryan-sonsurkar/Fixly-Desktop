@@ -17,7 +17,7 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
 @router.get("", response_model=NotificationListResponse)
 async def list_notifications(
     unread_only: bool = Query(False, alias="unread_only"),
-    ntype: str | None = Query(None, alias="type", pattern=r"^(assignment_reminder|deadline_alert|exam_reminder|pomodoro_finished|daily_briefing|email_sync|ocr_completed|document_processed|ai_recommendation)?$"),
+    ntype: str | None = Query(None, alias="type", pattern=r"^(assignment_reminder|deadline_alert|exam_reminder|pomodoro_finished|daily_briefing|email_sync|ocr_completed|document_processed|ai_recommendation)?$"),  # noqa: E501
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     current_user: dict[str, Any] = Depends(get_current_user),

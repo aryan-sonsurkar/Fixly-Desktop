@@ -52,10 +52,11 @@ export function RiskAlertsWidget({ alerts, loading, onRefresh }: RiskAlertsWidge
               warning: "text-amber-500",
               info: "text-blue-500",
             };
+            const iconColor = icons[alert.type as keyof typeof icons] || "text-muted-foreground";
             return (
               <div key={i} className={`rounded-lg border p-3 ${colors}`}>
                 <div className="flex items-start gap-2">
-                  <svg className={`mt-0.5 h-4 w-4 flex-shrink-0 ${icons[alert.type] || "text-muted-foreground"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className={`mt-0.5 h-4 w-4 flex-shrink-0 ${iconColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                   </svg>
                   <div className="flex-1 min-w-0">

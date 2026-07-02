@@ -43,7 +43,7 @@ class NotificationRepository:
             .update({"is_read": True, "read_at": now})
             .eq("id", notification_id)
             .eq("user_id", user_id)
-            .single()
+            .single()  # type: ignore[attr-defined]
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
@@ -71,7 +71,7 @@ class NotificationRepository:
         client = get_supabase()
         response = (
             client.table("notifications")
-            .select("id", count="exact")
+            .select("id", count="exact")  # type: ignore[arg-type]
             .eq("user_id", user_id)
             .eq("is_read", False)
             .execute()

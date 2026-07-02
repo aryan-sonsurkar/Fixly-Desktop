@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.core.logging import get_logger
@@ -128,7 +128,7 @@ class WorkspaceContext:
         overdue = []
         urgent = []
         for a in pending:
-            entry = {"title": a.get("title", ""), "due": str(a.get("due_date", "") or "")[:10], "priority": a.get("priority", "medium"), "status": a.get("status", "")}
+            entry = {"title": a.get("title", ""), "due": str(a.get("due_date", "") or "")[:10], "priority": a.get("priority", "medium"), "status": a.get("status", "")}  # noqa: E501
             deadlines.append(entry)
             tokens += 30
             if entry["priority"] in ("high", "urgent"):
@@ -148,7 +148,8 @@ class WorkspaceContext:
     async def _get_pomodoro_summary(self, user_id: str) -> dict[str, Any]:
         try:
             today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-            sessions = await self.pomodoro_repo.get_sessions(user_id, days=7)
+            week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).strftime("%Y-%m-%d")
+            sessions = await self.pomodoro_repo.get_sessions_range(user_id, week_ago, today)
             total_cycles = sum(s.get("cycles_completed", 0) for s in sessions)
             today_sessions = [s for s in sessions if str(s.get("date", "")) == today]
             today_focus = sum(s.get("total_focus_minutes", 0) for s in today_sessions)
@@ -196,7 +197,7 @@ class WorkspaceContext:
             return {
                 "unread_count": len(unread_notifs),
                 "recent": [
-                    {"title": n.get("title", ""), "type": n.get("type", ""), "created_at": str(n.get("created_at", ""))[:10]}
+                    {"title": n.get("title", ""), "type": n.get("type", ""), "created_at": str(n.get("created_at", ""))[:10]}  # noqa: E501
                     for n in unread_notifs[:5]
                 ],
                 "_tokens": 30,
@@ -241,7 +242,7 @@ class WorkspaceContext:
         try:
             convs = await self.ai_repo.list_conversations(user_id)
             return [
-                {"title": c.get("title", ""), "message_count": c.get("message_count", 0), "updated_at": str(c.get("updated_at", ""))[:10]}
+                {"title": c.get("title", ""), "message_count": c.get("message_count", 0), "updated_at": str(c.get("updated_at", ""))[:10]}  # noqa: E501
                 for c in convs[:10]
             ]
         except Exception as e:
@@ -252,7 +253,7 @@ class WorkspaceContext:
         try:
             year = datetime.now(timezone.utc).year
             days = await self.study_repo.get_calendar_days(user_id, year)
-            entries = [{"date": d.get("date", ""), "points": d.get("study_points", 0), "minutes": d.get("total_study_minutes", 0)} for d in days[-90:]]
+            entries = [{"date": d.get("date", ""), "points": d.get("study_points", 0), "minutes": d.get("total_study_minutes", 0)} for d in days[-90:]]  # noqa: E501
             return {"entries": entries, "count": len(entries), "_tokens": len(entries) * 3 + 20}
         except Exception as e:
             logger.warning("Failed to get heatmap: %s", e)
@@ -273,7 +274,7 @@ class WorkspaceContext:
 
     async def _get_recent_documents(self, user_id: str) -> dict[str, Any]:
         try:
-            docs = await self.document_repo.list_documents(user_id, limit=5)
+            docs = await self.document_repo.get_recent_documents(user_id, limit=5)
             names = [d.get("original_name", "Untitled") for d in docs]
             return {"recent": names, "count": len(names), "_tokens": len(names) * 15}
         except Exception as e:

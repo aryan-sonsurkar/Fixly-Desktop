@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Windows Installer
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm --filter @fixly/shared-types build && pnpm --filter @fixly/shared-utils build && pnpm --filter @fixly/ui build
+
+      - name: Build Tauri desktop (NSIS + MSI)
+        run: pnpm --filter @fixly/desktop build
+        env:
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+
+      - name: Upload NSIS installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fixly-Setup-x64
+          path: apps/desktop/src-tauri/target/release/bundle/nsis/
+          compression-level: 0
+
+      - name: Upload MSI installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fixly-MSI-x64
+          path: apps/desktop/src-tauri/target/release/bundle/msi/
+          compression-level: 0
+
+      - name: Upload portable EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fixly-Portable-x64
+          path: apps/desktop/src-tauri/target/release/fixly-desktop.exe
+          compression-level: 0
+
+  release:
+    name: Create GitHub Release
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download NSIS installer
+        uses: actions/download-artifact@v4
+        with:
+          name: Fixly-Setup-x64
+          path: dist/nsis
+
+      - name: Download MSI installer
+        uses: actions/download-artifact@v4
+        with:
+          name: Fixly-MSI-x64
+          path: dist/msi
+
+      - name: Download portable EXE
+        uses: actions/download-artifact@v4
+        with:
+          name: Fixly-Portable-x64
+          path: dist/portable
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          {
+            echo 'notes<<EOF'
+            echo "## Fixly $TAG"
+            echo ""
+            echo "### Downloads"
+            echo ""
+            echo "- [NSIS Installer (x64)](./Fixly-Setup-x64/)"
+            echo "- [MSI Installer (x64)](./Fixly-MSI-x64/)"
+            echo "- [Portable EXE (x64)](./Fixly-Portable-x64/)"
+            echo ""
+            echo "### Checksums"
+            sha256sum dist/nsis/*.exe dist/msi/*.msi dist/portable/fixly-desktop.exe 2>/dev/null || sha256sum dist/nsis/* dist/msi/*.msi dist/portable/fixly-desktop.exe 2>/dev/null || echo "Checksums unavailable"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.notes.outputs.tag }}
+          name: Fixly ${{ steps.notes.outputs.tag }}
+          body: ${{ steps.notes.outputs.notes }}
+          draft: true
+          prerelease: false
+          files: |
+            dist/nsis/*.exe
+            dist/msi/*.msi
+            dist/portable/fixly-desktop.exe

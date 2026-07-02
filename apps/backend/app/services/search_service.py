@@ -106,7 +106,7 @@ class SearchService:
 
     async def _search_documents(self, user_id: str, q: str, limit: int) -> list[dict[str, Any]]:
         try:
-            docs = await self.document_repo.list_documents(user_id, limit=50)
+            docs = await self.document_repo.get_recent_documents(user_id, limit=50)
             matches = []
             for d in docs:
                 name = (d.get("original_name", "") or "").lower()

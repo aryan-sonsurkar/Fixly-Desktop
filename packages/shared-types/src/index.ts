@@ -2,7 +2,7 @@ export type Status = "pending" | "in_progress" | "completed" | "cancelled";
 
 export type Priority = "low" | "medium" | "high" | "urgent";
 
-export type Theme = "dark" | "light" | "system";
+export type Theme = "dark" | "light" | "system" | "dark-cyberpunk";
 
 export type NotificationType =
   | "assignment_reminder"

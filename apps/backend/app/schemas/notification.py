@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 class NotificationCreate(BaseModel):
-    type: str = Field(..., pattern=r"^(assignment_reminder|deadline_alert|exam_reminder|pomodoro_finished|daily_briefing|email_sync|ocr_completed|document_processed|ai_recommendation)$")
+    type: str = Field(..., pattern=r"^(assignment_reminder|deadline_alert|exam_reminder|pomodoro_finished|daily_briefing|email_sync|ocr_completed|document_processed|ai_recommendation)$")  # noqa: E501
     title: str = Field(min_length=1, max_length=200)
     message: str = Field(min_length=1, max_length=2000)
     metadata: dict[str, Any] = Field(default_factory=dict)
