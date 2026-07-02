@@ -2,7 +2,7 @@
 name = "fixly-backend"
 version = "0.1.0"
 description = "Fixly - AI-powered academic operating system backend"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.34.0",
@@ -26,7 +26,7 @@ dev = [
 
 [tool.ruff]
 line-length = 120
-target-version = "py312"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
@@ -40,13 +40,17 @@ select = ["E", "F", "I", "N", "W"]
 quote-style = "double"
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.11"
 strict = true
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["tests.test_health", "tests.test_prompts"]
 ignore_errors = true
+
+[build-system]
+requires = ["setuptools>=75.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

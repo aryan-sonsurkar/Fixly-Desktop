@@ -33,6 +33,17 @@ CREATE TABLE IF NOT EXISTS study_sessions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Migrate old study_sessions schema if it exists (created by initial_schema)
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'study_sessions' AND table_schema = 'public') THEN
+    ALTER TABLE study_sessions ADD COLUMN IF NOT EXISTS activity_type TEXT;
+    ALTER TABLE study_sessions ADD COLUMN IF NOT EXISTS points INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE study_sessions ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}';
+    ALTER TABLE study_sessions ADD COLUMN IF NOT EXISTS session_date DATE NOT NULL DEFAULT CURRENT_DATE;
+    ALTER TABLE study_sessions ALTER COLUMN user_id SET NOT NULL;
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS study_points_config (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   activity_type TEXT NOT NULL UNIQUE,
