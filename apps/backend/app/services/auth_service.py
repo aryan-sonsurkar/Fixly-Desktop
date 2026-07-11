@@ -24,12 +24,14 @@ class AuthService:
                 "refresh_token": session.get("refresh_token", ""),
                 "user": user,
             }
+        except AuthenticationError:
+            raise
         except Exception as e:
             error_msg = str(e).lower()
             if "already exists" in error_msg or "already registered" in error_msg:
                 raise AuthenticationError("An account with this email already exists.")
-            logger.error("Sign up failed", extra={"error": str(e), "email": email})
-            raise AuthenticationError("Sign up failed. Please try again.")
+            logger.error("Sign up failed: %s", e)
+            raise AuthenticationError(f"Sign up failed: {e}")
 
     async def sign_in(self, email: str, password: str) -> dict[str, Any]:
         try:
@@ -41,12 +43,14 @@ class AuthService:
                 "refresh_token": session.get("refresh_token", ""),
                 "user": user,
             }
+        except AuthenticationError:
+            raise
         except Exception as e:
             error_msg = str(e).lower()
             if "email not confirmed" in error_msg:
                 raise AuthenticationError("Please verify your email before signing in.")
-            logger.error("Sign in failed", extra={"error": str(e), "email": email})
-            raise AuthenticationError("Invalid email or password.")
+            logger.error("Sign in failed: %s", e)
+            raise AuthenticationError(f"Sign in failed: {e}")
 
     async def sign_out(self, user_id: str) -> None:
         try:
@@ -64,9 +68,11 @@ class AuthService:
                 "refresh_token": session.get("refresh_token", ""),
                 "user": user,
             }
+        except AuthenticationError:
+            raise
         except Exception as e:
-            logger.error("Token refresh failed", extra={"error": str(e)})
-            raise AuthenticationError("Session expired. Please sign in again.")
+            logger.error("Token refresh failed: %s", e)
+            raise AuthenticationError(f"Session expired: {e}")
 
     async def validate_token(self, token: str) -> dict[str, Any]:
         payload = await verify_token(token)
@@ -114,9 +120,11 @@ class AuthService:
     async def get_google_auth_url(self) -> str:
         try:
             return self.repository.get_google_auth_url("fixly://auth/callback")
+        except AuthenticationError:
+            raise
         except Exception as e:
-            logger.error("Failed to get Google auth URL", extra={"error": str(e)})
-            raise AuthenticationError("Could not initiate Google authentication.")
+            logger.error("Failed to get Google auth URL: %s", e)
+            raise AuthenticationError(f"Google auth unavailable: {e}")
 
     async def handle_google_callback(self, code: str, redirect_uri: str) -> dict[str, Any]:
         try:
@@ -128,6 +136,8 @@ class AuthService:
                 "refresh_token": session.get("refresh_token", ""),
                 "user": user,
             }
+        except AuthenticationError:
+            raise
         except Exception as e:
-            logger.error("Google auth callback failed", extra={"error": str(e)})
-            raise AuthenticationError("Google authentication failed.")
+            logger.error("Google auth callback failed: %s", e)
+            raise AuthenticationError(f"Google authentication failed: {e}")

@@ -64,7 +64,9 @@ apiClient.interceptors.response.use(
       const { status, config, data } = error.response;
       logger.error(`API Error ${status}:`, data);
 
-      if (status === 401 && !config._retry) {
+      const isAuthEndpoint = typeof config.url === "string" && /\/auth\/(signup|signin|forgot-password|reset-password|resend-verification|refresh|google)/.test(config.url);
+
+      if (status === 401 && !config._retry && !isAuthEndpoint) {
         config._retry = true;
 
         if (isRefreshing) {
