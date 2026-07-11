@@ -3,6 +3,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button, Skeleton } from "@fixly/ui";
 import { useNotificationStore } from "@/stores/notification-store";
 import { getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead, deleteNotification } from "@/lib/notification-service";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("notifications-page");
 
 const typeIcons: Record<string, string> = {
   assignment_reminder: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
@@ -72,8 +75,8 @@ export function NotificationPage() {
       }
       setTotal(data.total);
       setPage(pageNum);
-    } catch {
-      // silently fail
+    } catch (err) {
+      logger.error("Failed to fetch notifications", err);
     } finally {
       setLoading(false);
     }
@@ -81,7 +84,7 @@ export function NotificationPage() {
 
   useEffect(() => {
     fetchNotifications(1);
-    getUnreadCount().then(setUnreadCount).catch(() => {});
+    getUnreadCount().then(setUnreadCount).catch((err) => logger.error("Failed to get unread count", err));
   }, [filterType, filterUnread]);
 
   useEffect(() => {
@@ -106,8 +109,8 @@ export function NotificationPage() {
       await markNotificationRead(id);
       markRead(id);
       setUnreadCount(Math.max(0, unreadCount - 1));
-    } catch {
-      // silently fail
+    } catch (err) {
+      logger.error("Failed to mark notification read", err);
     }
   };
 
@@ -116,8 +119,8 @@ export function NotificationPage() {
       await markAllNotificationsRead();
       markAllInStore();
       setUnreadCount(0);
-    } catch {
-      // silently fail
+    } catch (err) {
+      logger.error("Failed to mark all notifications read", err);
     }
   };
 
@@ -126,8 +129,8 @@ export function NotificationPage() {
       await deleteNotification(id);
       removeNotification(id);
       setTotal(Math.max(0, total - 1));
-    } catch {
-      // silently fail
+    } catch (err) {
+      logger.error("Failed to delete notification", err);
     }
   };
 
@@ -259,9 +262,9 @@ function NotificationItem({
             type="button"
             onClick={() => onMarkRead(n.id)}
             className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-            title="Mark read"
+            aria-label={`Mark "${n.title}" as read`}
           >
-            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
             </svg>
           </button>
@@ -270,9 +273,9 @@ function NotificationItem({
           type="button"
           onClick={() => onDelete(n.id)}
           className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-          title="Delete"
+          aria-label={`Delete "${n.title}"`}
         >
-          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         </button>

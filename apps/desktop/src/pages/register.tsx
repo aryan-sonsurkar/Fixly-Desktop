@@ -55,8 +55,8 @@ export function RegisterPage() {
       await signUp(data.email, data.password, data.name);
       navigate("/verify-email", { replace: true });
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Registration failed. Please try again.";
+      const axiosError = err as { response?: { data?: { error?: string } } };
+      const message = axiosError?.response?.data?.error || (err instanceof Error ? err.message : "Registration failed. Please try again.");
       setError(message);
       logger.error("Registration failed", err);
     }

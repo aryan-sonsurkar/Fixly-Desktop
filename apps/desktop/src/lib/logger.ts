@@ -1,5 +1,7 @@
 type LogLevel = "debug" | "info" | "warn" | "error";
 
+declare const __TAURI__: unknown;
+
 class Logger {
   private context: string;
 
@@ -12,6 +14,18 @@ class Logger {
     const prefix = `[${timestamp}] [${level.toUpperCase()}] [${this.context}]`;
     const method = level === "error" ? "error" : level === "warn" ? "warn" : "log";
     console[method](prefix, message, ...args);
+
+    if (level === "error" && typeof __TAURI__ === "undefined") {
+      try {
+        import("@/stores/analytics-store").then(({ useAnalyticsStore }) => {
+          useAnalyticsStore.getState().trackEvent("error", {
+            context: this.context,
+            message,
+            args: args.length > 0 ? JSON.stringify(args).substring(0, 200) : undefined,
+          });
+        });
+      } catch { /* analytics unavailable */ }
+    }
   }
 
   debug(message: string, ...args: unknown[]) {

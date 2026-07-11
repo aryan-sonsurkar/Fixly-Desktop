@@ -12,6 +12,9 @@ import {
   getStudyStatistics,
   updateDay,
 } from "@/lib/study-service";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("study-page");
 
 export function StudyPage() {
   const {
@@ -62,7 +65,7 @@ export function StudyPage() {
     try {
       await updateDay(selectedDate, data);
     } catch (err) {
-      console.error("Failed to save diary:", err);
+      logger.error("Failed to save diary", err);
     }
   }, [selectedDate]);
 

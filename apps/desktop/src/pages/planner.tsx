@@ -3,6 +3,9 @@ import { motion } from "framer-motion";
 import { Button, Skeleton } from "@fixly/ui";
 import { usePlannerStore } from "@/stores/planner-store";
 import { generateDailyPlan, generateWeeklyPlan, generateRevisionPlan } from "@/lib/planner-service";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("planner-page");
 
 export function PlannerPage() {
   const {
@@ -16,13 +19,13 @@ export function PlannerPage() {
   const generate = async () => {
     if (activeView === "daily") {
       setLoadingDaily(true);
-      try { const p = await generateDailyPlan(); setDailyPlan(p); } catch { /* silently fail */ } finally { setLoadingDaily(false); }
+      try { const p = await generateDailyPlan(); setDailyPlan(p); } catch (err) { logger.error("Failed to generate daily plan", err); } finally { setLoadingDaily(false); }
     } else if (activeView === "weekly") {
       setLoadingWeekly(true);
-      try { const p = await generateWeeklyPlan(); setWeeklyPlan(p); } catch { /* silently fail */ } finally { setLoadingWeekly(false); }
+      try { const p = await generateWeeklyPlan(); setWeeklyPlan(p); } catch (err) { logger.error("Failed to generate weekly plan", err); } finally { setLoadingWeekly(false); }
     } else {
       setLoadingRevision(true);
-      try { const p = await generateRevisionPlan(); setRevisionPlan(p); } catch { /* silently fail */ } finally { setLoadingRevision(false); }
+      try { const p = await generateRevisionPlan(); setRevisionPlan(p); } catch (err) { logger.error("Failed to generate revision plan", err); } finally { setLoadingRevision(false); }
     }
   };
 

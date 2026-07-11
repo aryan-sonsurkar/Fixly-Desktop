@@ -14,6 +14,9 @@ import {
   getPomodoroAnalytics,
   completePomodoroSession,
 } from "@/lib/pomodoro-service";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("pomodoro-page");
 
 export function PomodoroPage() {
   const {
@@ -59,7 +62,7 @@ export function PomodoroPage() {
       const focusSeconds = (updated as { focus_duration: number }).focus_duration * 60;
       restartFromSettings(focusSeconds);
     } catch (err) {
-      console.error("Failed to save settings:", err);
+      logger.error("Failed to save settings", err);
     }
   };
 
@@ -84,7 +87,7 @@ export function PomodoroPage() {
         subject_id: null,
       });
     } catch (err) {
-      console.error("Failed to save session:", err);
+      logger.error("Failed to save session", err);
     }
   };
 
