@@ -23,3 +23,4 @@ class SubjectResponse(BaseModel):
     icon: str | None = None
     credits: int | None = None
     created_at: str
+    updated_at: str

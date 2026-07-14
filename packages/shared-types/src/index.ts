@@ -69,6 +69,7 @@ export interface Subject {
   icon: string | null;
   credits: number | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface Profile {
