@@ -49,6 +49,9 @@
         "language": "en-US",
         "template": "fragment"
       }
+    },
+    "deepLink": {
+      "schemes": ["fixly"]
     }
   }
 }

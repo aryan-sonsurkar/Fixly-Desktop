@@ -1,5 +1,6 @@
 from typing import Any
 
+from app.config import settings
 from app.core.exceptions import AuthenticationError
 from app.core.jwt import verify_token
 from app.core.logging import get_logger
@@ -19,6 +20,15 @@ class AuthService:
             result = await self.repository.sign_up(email, password, full_name)
             session = result.get("session") or {}
             user = result.get("user") or {}
+
+            # In development, if no session (email not confirmed), create a temporary session
+            # by signing in immediately. This allows dev without email verification.
+            if not session.get("access_token") and settings.environment == "development":
+                logger.info("Development mode: email not confirmed, attempting immediate sign in")
+                sign_in_result = await self.repository.sign_in(email, password)
+                session = sign_in_result.get("session") or {}
+                user = sign_in_result.get("user") or {}
+
             return {
                 "access_token": session.get("access_token", ""),
                 "refresh_token": session.get("refresh_token", ""),
@@ -48,6 +58,20 @@ class AuthService:
         except Exception as e:
             error_msg = str(e).lower()
             if "email not confirmed" in error_msg:
+                if settings.environment == "development":
+                    logger.info("Development mode: email not confirmed, attempting sign up flow")
+                    try:
+                        # Try to sign up (which will auto-confirm in dev)
+                        sign_up_result = await self.repository.sign_up(email, password)
+                        session = sign_up_result.get("session") or {}
+                        user = sign_up_result.get("user") or {}
+                        return {
+                            "access_token": session.get("access_token", ""),
+                            "refresh_token": session.get("refresh_token", ""),
+                            "user": user,
+                        }
+                    except Exception:
+                        pass
                 raise AuthenticationError("Please verify your email before signing in.")
             logger.error("Sign in failed: %s", e)
             raise AuthenticationError(f"Sign in failed: {e}")

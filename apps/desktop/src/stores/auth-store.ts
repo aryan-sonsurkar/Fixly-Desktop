@@ -17,7 +17,7 @@ interface AuthState {
   setUser: (user: AuthUser) => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+const useAuthStore = create<AuthState>((set) => ({
   token: null,
   user: null,
   isAuthenticated: false,
@@ -26,4 +26,5 @@ export const useAuthStore = create<AuthState>((set) => ({
   setUser: (user) => set({ user }),
 }));
 
+export { useAuthStore };
 export type { AuthUser };

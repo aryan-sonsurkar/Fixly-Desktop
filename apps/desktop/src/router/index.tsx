@@ -9,6 +9,7 @@ const LoginPage = lazy(() => import("@/pages/login").then((m) => ({ default: m.L
 const RegisterPage = lazy(() => import("@/pages/register").then((m) => ({ default: m.RegisterPage })));
 const ForgotPasswordPage = lazy(() => import("@/pages/forgot-password").then((m) => ({ default: m.ForgotPasswordPage })));
 const VerifyEmailPage = lazy(() => import("@/pages/verify-email").then((m) => ({ default: m.VerifyEmailPage })));
+const AuthCallbackPage = lazy(() => import("@/pages/auth-callback").then((m) => ({ default: m.AuthCallbackPage })));
 const OnboardingPage = lazy(() => import("@/pages/onboarding").then((m) => ({ default: m.OnboardingPage })));
 const DashboardPage = lazy(() => import("@/pages/dashboard").then((m) => ({ default: m.DashboardPage })));
 const AssignmentsPage = lazy(() => import("@/pages/assignments").then((m) => ({ default: m.AssignmentsPage })));
@@ -67,6 +68,7 @@ const router = createMemoryRouter(
     { path: "/register", element: <LazyLoad><RegisterPage /></LazyLoad> },
     { path: "/forgot-password", element: <LazyLoad><ForgotPasswordPage /></LazyLoad> },
     { path: "/verify-email", element: <LazyLoad><VerifyEmailPage /></LazyLoad> },
+    { path: "/auth/callback", element: <LazyLoad><AuthCallbackPage /></LazyLoad> },
     { path: "/onboarding", element: <LazyLoad><OnboardingPage /></LazyLoad> },
     {
       path: "/",

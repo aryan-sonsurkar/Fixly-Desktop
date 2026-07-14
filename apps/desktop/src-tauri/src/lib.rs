@@ -12,6 +12,20 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![get_backend_port])
         .setup(|app| {
             let _window = app.get_webview_window("main").unwrap();
+            
+            // Deep link handler for custom URL schemes (e.g., fixly://auth/callback)
+            #[cfg(desktop)]
+            {
+                let app_handle = app.handle().clone();
+                app.set_uri_scheme_protocol_handler("fixly", move |_app, uri| {
+                    log::info!("Deep link received: {}", uri);
+                    // Emit event to frontend to handle the deep link
+                    if let Err(e) = app_handle.emit("deep-link", uri.to_string()) {
+                        log::error!("Failed to emit deep-link event: {}", e);
+                    }
+                })?;
+            }
+            
             Ok(())
         })
         .run(tauri::generate_context!())

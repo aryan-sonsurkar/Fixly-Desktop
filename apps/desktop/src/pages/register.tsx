@@ -53,7 +53,9 @@ export function RegisterPage() {
     setError(null);
     try {
       await signUp(data.email, data.password, data.name);
-      navigate("/verify-email", { replace: true });
+      // If signUp succeeds with a session, we're already logged in
+      // The auth context will have isAuthenticated = true
+      navigate("/dashboard", { replace: true });
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { error?: string } } };
       const message = axiosError?.response?.data?.error || (err instanceof Error ? err.message : "Registration failed. Please try again.");

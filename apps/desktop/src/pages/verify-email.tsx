@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { AuthLayout } from "@/components/auth-layout";
 import { resendVerification } from "@/lib/auth-service";
@@ -11,8 +11,17 @@ const logger = createLogger("verify-email-page");
 
 export function VerifyEmailPage() {
   const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const navigate = useNavigate();
   const [resent, setResent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // If already authenticated, redirect to dashboard
+    if (isAuthenticated) {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleResend = async () => {
     if (!user?.email) return;
@@ -22,12 +31,15 @@ export function VerifyEmailPage() {
       setResent(true);
       setTimeout(() => setResent(false), 60000);
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Could not resend verification email.";
+      const message = err instanceof Error ? err.message : "Could not resend verification email.";
       setError(message);
       logger.error("Resend verification failed", err);
     }
   };
+
+if (isAuthenticated) {
+    return null; // Will redirect via useEffect
+  }
 
   return (
     <AuthLayout title="Verify your email" subtitle="Almost there! Check your inbox.">
