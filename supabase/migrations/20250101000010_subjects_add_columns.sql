@@ -5,9 +5,18 @@ alter table public.subjects
   add column if not exists credits integer,
   add column if not exists updated_at timestamptz not null default now();
 
--- Update constraint for credits
-alter table public.subjects
-  add constraint if not exists valid_credits check (credits is null or (credits >= 0 and credits <= 30));
+-- Update constraint for credits (pg_constraint check for PG < 16 compatibility)
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'valid_credits'
+    and conrelid = 'public.subjects'::regclass
+  ) then
+    alter table public.subjects
+      add constraint valid_credits check (credits is null or (credits >= 0 and credits <= 30));
+  end if;
+end $$;
 
 -- Add updated_at trigger
 create trigger set_subjects_updated_at
