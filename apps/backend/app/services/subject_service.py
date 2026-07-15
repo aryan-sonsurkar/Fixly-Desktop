@@ -3,6 +3,7 @@ from typing import Any
 from app.core.exceptions import NotFoundError
 from app.core.logging import get_logger
 from app.repositories.subject_repository import SubjectRepository
+from app.schemas.subject import SubjectCreate
 
 logger = get_logger(__name__)
 
@@ -39,11 +40,12 @@ class SubjectService:
         await self.repository.delete_subject(subject_id, user_id)
 
     async def bulk_create(
-        self, user_id: str, subjects: list[dict[str, Any]]
+        self, user_id: str, subjects: list[SubjectCreate]
     ) -> list[dict[str, Any]]:
         created = []
         for subj in subjects:
-            subj.pop("user_id", None)
-            result = await self.repository.create_subject(user_id, subj)
+            data = subj.model_dump(exclude_none=True)
+            data.pop("user_id", None)
+            result = await self.repository.create_subject(user_id, data)
             created.append(result)
         return created

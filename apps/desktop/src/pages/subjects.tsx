@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -26,22 +26,37 @@ type SubjectForm = z.infer<typeof subjectFormSchema>;
 export function SubjectsPage() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState(SUBJECT_COLORS[0]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
 
   const form = useForm<SubjectForm>({
     resolver: zodResolver(subjectFormSchema),
     defaultValues: { name: "", credits: undefined },
   });
 
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
   const loadSubjects = useCallback(async () => {
+    setLoadError(null);
     try {
       const data = await getSubjects();
-      setSubjects(data);
+      if (mountedRef.current) {
+        setSubjects(data);
+        setLoading(false);
+      }
     } catch (err) {
       logger.error("Failed to load subjects", err);
-    } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoadError("Failed to load subjects. Please try again.");
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -49,58 +64,99 @@ export function SubjectsPage() {
     loadSubjects();
   }, [loadSubjects]);
 
+  useEffect(() => {
+    if (error) {
+      const timer = setTimeout(() => setError(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error]);
+
   const handleCreate = form.handleSubmit(async (data) => {
+    setSubmitting(true);
+    setError(null);
     try {
       await createSubject({
         name: data.name,
         color: selectedColor,
-        credits: data.credits || undefined,
+        credits: data.credits ?? undefined,
       });
       form.reset({ name: "", credits: undefined });
+      setSelectedColor(SUBJECT_COLORS[0]);
       await loadSubjects();
     } catch (err) {
       logger.error("Failed to create subject", err);
+      if (mountedRef.current) setError("Failed to create subject. Please try again.");
+    } finally {
+      if (mountedRef.current) setSubmitting(false);
     }
   });
 
-  const handleUpdate = async (id: string) => {
-    const name = form.getValues("name");
-    const credits = form.getValues("credits");
-    if (!name.trim()) return;
+  const handleUpdate = form.handleSubmit(async (data) => {
+    if (!editingId) return;
+    setSubmitting(true);
+    setError(null);
     try {
-      await updateSubject(id, {
-        name: name.trim(),
+      await updateSubject(editingId, {
+        name: data.name.trim(),
         color: selectedColor,
-        credits: credits || undefined,
+        credits: data.credits ?? undefined,
       });
       setEditingId(null);
       form.reset({ name: "", credits: undefined });
+      setSelectedColor(SUBJECT_COLORS[0]);
       await loadSubjects();
     } catch (err) {
       logger.error("Failed to update subject", err);
+      if (mountedRef.current) setError("Failed to update subject. Please try again.");
+    } finally {
+      if (mountedRef.current) setSubmitting(false);
     }
-  };
+  });
 
   const handleDelete = async (id: string) => {
+    setSubmitting(true);
+    setError(null);
     try {
       await deleteSubject(id);
       await loadSubjects();
     } catch (err) {
       logger.error("Failed to delete subject", err);
+      if (mountedRef.current) setError("Failed to delete subject. Please try again.");
+    } finally {
+      if (mountedRef.current) setSubmitting(false);
     }
   };
 
   const startEdit = (subject: Subject) => {
     setEditingId(subject.id);
+    setError(null);
     form.setValue("name", subject.name);
-    form.setValue("credits", subject.credits || undefined);
+    form.setValue("credits", subject.credits ?? undefined);
     setSelectedColor(subject.color || SUBJECT_COLORS[0]);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setError(null);
+    form.reset({ name: "", credits: undefined });
+    setSelectedColor(SUBJECT_COLORS[0]);
   };
 
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-2xl p-6">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
+          <p className="text-sm text-destructive mb-4">{loadError}</p>
+          <Button onClick={loadSubjects} variant="outline" size="sm">Retry</Button>
+        </div>
       </div>
     );
   }
@@ -112,11 +168,15 @@ export function SubjectsPage() {
         <p className="text-sm text-muted-foreground">Manage your academic subjects</p>
       </div>
 
+      {error && (
+        <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>
+      )}
+
       <div className="rounded-lg border p-6">
         <h2 className="mb-4 text-lg font-semibold">
           {editingId ? "Edit Subject" : "Add Subject"}
         </h2>
-        <form onSubmit={editingId ? (e) => { e.preventDefault(); handleUpdate(editingId); } : handleCreate} className="space-y-4">
+        <form onSubmit={editingId ? handleUpdate : handleCreate} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Subject Name</Label>
             <Input id="name" placeholder="e.g. Mathematics" autoFocus {...form.register("name")} />
@@ -146,9 +206,11 @@ export function SubjectsPage() {
           </div>
 
           <div className="flex gap-3">
-            <Button type="submit">{editingId ? "Update" : "Add Subject"}</Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Saving..." : editingId ? "Update" : "Add Subject"}
+            </Button>
             {editingId && (
-              <Button type="button" variant="outline" onClick={() => { setEditingId(null); form.reset({ name: "", credits: undefined }); }}>
+              <Button type="button" variant="outline" onClick={cancelEdit} disabled={submitting}>
                 Cancel
               </Button>
             )}
@@ -169,14 +231,14 @@ export function SubjectsPage() {
               <div className="h-4 w-4 rounded-full" style={{ backgroundColor: subject.color || "#3b82f6" }} />
               <div className="flex-1">
                 <p className="font-medium">{subject.name}</p>
-                {subject.credits !== null && subject.credits !== undefined && (
+                {subject.credits != null && (
                   <p className="text-xs text-muted-foreground">{subject.credits} credits</p>
                 )}
               </div>
-              <Button type="button" variant="ghost" size="sm" onClick={() => startEdit(subject)}>
+              <Button type="button" variant="ghost" size="sm" onClick={() => startEdit(subject)} disabled={submitting}>
                 Edit
               </Button>
-              <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(subject.id)}>
+              <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(subject.id)} disabled={submitting}>
                 Delete
               </Button>
             </motion.div>

@@ -1,6 +1,6 @@
-from typing import Any
-
 from pydantic import BaseModel, Field
+
+from app.schemas.subject import SubjectCreate
 
 
 class ProfileUpdate(BaseModel):
@@ -62,4 +62,4 @@ class SettingsResponse(BaseModel):
 class OnboardingRequest(BaseModel):
     profile: ProfileUpdate
     settings: SettingsUpdate
-    subjects: list[dict[str, Any]] = []
+    subjects: list[SubjectCreate] = []

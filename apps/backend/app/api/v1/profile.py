@@ -75,7 +75,6 @@ async def complete_onboarding(
     if body.subjects:
         await subject_service.bulk_create(current_user["id"], body.subjects)
 
-    await subject_service.list_subjects(current_user["id"])
     return result
 
 
