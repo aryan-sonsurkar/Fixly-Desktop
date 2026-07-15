@@ -20,6 +20,8 @@ import { HealthWidget } from "@/components/dashboard/health-widget";
 import { MomentumWidget } from "@/components/dashboard/momentum-widget";
 import { RiskAlertsWidget } from "@/components/dashboard/risk-alerts-widget";
 
+const logger = createLogger("dashboard");
+
 function formatGreeting(name: string): string {
   const h = new Date().getHours();
   return `${h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"}, ${name}`;
@@ -39,26 +41,43 @@ export function DashboardPage() {
   } = useDashboardStore();
   const { setOpen: setSearchOpen } = useSearchStore();
   const dragItem = useRef<number | null>(null);
+  const mountedRef = useRef(true);
   const [orderedWidgets, setOrderedWidgets] = useState(
     widgets.filter((w) => w.visible).sort((a, b) => a.order - b.order),
   );
+  const [error, setError] = useState<string | null>(null);
 
-  const { data: rawData, isLoading } = useQuery({
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  const { data: rawData, isLoading: queryLoading, isError, error: queryError } = useQuery({
     queryKey: ["dashboard"],
     queryFn: getDashboard,
+    retry: 1,
   });
 
   const { data: studyStats } = useQuery({
     queryKey: ["study-statistics"],
     queryFn: getStudyStatistics,
+    retry: 1,
   });
 
   useEffect(() => {
+    if (isError) {
+      const msg = queryError instanceof Error ? queryError.message : "Failed to load dashboard";
+      setError(msg);
+      setLoading(false);
+      logger.error("Dashboard query failed", queryError);
+      return;
+    }
     if (rawData) {
       setData(rawData);
       setLoading(false);
+      setError(null);
     }
-  }, [rawData, setData, setLoading]);
+  }, [rawData, isError, queryError, setData, setLoading]);
 
   useEffect(() => {
     setOrderedWidgets(widgets.filter((w) => w.visible).sort((a, b) => a.order - b.order));
@@ -68,11 +87,11 @@ export function DashboardPage() {
     setBriefingLoading(true);
     try {
       const plan = await generateDailyPlan();
-      setBriefing(plan);
+      if (mountedRef.current) setBriefing(plan);
     } catch (err) {
-      createLogger("dashboard").error("Failed to generate briefing", err);
+      logger.error("Failed to generate briefing", err);
     } finally {
-      setBriefingLoading(false);
+      if (mountedRef.current) setBriefingLoading(false);
     }
   }, [setBriefing, setBriefingLoading]);
 
@@ -80,11 +99,11 @@ export function DashboardPage() {
     setMissionLoading(true);
     try {
       const result = await getDailyMission();
-      setMission(result);
+      if (mountedRef.current) setMission(result);
     } catch (err) {
-      createLogger("dashboard").error("Failed to generate mission", err);
+      logger.error("Failed to generate mission", err);
     } finally {
-      setMissionLoading(false);
+      if (mountedRef.current) setMissionLoading(false);
     }
   }, [setMission, setMissionLoading]);
 
@@ -92,11 +111,11 @@ export function DashboardPage() {
     setRiskLoading(true);
     try {
       const result = await assessRisk();
-      setRisk(result);
+      if (mountedRef.current) setRisk(result);
     } catch (err) {
-      createLogger("dashboard").error("Failed to assess risk", err);
+      logger.error("Failed to assess risk", err);
     } finally {
-      setRiskLoading(false);
+      if (mountedRef.current) setRiskLoading(false);
     }
   }, [setRisk, setRiskLoading]);
 
@@ -118,7 +137,30 @@ export function DashboardPage() {
     dragItem.current = null;
   };
 
-  if (isLoading || loading) {
+  if (isError && !rawData) {
+    return (
+      <div className="mx-auto max-w-3xl p-6">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+            <svg className="h-6 w-6 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-semibold text-foreground">Failed to load dashboard</h2>
+          <p className="mt-2 text-sm text-muted-foreground">{error}</p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            Reload
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (queryLoading || loading) {
     return (
       <div className="mx-auto max-w-7xl space-y-6 p-6">
         <Skeleton className="h-8 w-64" />
@@ -141,15 +183,15 @@ export function DashboardPage() {
     overdue: 0, due_today: 0, due_this_week: 0, completion_percentage: 0,
   };
   const recentAssignments = data?.recent_assignments || [];
+  const emailData = data?.email || { unread: 0, pending_review: 0 };
 
-  // Parse risk alerts from the AI response
   const parsedAlerts = (() => {
     if (!risk?.content) return [];
     try {
       const jsonMatch = risk.content.match(/\{[\s\S]*"alerts"[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
-        return parsed.alerts || [];
+        return Array.isArray(parsed.alerts) ? parsed.alerts : [];
       }
     } catch {
       // fallback
@@ -227,8 +269,8 @@ export function DashboardPage() {
     ),
     assignments: (
       <DeadlinesWidget
-        deadlines={recentAssignments.map((a: any) => ({
-          title: a.title,
+        deadlines={recentAssignments.map((a) => ({
+          title: a.title || "",
           due: a.due_date || new Date().toISOString(),
           priority: a.priority || "medium",
           status: a.status,
@@ -237,7 +279,7 @@ export function DashboardPage() {
         urgent={stats.overdue}
       />
     ),
-    emails: <EmailWidget unread={0} pendingReview={0} />,
+    emails: <EmailWidget unread={emailData.unread} pendingReview={emailData.pending_review} />,
     xp: <XPStreakWidget xp={profile.xp} streak={profile.streak} />,
     score: <ProductivityScoreWidget score={stats.completion_percentage} />,
     actions: <QuickActionsWidget onOpenSearch={() => setSearchOpen(true)} />,

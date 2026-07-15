@@ -34,12 +34,18 @@ export interface DashboardSubject {
   icon: string | null;
 }
 
+export interface DashboardEmail {
+  unread: number;
+  pending_review: number;
+}
+
 export interface DashboardData {
   profile: DashboardProfile;
   settings: DashboardSettings;
   stats: DashboardStats;
   recent_assignments: import("@fixly/shared-types").Assignment[];
   subjects: DashboardSubject[];
+  email: DashboardEmail;
 }
 
 export async function getDashboard(): Promise<DashboardData> {

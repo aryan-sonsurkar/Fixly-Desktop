@@ -60,11 +60,20 @@ class DashboardService:
         except Exception:
             unread_notif_count = 0
 
+        overdue = [a for a in assignments_data.get("deadlines", []) if a.get("status") == "overdue"]
+        due_today_count = sum(1 for a in assignments_data.get("deadlines", [])
+                              if a.get("due", "") == today)
+        due_this_week_count = sum(1 for a in assignments_data.get("deadlines", [])
+                                  if a.get("due", "") <= week_from_now)
+
         return {
             "profile": {
-                "name": profile.get("name", "Student"),
+                "display_name": profile.get("name", "Student"),
+                "avatar_url": profile.get("avatar_url"),
                 "xp": profile.get("xp", 0),
                 "streak": profile.get("streak", 0),
+                "education_type": profile.get("education_type"),
+                "education_year": profile.get("education_year"),
             },
             "today": {
                 "focus_minutes": pomodoro_data.get("today_focus_minutes", 0),
@@ -77,6 +86,17 @@ class DashboardService:
                 "urgent": len(urgent),
                 "upcoming_deadlines": upcoming[:5],
             },
+            "stats": {
+                "total": assignments_data.get("total", 0),
+                "completed": assignments_data.get("completed", 0),
+                "pending": len(pending),
+                "in_progress": assignments_data.get("in_progress", 0),
+                "overdue": len(overdue),
+                "due_today": due_today_count,
+                "due_this_week": due_this_week_count,
+                "completion_percentage": productivity_score,
+            },
+            "recent_assignments": upcoming[:5],
             "email": {
                 "unread": email_data.get("unread", 0),
                 "pending_review": email_data.get("pending_review", 0),
@@ -93,6 +113,8 @@ class DashboardService:
             "documents": {
                 "recent": [{"id": d.get("id"), "name": d.get("original_name", "Untitled"), "type": d.get("doc_type", "")} for d in recent_docs],  # noqa: E501
             },
+            "subjects": [],
+            "settings": {},
             "productivity_score": productivity_score,
             "unread_notifications": unread_notif_count,
             "generated_at": now.isoformat(),
