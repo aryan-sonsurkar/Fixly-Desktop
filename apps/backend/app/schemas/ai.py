@@ -58,6 +58,7 @@ class ConversationDetail(BaseModel):
 
 class AISettingsUpdate(BaseModel):
     preferred_provider: str | None = Field(default=None, pattern=r"^(ollama|gemini|auto)$")
+    provider_model: str | None = Field(default=None, max_length=100)
     temperature: float | None = Field(default=None, ge=0, le=2)
     max_tokens: int | None = Field(default=None, ge=1, le=8192)
     streaming_enabled: bool | None = None
@@ -70,6 +71,7 @@ class AISettingsUpdate(BaseModel):
 
 class AISettingsResponse(BaseModel):
     preferred_provider: str = "auto"
+    provider_model: str | None = None
     temperature: float = 0.7
     max_tokens: int = 2048
     streaming_enabled: bool = True
@@ -94,3 +96,16 @@ class MessageFeedbackUpdate(BaseModel):
 class MessageEditRequest(BaseModel):
     content: str = Field(min_length=1, max_length=10000)
 
+
+class ProviderDetail(BaseModel):
+    name: str
+    available: bool
+    installed: bool = False
+    running: bool = False
+    model_count: int = 0
+    models: list[str] = []
+    error: str | None = None
+
+
+class ProviderDetailResponse(BaseModel):
+    providers: dict[str, ProviderDetail]

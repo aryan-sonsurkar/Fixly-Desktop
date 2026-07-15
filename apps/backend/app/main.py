@@ -14,6 +14,12 @@ from app.prompts.registry import init_registry
 
 logger = get_logger(__name__)
 
+_backend_port: int = 8000
+
+
+def get_backend_port() -> int:
+    return _backend_port
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -62,5 +68,6 @@ if __name__ == "__main__":
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("127.0.0.1", 0))
             port = s.getsockname()[1]
+    _backend_port = port
     print(f"FIXLY_PORT:{port}", flush=True)
     uvicorn.run("app.main:app", host="127.0.0.1", port=port, reload=False)

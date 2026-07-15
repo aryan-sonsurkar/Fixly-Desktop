@@ -11,9 +11,15 @@ export function AISettingsDialog() {
   const [streaming, setStreaming] = useState(settings?.streaming_enabled ?? true);
   const [systemPrompt, setSystemPrompt] = useState(settings?.system_prompt ?? "");
   const [preferredProvider, setPreferredProvider] = useState(settings?.preferred_provider ?? "ollama");
+  const [providerModel, setProviderModel] = useState(settings?.provider_model ?? "");
   const [academicContext, setAcademicContext] = useState(settings?.academic_context ?? true);
   const [conversationMemory, setConversationMemory] = useState(settings?.conversation_memory ?? 10);
   const [saving, setSaving] = useState(false);
+
+  const [ollamaStatus, setOllamaStatus] = useState<aiService.ProviderDetail | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
 
   useEffect(() => {
     if (settings) {
@@ -22,10 +28,57 @@ export function AISettingsDialog() {
       setStreaming(settings.streaming_enabled);
       setSystemPrompt(settings.system_prompt ?? "");
       setPreferredProvider(settings.preferred_provider);
+      setProviderModel(settings.provider_model ?? "");
       setAcademicContext(settings.academic_context ?? true);
       setConversationMemory(settings.conversation_memory ?? 10);
     }
   }, [settings]);
+
+  useEffect(() => {
+    fetchOllamaStatus();
+  }, []);
+
+  const fetchOllamaStatus = async () => {
+    try {
+      const detail = await aiService.checkProviderDetail();
+      const ollama = detail.providers.ollama;
+      setOllamaStatus(ollama);
+      if (ollama?.models?.length) {
+        setAvailableModels(ollama.models);
+      }
+    } catch {
+      setOllamaStatus({
+        name: "ollama",
+        available: false,
+        installed: false,
+        running: false,
+        model_count: 0,
+        models: [],
+        error: "Could not reach backend",
+      });
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setTesting(true);
+    try {
+      await fetchOllamaStatus();
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const loadModels = async () => {
+    setLoadingModels(true);
+    try {
+      const models = await aiService.listOllamaModels();
+      setAvailableModels(models.map((m) => m.name));
+    } catch {
+      setAvailableModels([]);
+    } finally {
+      setLoadingModels(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -36,6 +89,7 @@ export function AISettingsDialog() {
         streaming_enabled: streaming,
         system_prompt: systemPrompt || null,
         preferred_provider: preferredProvider,
+        provider_model: providerModel || null,
         academic_context: academicContext,
         conversation_memory: conversationMemory,
       });
@@ -78,6 +132,49 @@ export function AISettingsDialog() {
               </button>
             </div>
 
+            {/* Connection Status */}
+            <div className="mb-5 rounded-lg border bg-card p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Ollama Connection</span>
+                  {ollamaStatus ? (
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                        ollamaStatus.available
+                          ? "bg-green-500/10 text-green-600"
+                          : "bg-red-500/10 text-red-600"
+                      }`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          ollamaStatus.available ? "bg-green-500" : "bg-red-500"
+                        }`}
+                      />
+                      {ollamaStatus.available ? "Connected" : "Disconnected"}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground">Checking...</span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTestConnection}
+                  disabled={testing}
+                  className="rounded-lg border px-3 py-1 text-xs transition-colors hover:bg-accent disabled:opacity-50"
+                >
+                  {testing ? "Testing..." : "Test Connection"}
+                </button>
+              </div>
+              {ollamaStatus && !ollamaStatus.available && ollamaStatus.error && (
+                <p className="mt-1.5 text-[11px] text-red-500">{ollamaStatus.error}</p>
+              )}
+              {ollamaStatus && ollamaStatus.available && (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {ollamaStatus.model_count} model{ollamaStatus.model_count !== 1 ? "s" : ""} available
+                </p>
+              )}
+            </div>
+
             <div className="space-y-5">
               <div>
                 <label className="mb-1.5 block text-sm font-medium">Preferred Provider</label>
@@ -86,8 +183,35 @@ export function AISettingsDialog() {
                   onChange={(e) => setPreferredProvider(e.target.value)}
                   className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
                 >
+                  <option value="auto">Auto (Ollama first)</option>
                   <option value="ollama">Ollama (Local)</option>
                   <option value="gemini">Gemini (Google AI)</option>
+                </select>
+              </div>
+
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="text-sm font-medium">Model</label>
+                  <button
+                    type="button"
+                    onClick={loadModels}
+                    disabled={loadingModels}
+                    className="text-[10px] text-muted-foreground underline hover:text-foreground disabled:opacity-50"
+                  >
+                    {loadingModels ? "Loading..." : "Refresh models"}
+                  </button>
+                </div>
+                <select
+                  value={providerModel}
+                  onChange={(e) => setProviderModel(e.target.value)}
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="">Default ({ollamaStatus?.models?.[0] || "llama3.2"})</option>
+                  {availableModels.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
                 </select>
               </div>
 

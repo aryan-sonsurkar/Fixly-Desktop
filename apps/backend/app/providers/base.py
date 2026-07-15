@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
+from typing import Any
 
 
 class AIProvider(ABC):
@@ -23,6 +24,13 @@ class AIProvider(ABC):
 
     @abstractmethod
     async def check_availability(self) -> bool: ...
+
+    async def check_availability_detail(self) -> dict[str, Any]:
+        available = await self.check_availability()
+        return {"available": available, "error": None}
+
+    async def list_models(self) -> list[dict[str, Any]]:
+        return []
 
     def count_tokens(self, text: str) -> int:
         return len(text.split())

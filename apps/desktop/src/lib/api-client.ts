@@ -4,11 +4,25 @@ import { getAccessToken, getRefreshToken, setTokens, clearTokens } from "@/lib/s
 
 const logger = createLogger("api-client");
 
+let dynamicPort: number | null = null;
+
+export function setBackendPort(port: number) {
+  dynamicPort = port;
+  apiClient.defaults.baseURL = getBaseUrl();
+  logger.info(`API client updated to port ${port}`);
+}
+
 function getBaseUrl(): string {
+  if (dynamicPort) {
+    return `http://127.0.0.1:${dynamicPort}`;
+  }
   if (import.meta.env.DEV) {
     return import.meta.env.VITE_API_URL || "http://localhost:8000";
   }
-  return "http://127.0.0.1:8000";
+  if (typeof window !== "undefined" && (window as { __TAURI__?: unknown }).__TAURI__) {
+    return "http://127.0.0.1:8000";
+  }
+  return "http://localhost:8000";
 }
 
 const apiClient = axios.create({

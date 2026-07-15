@@ -3,6 +3,9 @@ import { motion } from "framer-motion";
 import { Button } from "@fixly/ui";
 import { getDiagnostics, type Diagnostics } from "@/lib/diagnostics-service";
 import { useAnalyticsStore } from "@/stores/analytics-store";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger("diagnostics-page");
 
 const statusColors = {
   healthy: "text-success",
@@ -40,10 +43,54 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function formatDiagnosticsText(data: Diagnostics): string {
+  const lines = [
+    "=== Fixly Diagnostics ===",
+    `Generated: ${new Date(data.timestamp).toLocaleString()}`,
+    "",
+    "--- Application ---",
+    `Version: ${data.version}`,
+    `Build: ${data.build}`,
+    `Environment: ${data.environment}`,
+    `OS: ${data.os}`,
+    "",
+    "--- Backend ---",
+    `Status: ${data.backend.status}`,
+    data.backend.version ? `Version: ${data.backend.version}` : "",
+    data.backend.port ? `Port: ${data.backend.port}` : "",
+    data.backend.error ? `Error: ${data.backend.error}` : "",
+    "",
+    "--- Supabase ---",
+    `Status: ${data.supabase.status}`,
+    data.supabase.error ? `Error: ${data.supabase.error}` : "",
+    "",
+    "--- Database ---",
+    `Status: ${data.database.status}`,
+    data.database.error ? `Error: ${data.database.error}` : "",
+    "",
+    "--- AI Provider ---",
+    `Status: ${data.ai.status}`,
+    data.ai.provider ? `Provider: ${data.ai.provider}` : "",
+    data.ai.model ? `Model: ${data.ai.model}` : "",
+    data.ai.installed !== undefined ? `Ollama Installed: ${data.ai.installed}` : "",
+    data.ai.running !== undefined ? `Ollama Running: ${data.ai.running}` : "",
+    data.ai.model_count !== undefined ? `Models: ${data.ai.model_count}` : "",
+    data.ai.error ? `Error: ${data.ai.error}` : "",
+    "",
+    "--- Sync ---",
+    `Status: ${data.sync.status}`,
+    data.sync.lastSync ? `Last Sync: ${data.sync.lastSync}` : "",
+    data.sync.error ? `Error: ${data.sync.error}` : "",
+    "",
+  ];
+  return lines.filter((l) => l !== "").join("\n");
+}
+
 export function DiagnosticsPage() {
   const [data, setData] = useState<Diagnostics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const events = useAnalyticsStore((s) => s.events);
   const appLaunches = useAnalyticsStore((s) => s.appLaunches);
   const sessionCount = useAnalyticsStore((s) => s.sessionCount);
@@ -65,6 +112,31 @@ export function DiagnosticsPage() {
     runDiagnostics();
   }, [runDiagnostics]);
 
+  const handleCopy = useCallback(async () => {
+    if (!data) return;
+    try {
+      await navigator.clipboard.writeText(formatDiagnosticsText(data));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      logger.error("Failed to copy diagnostics", err);
+    }
+  }, [data]);
+
+  const handleExport = useCallback(() => {
+    if (!data) return;
+    const text = formatDiagnosticsText(data);
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `fixly-diagnostics-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [data]);
+
   const errorEvents = events.filter((e) => e.name === "error" || e.name === "api_error");
   const lastErrors = errorEvents.slice(-5).reverse();
 
@@ -76,9 +148,17 @@ export function DiagnosticsPage() {
             <h1 className="text-2xl font-bold">Diagnostics</h1>
             <p className="text-sm text-muted-foreground">System health and debug information</p>
           </div>
-          <Button variant="outline" size="sm" onClick={runDiagnostics} disabled={loading}>
-            {loading ? "Running..." : "Refresh"}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleCopy} disabled={!data || loading}>
+              {copied ? "Copied!" : "Copy Diagnostics"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExport} disabled={!data || loading}>
+              Export Diagnostics
+            </Button>
+            <Button variant="outline" size="sm" onClick={runDiagnostics} disabled={loading}>
+              {loading ? "Running..." : "Refresh"}
+            </Button>
+          </div>
         </div>
       </motion.div>
 
@@ -92,6 +172,9 @@ export function DiagnosticsPage() {
         <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Application</h2>
         <div className="space-y-2">
           <InfoRow label="Version" value={data?.version || "loading..."} />
+          <InfoRow label="Build" value={data?.build || "loading..."} />
+          <InfoRow label="Environment" value={data?.environment || "loading..."} />
+          <InfoRow label="Operating System" value={data?.os || "loading..."} />
           <InfoRow label="App Launches" value={String(appLaunches)} />
           <InfoRow label="Sessions" value={String(sessionCount)} />
           <InfoRow label="Events Tracked" value={String(events.length)} />
@@ -105,7 +188,13 @@ export function DiagnosticsPage() {
           <StatusRow
             label="Backend API"
             status={data?.backend.status || "checking"}
-            detail={data?.backend.version ? `v${data.backend.version}` : undefined}
+            detail={
+              data?.backend.port
+                ? `:${data.backend.port}${data.backend.version ? ` (v${data.backend.version})` : ""}`
+                : data?.backend.version
+                  ? `v${data.backend.version}`
+                  : undefined
+            }
           />
           {data?.backend.uptime && (
             <div className="px-4 text-xs text-muted-foreground">Uptime: {data.backend.uptime}</div>
@@ -116,7 +205,18 @@ export function DiagnosticsPage() {
         </div>
         <StatusRow label="Supabase" status={data?.supabase.status || "checking"} detail={data?.supabase.error} />
         <StatusRow label="Database" status={data?.database.status || "checking"} detail={data?.database.error} />
-        <StatusRow label="AI Provider" status={data?.ai.status || "checking"} detail={data?.ai.provider} />
+        <StatusRow
+          label="AI Provider"
+          status={data?.ai.status || "checking"}
+          detail={data?.ai.provider ? `${data.ai.provider}${data.ai.model ? ` (${data.ai.model})` : ""}` : undefined}
+        />
+        {data?.ai.installed !== undefined && (
+          <div className="px-4 text-xs text-muted-foreground">
+            Ollama: {data.ai.installed ? "Installed" : "Not installed"}
+            {data.ai.running !== undefined && ` · ${data.ai.running ? "Running" : "Not running"}`}
+            {data.ai.model_count !== undefined && ` · ${data.ai.model_count} models`}
+          </div>
+        )}
         <StatusRow label="Sync" status={data?.sync.status || "checking"} />
       </section>
 
@@ -143,16 +243,6 @@ export function DiagnosticsPage() {
         ) : (
           <p className="text-sm text-muted-foreground">No errors recorded this session.</p>
         )}
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Browser / Runtime</h2>
-        <div className="space-y-2">
-          <InfoRow label="User Agent" value={navigator.userAgent.substring(0, 80)} />
-          <InfoRow label="Platform" value={navigator.platform} />
-          <InfoRow label="Language" value={navigator.language} />
-          <InfoRow label="Online" value={navigator.onLine ? "Yes" : "No"} />
-        </div>
       </section>
     </div>
   );

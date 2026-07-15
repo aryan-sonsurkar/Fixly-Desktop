@@ -15,6 +15,7 @@ from app.schemas.ai import (
     MessageEditRequest,
     MessageFeedbackUpdate,
     MessageResponse,
+    ProviderDetailResponse,
     RegenerateRequest,
 )
 from app.schemas.planner import PlanResponse, RevisionPlanRequest
@@ -164,6 +165,19 @@ async def update_ai_settings(
 async def check_providers() -> dict[str, bool]:
     service = AIService()
     return await service.check_availability()
+
+
+@router.get("/providers/detail", response_model=ProviderDetailResponse)
+async def check_providers_detail() -> dict[str, dict[str, Any]]:
+    service = AIService()
+    providers_data = await service.check_providers_detail()
+    return {"providers": providers_data}
+
+
+@router.get("/providers/ollama/models")
+async def list_ollama_models() -> list[dict[str, Any]]:
+    service = AIService()
+    return await service.list_ollama_models()
 
 
 @router.post("/plan/daily", response_model=PlanResponse)

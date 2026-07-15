@@ -25,16 +25,25 @@ class AIService:
             "gemini": GeminiProvider(),
         }
 
-    async def _resolve_provider(self, preferred: str) -> AIProvider:
+    async def _resolve_provider(self, preferred: str, user_id: str | None = None) -> AIProvider:
         providers = self._get_providers()
+        model_override: str | None = None
+        if user_id:
+            s = await self.repository.get_ai_settings(user_id)
+            model_override = s.get("provider_model") if isinstance(s, dict) else None
+
         if preferred == "auto":
             for name in ("ollama", "gemini"):
                 provider = providers[name]
+                if model_override and hasattr(provider, "set_model"):
+                    provider.set_model(model_override)  # type: ignore[attr-defined]
                 if await provider.check_availability():
                     logger.info("Auto-routing to provider: %s", name)
                     return provider
         elif preferred in providers:
             provider = providers[preferred]
+            if model_override and hasattr(provider, "set_model"):
+                provider.set_model(model_override)  # type: ignore[attr-defined]
             if await provider.check_availability():
                 return provider
             raise AIProviderUnavailableError(f"Provider '{preferred}' is not available")
@@ -88,7 +97,7 @@ class AIService:
         system_prompt_override = settings_data.get("system_prompt")
         academic_context_enabled = bool(settings_data.get("academic_context", True))
 
-        provider = await self._resolve_provider(preferred)
+        provider = await self._resolve_provider(preferred, user_id)
 
         await self.repository.create_message(conversation_id, user_id, "user", message, provider.name)
 
@@ -143,7 +152,7 @@ class AIService:
         system_prompt_override = settings_data.get("system_prompt")
         academic_context_enabled = bool(settings_data.get("academic_context", True))
 
-        provider = await self._resolve_provider(preferred)
+        provider = await self._resolve_provider(preferred, user_id)
 
         formatted = await self._format_messages(
             history, user_id, system_prompt_override, academic_context_enabled
@@ -272,3 +281,18 @@ class AIService:
             except Exception:
                 result[name] = False
         return result
+
+    async def check_providers_detail(self) -> dict[str, dict[str, Any]]:
+        providers = self._get_providers()
+        result: dict[str, dict[str, Any]] = {}
+        for name, provider in providers.items():
+            try:
+                detail = await provider.check_availability_detail()
+                result[name] = detail
+            except Exception as e:
+                result[name] = {"available": False, "error": str(e)}
+        return result
+
+    async def list_ollama_models(self) -> list[dict[str, Any]]:
+        provider = OllamaProvider()
+        return await provider.list_models()

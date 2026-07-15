@@ -35,6 +35,7 @@ export interface ChatResponse {
 
 export interface AISettings {
   preferred_provider: string;
+  provider_model?: string | null;
   temperature: number;
   max_tokens: number;
   streaming_enabled: boolean;
@@ -45,6 +46,26 @@ export interface AISettings {
   ai_enabled?: boolean;
   ollama_available: boolean;
   gemini_available: boolean;
+}
+
+export interface ProviderDetail {
+  name: string;
+  available: boolean;
+  installed: boolean;
+  running: boolean;
+  model_count: number;
+  models: string[];
+  error: string | null;
+}
+
+export interface ProviderDetailResponse {
+  providers: Record<string, ProviderDetail>;
+}
+
+export interface OllamaModel {
+  name: string;
+  size: number;
+  modified_at: string;
 }
 
 export async function sendChat(data: ChatRequest): Promise<ChatResponse> {
@@ -112,5 +133,15 @@ export async function updateAISettings(data: Partial<AISettings>): Promise<AISet
 
 export async function checkAIProviders(): Promise<Record<string, boolean>> {
   const response = await apiClient.get("/api/v1/ai/providers");
+  return response.data;
+}
+
+export async function checkProviderDetail(): Promise<ProviderDetailResponse> {
+  const response = await apiClient.get("/api/v1/ai/providers/detail");
+  return response.data;
+}
+
+export async function listOllamaModels(): Promise<OllamaModel[]> {
+  const response = await apiClient.get("/api/v1/ai/providers/ollama/models");
   return response.data;
 }

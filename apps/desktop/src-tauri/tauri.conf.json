@@ -35,6 +35,10 @@
       "icons/icon.ico"
     ],
     "externalBin": [],
+    "resources": {
+      "../../backend/app/": "backend/app/",
+      "../../backend/pyproject.toml": "backend/pyproject.toml"
+    },
     "publisher": "Aryan Sonsurkar",
     "copyright": "Copyright (c) 2026 Aryan Sonsurkar. All rights reserved.",
     "shortDescription": "Fixly - AI-powered academic operating system",
@@ -49,9 +53,6 @@
         "language": "en-US",
         "template": "fragment"
       }
-    },
-    "deepLink": {
-      "schemes": ["fixly"]
     }
   }
 }

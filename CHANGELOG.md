@@ -1,47 +1,39 @@
 # Changelog
 
-## [1.0.0] — 2026-07-02
+## v1.0.0-internal.1 (2026-07-15)
 
-### Added
-- Production desktop configuration: NSIS/MSI targets, installer icons, license, metadata
-- GitHub Actions release workflow for automated Windows installer builds
-- Release process documentation and naming conventions
-- Production-quality application icons (32x32, 128x128, 256x256, 512x512 PNG + ICO)
-- Skip-to-content link and ARIA labels for accessibility
-- Keyboard shortcuts (g-navigation, Escape, Ctrl+K)
-- 404 route for undefined paths
-- Error boundary with retry button and expandable error details
-- Code splitting (vendor, motion, query, forms, UI chunks)
-- `longDescription` and proper `license` fields in bundle config
+### Major Changes
+- **Backend Auto-Start**: FastAPI backend now launches automatically when Fixly starts, using Tauri sidecar architecture. No more manual `uvicorn` commands.
+- **Startup Screen**: Professional startup sequence with splash animation, progress indicators, and error recovery.
+- **Diagnostics Page**: Enhanced system diagnostics with Copy/Export functionality.
+- **Windows Installer**: NSIS installer produced for easy distribution (2.8 MB).
 
-### Changed
-- Version bumped from 0.1.0 to 1.0.0 across all config files
-- Tauri CSP from `null` to strict allowlist (`default-src 'self'`)
-- Publisher from "Fixly" to "Aryan Sonsurkar"
-- Copyright to standard format with year and holder
-- Cargo.toml: added homepage, repository, license fields
+### Backend
+- Auto-detects Ollama status (installed/running/models)
+- Enhanced `/api/v1/health` endpoint with comprehensive system status
+- Robust Python process lifecycle management
 
-### Fixed
-- Backend type errors (mypy): 21 → 0 errors across 4 service files
-- Backend lint warnings (ruff): 8 → 0 E501 line-length warnings
-- TypeScript errors: 2 → 0 (Theme type, risk-alerts-widget string indexing)
-- `workspace_context.py`: replaced nonexistent `get_sessions(days=)` with `get_sessions_range()`
-- `workspace_context.py` + `search_service.py` + `dashboard_service.py`: replaced `list_documents(limit=)` with `get_recent_documents()`
-- Supabase type ignore annotations for `.single()` and `.select(count=)`
-- `register.tsx`: replaced `document.getElementById` with `watch("password")`
-- `dashboard.tsx`: replaced silent catch with production logging
+### Desktop
+- Splash screen with animated startup stages
+- Backend health check before React app loads
+- Graceful backend shutdown on app exit
+- Dynamic backend port detection and configuration
+- Enhanced diagnostics with Copy and Export buttons
+- No terminal windows during normal operation (uses `pythonw` or `CREATE_NO_WINDOW`)
 
-### Security
-- Removed unrestricted `shell:allow-execute` capability
-- Set Content Security Policy (was null before v1.2.0 polishing)
+### Provider Architecture
+- Ollama-first AI routing (auto-detects local Ollama)
+- Fallback to Gemini when Ollama unavailable
+- Provider status shown in diagnostics
 
-## [0.1.0] — 2026-06-26
+### Infrastructure
+- Backend bundled as resource in installer
+- Backend port auto-detection via `FIXLY_PORT` stdout protocol
+- Process lifecycle managed by Tauri runtime
 
-### Added
-- Initial pre-release version
-- Tauri v2 desktop shell with React frontend
-- FastAPI backend with 77 API routes
-- Supabase integration (auth, database, storage)
-- AI copilot features (chat, study assistant, risk detection)
-- Academic workflow management (assignments, subjects, study sessions)
-- Pomodoro timer, email monitoring, document management
+### Quality
+- TypeScript: 0 errors
+- ESLint: 0 errors
+- Ruff: All checks passed
+- Pytest: 58/58 pass
+- Vitest: 41/41 pass

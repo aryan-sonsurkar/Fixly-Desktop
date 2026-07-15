@@ -8,6 +8,7 @@ export interface Diagnostics {
     status: "healthy" | "unhealthy" | "checking";
     version?: string;
     uptime?: string;
+    port?: number;
     error?: string;
   };
   supabase: {
@@ -17,6 +18,11 @@ export interface Diagnostics {
   ai: {
     status: "healthy" | "unhealthy" | "unconfigured" | "checking";
     provider?: string;
+    model?: string;
+    installed?: boolean;
+    running?: boolean;
+    model_count?: number;
+    models?: string[];
     error?: string;
   };
   database: {
@@ -28,6 +34,9 @@ export interface Diagnostics {
     lastSync?: string;
     error?: string;
   };
+  environment: string;
+  os: string;
+  build: string;
 }
 
 export async function getDiagnostics(): Promise<Diagnostics> {
@@ -39,6 +48,9 @@ export async function getDiagnostics(): Promise<Diagnostics> {
     ai: { status: "checking" },
     database: { status: "checking" },
     sync: { status: "checking" },
+    environment: import.meta.env.DEV ? "Development" : "Production",
+    os: navigator.platform || "Unknown",
+    build: import.meta.env.VITE_BUILD_VERSION || version,
   };
 
   try {
@@ -48,7 +60,7 @@ export async function getDiagnostics(): Promise<Diagnostics> {
     result.backend = {
       status: "healthy",
       version: health.version || "unknown",
-      uptime: health.uptime || health.uptime_seconds ? `${health.uptime_seconds}s` : undefined,
+      port: health.port,
     };
 
     result.supabase = {
@@ -64,6 +76,11 @@ export async function getDiagnostics(): Promise<Diagnostics> {
     result.ai = {
       status: health.ai === "available" ? "healthy" : health.ai === "unconfigured" ? "unconfigured" : "unhealthy",
       provider: health.ai_provider || "unknown",
+      model: health.ai_model,
+      installed: health.ollama_installed,
+      running: health.ollama_running,
+      model_count: health.ollama_model_count,
+      models: health.ollama_models,
       error: health.ai_error,
     };
 
