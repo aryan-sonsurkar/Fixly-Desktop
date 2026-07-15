@@ -36,14 +36,14 @@ class AIService:
             for name in ("ollama", "gemini"):
                 provider = providers[name]
                 if model_override and hasattr(provider, "set_model"):
-                    provider.set_model(model_override)  # type: ignore[attr-defined]
+                    provider.set_model(model_override)
                 if await provider.check_availability():
                     logger.info("Auto-routing to provider: %s", name)
                     return provider
         elif preferred in providers:
             provider = providers[preferred]
             if model_override and hasattr(provider, "set_model"):
-                provider.set_model(model_override)  # type: ignore[attr-defined]
+                provider.set_model(model_override)
             if await provider.check_availability():
                 return provider
             raise AIProviderUnavailableError(f"Provider '{preferred}' is not available")

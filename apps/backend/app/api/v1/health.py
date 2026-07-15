@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Request
 
 from app.config import settings
@@ -20,7 +22,7 @@ async def check_supabase() -> tuple[str, str | None]:
         return "disconnected", str(e)
 
 
-async def check_ollama() -> dict:
+async def check_ollama() -> dict[str, Any]:
     try:
         import httpx
 
@@ -54,7 +56,7 @@ async def check_ollama() -> dict:
 
 
 @router.get("/health")
-async def health(request: Request):
+async def health(request: Request) -> dict[str, Any]:
     supabase_status, supabase_error = await check_supabase()
     ollama = await check_ollama()
 

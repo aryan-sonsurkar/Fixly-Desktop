@@ -90,35 +90,18 @@ async def resend_verification(body: ResendVerificationRequest) -> dict[str, str]
 @router.get("/verify-email", response_model=None)
 async def verify_email(
     token: str,
+    request: Request,
     type: str = "signup",
-    request: Request = None,
 ) -> RedirectResponse:
-    """
-    Email verification callback from Supabase.
-    In production, Supabase redirects here after user clicks verification link.
-    For desktop app, this should redirect to deep link: fixly://auth/verified?token=<token>
-    """
-    # AuthService instance not needed for this endpoint - Supabase handles verification via redirect
-    # We just redirect to the appropriate frontend/deep link URL
-
     try:
-        # Verify the token with Supabase
-        # In production, Supabase handles this automatically via the redirect
-        # We just need to redirect to the desktop app via deep link
-
         if settings.environment == "development":
-            # In dev, redirect to frontend verify page with token
-            frontend_url = request.headers.get("origin", "http://localhost:1420") if request else "http://localhost:1420"
+            frontend_url = request.headers.get("origin", "http://localhost:1420")
             return RedirectResponse(url=f"{frontend_url}/verify-email?verified=true&token={token}")
 
-        # Production: redirect to deep link
-        # TODO: Register fixly:// as custom URL scheme in Tauri config
-        # TODO: Ensure Tauri handles deep links properly
         return RedirectResponse(url=f"fixly://auth/verified?token={token}&type={type}")
     except Exception:
-        # On error, redirect to login with error
         if settings.environment == "development":
-            frontend_url = request.headers.get("origin", "http://localhost:1420") if request else "http://localhost:1420"
+            frontend_url = request.headers.get("origin", "http://localhost:1420")
             return RedirectResponse(url=f"{frontend_url}/login?error=verification_failed")
         return RedirectResponse(url="fixly://auth/login?error=verification_failed")
 
@@ -146,38 +129,28 @@ async def google_callback(body: GoogleAuthRequest) -> dict[str, Any]:
 @router.get("/google/callback", response_model=None)
 async def google_oauth_callback(
     code: str,
+    request: Request,
     redirect_uri: str,
-    request: Request = None,
 ) -> RedirectResponse:
-    """
-    Google OAuth callback from Supabase.
-    Supabase redirects here after user authorizes with Google.
-    For desktop app, this should redirect to deep link: fixly://auth/callback?code=<code>
-    """
     service = AuthService()
 
     try:
         result = await service.handle_google_callback(code, redirect_uri)
         session = result.get("session") or {}
-        _user = result.get("user") or {}
-
         access_token = session.get("access_token", "")
         refresh_token = session.get("refresh_token", "")
 
         if settings.environment == "development":
-            # In dev, redirect to frontend with tokens in hash fragment
-            frontend_url = request.headers.get("origin", "http://localhost:1420") if request else "http://localhost:1420"
+            frontend_url = request.headers.get("origin", "http://localhost:1420")
             return RedirectResponse(
                 url=f"{frontend_url}/auth/callback#access_token={access_token}&refresh_token={refresh_token}"
             )
 
-        # Production: redirect to deep link with tokens
-        # TODO: Handle token storage securely in Tauri
         return RedirectResponse(
             url=f"fixly://auth/callback?access_token={access_token}&refresh_token={refresh_token}"
         )
     except Exception:
         if settings.environment == "development":
-            frontend_url = request.headers.get("origin", "http://localhost:1420") if request else "http://localhost:1420"
+            frontend_url = request.headers.get("origin", "http://localhost:1420")
             return RedirectResponse(url=f"{frontend_url}/login?error=google_auth_failed")
         return RedirectResponse(url="fixly://auth/login?error=google_auth_failed")
