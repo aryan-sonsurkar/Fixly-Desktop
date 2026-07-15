@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
-import { useSearchParams, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState, useRef } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { AuthLayout } from "@/components/auth-layout";
 import { useAuthStore } from "@/stores/auth-store";
 import { setTokens } from "@/lib/secure-storage";
+import apiClient from "@/lib/api-client";
 import { createLogger } from "@/lib/logger";
 import { Button } from "@fixly/ui";
 
@@ -11,29 +12,30 @@ const logger = createLogger("auth-callback-page");
 
 export function AuthCallbackPage() {
   const [searchParams] = useSearchParams();
-  const params = useParams();
   const navigate = useNavigate();
   const { setAuth } = useAuthStore();
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState<string>("");
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   useEffect(() => {
     async function handleCallback() {
       try {
-        // Handle email verification callback (from Supabase redirect)
         const verified = searchParams.get("verified");
         const token = searchParams.get("token");
-        
+
         if (verified === "true" && token) {
-          // Email verification successful
-          // In development, we can just redirect to login
           setStatus("success");
           setMessage("Email verified successfully! Redirecting to login...");
-          setTimeout(() => navigate("/login"), 2000);
+          setTimeout(() => { if (mountedRef.current) navigate("/login"); }, 2000);
           return;
         }
 
-        // Handle OAuth callback (Google, etc.) - tokens in hash fragment
         const hash = window.location.hash.substring(1);
         const hashParams = new URLSearchParams(hash);
         const accessToken = hashParams.get("access_token");
@@ -45,41 +47,34 @@ export function AuthCallbackPage() {
         }
 
         if (accessToken && refreshToken) {
-          // Store tokens
           await setTokens({ accessToken, refreshToken });
-          
-          // Get user info
-          const apiClient = (await import("@/lib/api-client")).default;
+
           const response = await apiClient.get("/api/v1/auth/me", {
             headers: { Authorization: `Bearer ${accessToken}` },
           });
-          
+
           const user = response.data;
           setAuth(accessToken, user);
-          
+
           setStatus("success");
           setMessage("Sign in successful! Redirecting to dashboard...");
-          setTimeout(() => navigate("/dashboard", { replace: true }), 1500);
+          setTimeout(() => { if (mountedRef.current) navigate("/dashboard", { replace: true }); }, 1500);
           return;
         }
 
-        // No tokens found - might be an error or different flow
-        if (params.error) {
-          throw new Error(params.error_description || params.error);
-        }
-
-        // If we reach here without tokens or verified flag, redirect to login
         navigate("/login?error=callback_failed");
       } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : "Authentication failed";
+        const msg = err instanceof Error ? err.message : "Authentication failed";
         logger.error("Auth callback error", err);
-        setStatus("error");
-        setMessage(message);
+        if (mountedRef.current) {
+          setStatus("error");
+          setMessage(msg);
+        }
       }
     }
 
     handleCallback();
-  }, []);
+  }, [navigate, searchParams, setAuth]);
 
   if (status === "loading") {
     return (
@@ -130,7 +125,7 @@ export function AuthCallbackPage() {
             <p className="text-sm text-foreground">Authentication failed</p>
             <p className="text-xs text-muted-foreground">{message}</p>
           </div>
-          <Button onClick={() => window.location.href = "/login"} className="w-full">
+          <Button onClick={() => navigate("/login")} className="w-full">
             Return to Login
           </Button>
         </motion.div>

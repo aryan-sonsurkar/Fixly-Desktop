@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { AuthLayout } from "@/components/auth-layout";
@@ -15,30 +15,40 @@ export function VerifyEmailPage() {
   const navigate = useNavigate();
   const [resent, setResent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
-    // If already authenticated, redirect to dashboard
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
     if (isAuthenticated) {
       navigate("/dashboard", { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
   const handleResend = async () => {
-    if (!user?.email) return;
+    if (!user?.email || sending) return;
+    setSending(true);
     setError(null);
     try {
       await resendVerification(user.email);
+      if (!mountedRef.current) return;
       setResent(true);
-      setTimeout(() => setResent(false), 60000);
+      setTimeout(() => { if (mountedRef.current) setResent(false); }, 60000);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Could not resend verification email.";
-      setError(message);
+      if (mountedRef.current) setError(message);
       logger.error("Resend verification failed", err);
+    } finally {
+      if (mountedRef.current) setSending(false);
     }
   };
 
-if (isAuthenticated) {
-    return null; // Will redirect via useEffect
+  if (isAuthenticated) {
+    return null;
   }
 
   return (

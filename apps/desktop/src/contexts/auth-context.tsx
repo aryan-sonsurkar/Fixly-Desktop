@@ -128,28 +128,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [handleAuthResponse, refreshSession]);
 
   useEffect(() => {
+    let cancelled = false;
     async function init() {
       setIsLoading(true);
       const tokens = await restoreSession();
       if (!tokens) {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
         return;
       }
       const success = await refreshSession();
-      if (!success) {
-        try {
-          const response = await apiClient.get("/api/v1/auth/me", {
-            headers: { Authorization: `Bearer ${tokens.accessToken}` },
-          });
+      if (success) {
+        if (!cancelled) setIsLoading(false);
+        return;
+      }
+      try {
+        const response = await apiClient.get("/api/v1/auth/me", {
+          headers: { Authorization: `Bearer ${tokens.accessToken}` },
+        });
+        if (!cancelled) {
           setAuth(tokens.accessToken, response.data);
-        } catch {
-          await clearTokens();
+          setIsLoading(false);
+        }
+      } catch {
+        await clearTokens();
+        if (!cancelled) {
           clearAuth();
+          setIsLoading(false);
         }
       }
-      setIsLoading(false);
     }
     init();
+    return () => { cancelled = true; };
   }, [refreshSession, setAuth, clearAuth]);
 
   return (

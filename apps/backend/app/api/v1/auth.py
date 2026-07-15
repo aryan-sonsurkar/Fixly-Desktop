@@ -9,6 +9,7 @@ from app.schemas.auth import (
     AuthResponse,
     ForgotPasswordRequest,
     GoogleAuthRequest,
+    RefreshTokenRequest,
     ResendVerificationRequest,
     ResetPasswordRequest,
     SignInRequest,
@@ -42,17 +43,17 @@ async def sign_out(current_user: dict[str, Any] = Depends(get_current_user)) -> 
 
 
 @router.post("/refresh", response_model=AuthResponse)
-async def refresh(body: dict[str, str]) -> dict[str, Any]:
+async def refresh(body: RefreshTokenRequest) -> dict[str, Any]:
     service = AuthService()
-    result = await service.refresh_token(body["refresh_token"])
+    result = await service.refresh_token(body.refresh_token)
     return result
 
 
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
     return {
-        "id": current_user["id"],
-        "email": current_user["email"],
+        "id": current_user.get("id", ""),
+        "email": current_user.get("email", ""),
         "profile": current_user.get("profile"),
         "user_metadata": current_user.get("user_metadata"),
     }

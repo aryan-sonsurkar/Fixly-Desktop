@@ -41,7 +41,7 @@ class AuthService:
             if "already exists" in error_msg or "already registered" in error_msg:
                 raise AuthenticationError("An account with this email already exists.")
             logger.error("Sign up failed: %s", e)
-            raise AuthenticationError(f"Sign up failed: {e}")
+            raise AuthenticationError("Sign up failed. Please try again.")
 
     async def sign_in(self, email: str, password: str) -> dict[str, Any]:
         try:
@@ -74,7 +74,7 @@ class AuthService:
                         pass
                 raise AuthenticationError("Please verify your email before signing in.")
             logger.error("Sign in failed: %s", e)
-            raise AuthenticationError(f"Sign in failed: {e}")
+            raise AuthenticationError("Sign in failed. Please check your credentials.")
 
     async def sign_out(self, user_id: str) -> None:
         try:
@@ -96,7 +96,7 @@ class AuthService:
             raise
         except Exception as e:
             logger.error("Token refresh failed: %s", e)
-            raise AuthenticationError(f"Session expired: {e}")
+            raise AuthenticationError("Session expired. Please sign in again.")
 
     async def validate_token(self, token: str) -> dict[str, Any]:
         payload = await verify_token(token)
@@ -148,7 +148,7 @@ class AuthService:
             raise
         except Exception as e:
             logger.error("Failed to get Google auth URL: %s", e)
-            raise AuthenticationError(f"Google auth unavailable: {e}")
+            raise AuthenticationError("Google authentication is currently unavailable. Please try again later.")
 
     async def handle_google_callback(self, code: str, redirect_uri: str) -> dict[str, Any]:
         try:
@@ -164,4 +164,4 @@ class AuthService:
             raise
         except Exception as e:
             logger.error("Google auth callback failed: %s", e)
-            raise AuthenticationError(f"Google authentication failed: {e}")
+            raise AuthenticationError("Google authentication failed. Please try again.")
