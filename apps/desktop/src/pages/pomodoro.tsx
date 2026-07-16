@@ -59,7 +59,7 @@ export function PomodoroPage() {
     try {
       const updated = await updatePomodoroSettings(data as Parameters<typeof updatePomodoroSettings>[0]);
       setSettings(updated);
-      const focusSeconds = (updated as { focus_duration: number }).focus_duration * 60;
+      const focusSeconds = (updated?.focus_duration ?? 25) * 60;
       restartFromSettings(focusSeconds);
     } catch (err) {
       logger.error("Failed to save settings", err);
@@ -78,8 +78,8 @@ export function PomodoroPage() {
       await completePomodoroSession({
         focus_duration: fd,
         break_duration: bd,
-        cycles_completed: 1,
-        total_focus_minutes: fd,
+        cycles_completed: cyclesCompleted,
+        total_focus_minutes: fd * cyclesCompleted,
         interruptions: data.interruptions,
         tags: data.tags,
         notes: data.notes || null,

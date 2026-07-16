@@ -133,6 +133,12 @@ export interface PomodoroSession {
   break_duration: number;
   cycles_completed: number;
   total_focus_minutes: number;
+  interruptions: number;
+  tags: string[];
+  notes: string | null;
+  mood_after: string | null;
+  subject_id: string | null;
+  daily_goal_progress: number;
   date: string;
   created_at: string;
 }

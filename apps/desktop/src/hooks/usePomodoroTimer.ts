@@ -1,8 +1,8 @@
 import { useEffect, useRef, useCallback } from "react";
 import { usePomodoroStore, TimerPhase } from "@/stores/pomodoro-store";
 
-function notify(title: string, body: string) {
-  if ("Notification" in window && Notification.permission === "granted") {
+function notify(title: string, body: string, enabled: boolean) {
+  if (enabled && "Notification" in window && Notification.permission === "granted") {
     new Notification(title, { body, icon: "/icon.png" });
   }
 }
@@ -16,22 +16,28 @@ export function usePomodoroTimer() {
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const audioRef = useRef<HTMLAudioElement | undefined>(undefined);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const startTimestampRef = useRef<number>(0);
 
   useEffect(() => {
     audioRef.current = new Audio(
-      "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACAf39/f4B/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f38=",
+      "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACAf39/f4B/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f3+AgH9/f38=",
     );
     return () => {
-      audioRef.current = undefined;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = undefined;
+      }
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, []);
 
   const playAlarm = useCallback(() => {
-    if (audioRef.current) {
+    if (audioRef.current && settings?.sound_enabled) {
       audioRef.current.currentTime = 0;
       audioRef.current.play().catch(() => {});
     }
-  }, []);
+  }, [settings?.sound_enabled]);
 
   const switchPhase = useCallback(
     (nextPhase: TimerPhase, duration: number) => {
@@ -49,11 +55,13 @@ export function usePomodoroTimer() {
 
   const startTimer = useCallback(() => {
     if (timeRemaining <= 0 || isRunning) return;
+    startTimestampRef.current = Date.now();
     setIsRunning(true);
   }, [timeRemaining, isRunning, setIsRunning]);
 
   const pauseTimer = useCallback(() => {
     setIsRunning(false);
+    startTimestampRef.current = 0;
   }, [setIsRunning]);
 
   const resetTimer = useCallback(() => {
@@ -61,8 +69,13 @@ export function usePomodoroTimer() {
       clearInterval(intervalRef.current);
       intervalRef.current = undefined;
     }
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = undefined;
+    }
     setIsRunning(false);
     setTimeRemaining(totalTime);
+    startTimestampRef.current = 0;
   }, [totalTime, setIsRunning, setTimeRemaining]);
 
   const skipPhase = useCallback(() => {
@@ -70,8 +83,32 @@ export function usePomodoroTimer() {
       clearInterval(intervalRef.current);
       intervalRef.current = undefined;
     }
-    setTimeRemaining(0);
-  }, [setTimeRemaining]);
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = undefined;
+    }
+    const s = usePomodoroStore.getState();
+    setIsRunning(false);
+    if (s.phase === "focus") {
+      const nextCycles = s.cyclesCompleted + 1;
+      setCyclesCompleted(nextCycles);
+      const lbi = s.settings?.long_break_interval || 4;
+      const isLongBreak = nextCycles % lbi === 0;
+      if (isLongBreak) {
+        const lbd = (s.settings?.long_break_duration || 15) * 60;
+        switchPhase("long_break", lbd);
+      } else {
+        const sbd = (s.settings?.short_break_duration || 5) * 60;
+        switchPhase("short_break", sbd);
+      }
+      notify("Focus Complete!", `Cycle ${nextCycles} finished. Time for a break!`, s.settings?.desktop_notifications ?? true);
+    } else {
+      setSessionDialogOpen(true);
+      const fd = s.settings?.focus_duration || 25;
+      switchPhase("focus", fd * 60);
+    }
+    startTimestampRef.current = 0;
+  }, [setIsRunning, setCyclesCompleted, switchPhase, setSessionDialogOpen]);
 
   useEffect(() => {
     if (!isRunning) {
@@ -82,9 +119,14 @@ export function usePomodoroTimer() {
       return;
     }
 
+    startTimestampRef.current = startTimestampRef.current || Date.now();
+
     intervalRef.current = setInterval(() => {
       const state = usePomodoroStore.getState();
-      if (state.timeRemaining <= 1) {
+      const elapsed = Math.floor((Date.now() - startTimestampRef.current) / 1000);
+      const remaining = state.totalTime - elapsed;
+
+      if (remaining <= 0) {
         clearInterval(intervalRef.current);
         intervalRef.current = undefined;
         setIsRunning(false);
@@ -96,7 +138,7 @@ export function usePomodoroTimer() {
         if (s.phase === "focus") {
           const newCycles = updatedCycles + 1;
           setCyclesCompleted(newCycles);
-          notify("Focus Complete!", `Cycle ${newCycles} finished. Time for a break!`);
+          notify("Focus Complete!", `Cycle ${newCycles} finished. Time for a break!`, s.settings?.desktop_notifications ?? true);
 
           const lbi = s.settings?.long_break_interval || 4;
           const isLongBreak = newCycles % lbi === 0;
@@ -110,7 +152,7 @@ export function usePomodoroTimer() {
           }
 
           if (s.settings?.auto_start_breaks) {
-            setTimeout(() => usePomodoroStore.getState().setIsRunning(true), 500);
+            timeoutRef.current = setTimeout(() => usePomodoroStore.getState().setIsRunning(true), 500);
           }
         } else {
           setSessionDialogOpen(true);
@@ -118,11 +160,12 @@ export function usePomodoroTimer() {
           switchPhase("focus", fd * 60);
 
           if (s.settings?.auto_start_focus) {
-            setTimeout(() => usePomodoroStore.getState().setIsRunning(true), 500);
+            timeoutRef.current = setTimeout(() => usePomodoroStore.getState().setIsRunning(true), 500);
           }
         }
+        startTimestampRef.current = 0;
       } else {
-        setTimeRemaining(state.timeRemaining - 1);
+        setTimeRemaining(remaining);
       }
     }, 1000);
 
@@ -140,10 +183,15 @@ export function usePomodoroTimer() {
         clearInterval(intervalRef.current);
         intervalRef.current = undefined;
       }
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = undefined;
+      }
       setIsRunning(false);
       setPhase("focus");
       setTotalTime(duration);
       setTimeRemaining(duration);
+      startTimestampRef.current = 0;
     },
     [setIsRunning, setPhase, setTotalTime, setTimeRemaining],
   );

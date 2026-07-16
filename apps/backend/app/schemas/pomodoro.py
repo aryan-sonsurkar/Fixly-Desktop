@@ -25,7 +25,7 @@ class PomodoroSessionCreate(BaseModel):
     tags: list[str] = Field(default_factory=list)
     notes: str | None = None
     mood_after: str | None = Field(
-        default=None, pattern=r"^(great|good|okay|bad|terrible)?$"
+        default=None, pattern=r"^(great|good|okay|bad|terrible)$"
     )
     subject_id: str | None = None
 

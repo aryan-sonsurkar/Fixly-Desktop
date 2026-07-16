@@ -1,3 +1,4 @@
+from datetime import date as date_func
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
@@ -46,7 +47,7 @@ async def get_sessions(
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     service = PomodoroService()
-    target = date or Query(default_factory=lambda: str(__import__("datetime").date.today()))()
+    target = date or str(date_func.today())
     return await service.get_sessions_for_date(current_user["id"], target)
 
 
