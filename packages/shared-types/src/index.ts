@@ -1,4 +1,4 @@
-export type Status = "pending" | "in_progress" | "completed" | "cancelled";
+export type Status = "pending" | "in_progress" | "completed" | "cancelled" | "overdue";
 
 export type Priority = "low" | "medium" | "high" | "urgent";
 

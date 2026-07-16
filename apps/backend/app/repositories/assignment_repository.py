@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
 from app.core.logging import get_logger
@@ -15,12 +15,12 @@ class AssignmentRepository:
         }
 
     def _apply_filters(self, query: Any, filters: dict[str, Any]) -> Any:
-        user_id = filters.pop("user_id", None)
+        user_id = filters.get("user_id")
         if user_id:
             query = query.eq("user_id", user_id)
 
         for key, value in filters.items():
-            if value is None or value == "":
+            if key == "user_id" or value is None or value == "":
                 continue
             if key == "search":
                 query = query.text_search("title", value)
@@ -28,9 +28,9 @@ class AssignmentRepository:
                 if isinstance(value, list) and value:
                     query = query.contains("tags", value)
             elif key == "due_date_from":
-                query = query.gte("due_date", value.isoformat())
+                query = query.gte("due_date", value.isoformat() if hasattr(value, "isoformat") else value)
             elif key == "due_date_to":
-                query = query.lte("due_date", value.isoformat())
+                query = query.lte("due_date", value.isoformat() if hasattr(value, "isoformat") else value)
             else:
                 query = query.eq(key, value)
         return query
@@ -55,30 +55,14 @@ class AssignmentRepository:
     ) -> tuple[list[dict[str, Any]], int]:
         client = get_supabase()
         query = client.table("assignments").select("*")
-        filter_args = {"user_id": user_id, **(filters or {})}
-
-        for key in ("search", "tags", "due_date_from", "due_date_to"):
-            val = filter_args.pop(key, None)
-            if val is not None and val != "":
-                if key == "search":
-                    query = query.text_search("title", val)  # type: ignore[assignment]
-                elif key == "tags":
-                    query = query.contains("tags", val) if isinstance(val, list) else query
-                elif key == "due_date_from":
-                    query = query.gte("due_date", val.isoformat() if hasattr(val, "isoformat") else val)
-                elif key == "due_date_to":
-                    query = query.lte("due_date", val.isoformat() if hasattr(val, "isoformat") else val)
-
-        for key, val in filter_args.items():
-            if val is not None and val != "":
-                query = query.eq(key, val)
+        query = self._apply_filters(query, {"user_id": user_id, **(filters or {})})
 
         total_query = client.table("assignments").select("id", count="exact")  # type: ignore[arg-type]
         total_query = total_query.eq("user_id", user_id)
         total_response = total_query.execute()
         total = total_response.count or 0
 
-        query = query.order(sort_by, ascending=(sort_order == "asc"))  # type: ignore[call-arg]
+        query = query.order(sort_by, ascending=(sort_order == "asc"))
         offset = (page - 1) * page_size
         query = query.range(offset, offset + page_size - 1)
         response = query.execute()
@@ -88,16 +72,19 @@ class AssignmentRepository:
 
     async def get_assignment(self, assignment_id: str, user_id: str) -> dict[str, Any] | None:
         client = get_supabase()
-        response = (
-            client.table("assignments")
-            .select("*, subjects(name, color)")
-            .eq("id", assignment_id)
-            .eq("user_id", user_id)
-            .single()
-            .execute()
-        )
-        data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        try:
+            response = (
+                client.table("assignments")
+                .select("*, subjects(name, color)")
+                .eq("id", assignment_id)
+                .eq("user_id", user_id)
+                .single()
+                .execute()
+            )
+            data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
+            return data.get("data") or data
+        except Exception:
+            return None
 
     async def create_assignment(self, user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         client = get_supabase()
@@ -141,9 +128,11 @@ class AssignmentRepository:
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
         return cast(list[dict[str, Any]], data.get("data", []))
 
-    async def bulk_delete(self, ids: list[str], user_id: str) -> None:
+    async def bulk_delete(self, ids: list[str], user_id: str) -> int:
         client = get_supabase()
-        client.table("assignments").delete().in_("id", ids).eq("user_id", user_id).execute()
+        result = client.table("assignments").delete().in_("id", ids).eq("user_id", user_id).execute()
+        data = result.model_dump() if hasattr(result, "model_dump") else dict(result)
+        return len(data.get("data", []))
 
     async def get_attachments(self, assignment_id: str) -> list[dict[str, Any]]:
         client = get_supabase()
@@ -221,7 +210,7 @@ class AssignmentRepository:
         )
         due_today = due_today_resp.count or 0
 
-        week_end = today_start.replace(day=today_start.day + 7)
+        week_end = today_start + timedelta(days=7)
         due_week_resp = (
             client.table("assignments")
             .select("id", count="exact")  # type: ignore[arg-type]

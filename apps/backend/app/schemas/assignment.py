@@ -1,15 +1,18 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+
+StatusEnum = Literal["pending", "in_progress", "completed", "cancelled", "overdue"]
+PriorityEnum = Literal["low", "medium", "high", "urgent"]
 
 
 class AssignmentCreate(BaseModel):
     title: str = Field(min_length=1, max_length=500)
     description: str | None = None
     subject_id: str | None = None
-    priority: str = "medium"
-    status: str = "pending"
+    priority: PriorityEnum = "medium"
+    status: StatusEnum = "pending"
     due_date: datetime | None = None
     estimated_study_time: int | None = Field(default=None, ge=1, le=1440)
     tags: list[str] | None = None
@@ -22,8 +25,8 @@ class AssignmentUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=500)
     description: str | None = None
     subject_id: str | None = None
-    priority: str | None = None
-    status: str | None = None
+    priority: PriorityEnum | None = None
+    status: StatusEnum | None = None
     due_date: datetime | None = None
     estimated_study_time: int | None = Field(default=None, ge=1, le=1440)
     tags: list[str] | None = None
@@ -63,7 +66,7 @@ class BulkActionRequest(BaseModel):
 
 
 class AssignmentsQuery(BaseModel):
-    search: str | None = None
+    search: str | None = Field(default=None, max_length=200)
     status: str | None = None
     priority: str | None = None
     subject_id: str | None = None

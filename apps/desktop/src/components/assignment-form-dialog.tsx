@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -16,7 +16,7 @@ const assignmentSchema = z.object({
   description: z.string().optional(),
   subject_id: z.string().optional(),
   priority: z.enum(["low", "medium", "high", "urgent"]),
-  status: z.enum(["pending", "in_progress", "completed", "overdue"]),
+  status: z.enum(["pending", "in_progress", "completed", "overdue", "cancelled"]),
   due_date: z.string().optional(),
   estimated_study_time: z.coerce.number().min(1).max(1440).optional(),
   tags: z.string().optional(),
@@ -43,6 +43,7 @@ export function AssignmentFormDialog({
   onSuccess,
 }: AssignmentFormDialogProps) {
   const isEditing = !!assignment;
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const form = useForm<AssignmentForm>({
     resolver: zodResolver(assignmentSchema),
@@ -68,9 +69,9 @@ export function AssignmentFormDialog({
         description: assignment.description || "",
         subject_id: assignment.subject_id || "",
         priority: assignment.priority as "low" | "medium" | "high" | "urgent",
-        status: assignment.status as "pending" | "in_progress" | "completed" | "overdue",
+        status: assignment.status as "pending" | "in_progress" | "completed" | "overdue" | "cancelled",
         due_date: assignment.due_date ? assignment.due_date.slice(0, 16) : "",
-        estimated_study_time: assignment.estimated_study_time || undefined,
+        estimated_study_time: assignment.estimated_study_time ?? undefined,
         tags: assignment.tags?.join(", ") || "",
         notes: assignment.notes || "",
         is_pinned: assignment.is_pinned,
@@ -94,15 +95,17 @@ export function AssignmentFormDialog({
   }, [assignment, form]);
 
   const onSubmit = form.handleSubmit(async (data) => {
+    setSubmitError(null);
     try {
+      const dueDate = data.due_date ? data.due_date + ":00.000Z" : null;
       const payload = {
         title: data.title,
         description: data.description || null,
         subject_id: data.subject_id || null,
         priority: data.priority,
         status: data.status,
-        due_date: data.due_date ? new Date(data.due_date).toISOString() : null,
-        estimated_study_time: data.estimated_study_time || null,
+        due_date: dueDate,
+        estimated_study_time: data.estimated_study_time ?? null,
         tags: data.tags ? data.tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
         notes: data.notes || null,
         is_pinned: data.is_pinned || false,
@@ -117,13 +120,19 @@ export function AssignmentFormDialog({
       onSuccess();
     } catch (err) {
       logger.error("Failed to save assignment", err);
+      setSubmitError("Failed to save assignment. Please try again.");
     }
   });
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => onOpenChange(false)}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => {
+      if (form.formState.isDirty) {
+        if (!window.confirm("Discard unsaved changes?")) return;
+      }
+      onOpenChange(false);
+    }}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -133,7 +142,12 @@ export function AssignmentFormDialog({
       >
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-xl font-semibold">{isEditing ? "Edit Assignment" : "New Assignment"}</h2>
-          <button type="button" onClick={() => onOpenChange(false)} className="text-muted-foreground hover:text-foreground">
+          <button type="button" onClick={() => {
+            if (form.formState.isDirty) {
+              if (!window.confirm("Discard unsaved changes?")) return;
+            }
+            onOpenChange(false);
+          }} className="text-muted-foreground hover:text-foreground">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -192,6 +206,8 @@ export function AssignmentFormDialog({
                 <option value="pending">Pending</option>
                 <option value="in_progress">In Progress</option>
                 <option value="completed">Completed</option>
+                <option value="overdue">Overdue</option>
+                <option value="cancelled">Cancelled</option>
               </select>
             </div>
             <div className="space-y-2">
@@ -223,6 +239,10 @@ export function AssignmentFormDialog({
             />
           </div>
 
+          {submitError && (
+            <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{submitError}</div>
+          )}
+
           <div className="flex items-center gap-4">
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <input type="checkbox" {...form.register("is_pinned")} className="h-4 w-4 accent-primary" />
@@ -235,7 +255,12 @@ export function AssignmentFormDialog({
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => {
+              if (form.formState.isDirty) {
+                if (!window.confirm("Discard unsaved changes?")) return;
+              }
+              onOpenChange(false);
+            }}>Cancel</Button>
             <Button type="submit" disabled={form.formState.isSubmitting}>
               {form.formState.isSubmitting ? "Saving..." : isEditing ? "Update" : "Create"}
             </Button>

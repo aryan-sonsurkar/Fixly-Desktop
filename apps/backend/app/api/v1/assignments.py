@@ -92,8 +92,8 @@ async def bulk_action(
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = AssignmentService()
-    result = await service.bulk_action(body.ids, current_user["id"], body.action, body.value)
-    return {"affected": len(result), "data": result}
+    result, affected = await service.bulk_action(body.ids, current_user["id"], body.action, body.value)
+    return {"affected": affected, "data": result}
 
 
 @router.get("/{assignment_id}/attachments")

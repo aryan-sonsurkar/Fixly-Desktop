@@ -58,12 +58,41 @@ export async function getAssignment(id: string): Promise<Assignment> {
   return response.data;
 }
 
-export async function createAssignment(data: Partial<Assignment>): Promise<Assignment> {
+export interface CreateAssignmentPayload {
+  title: string;
+  description?: string | null;
+  subject_id?: string | null;
+  priority?: string;
+  status?: string;
+  due_date?: string | null;
+  estimated_study_time?: number | null;
+  tags?: string[];
+  notes?: string | null;
+  is_pinned?: boolean;
+  is_favorite?: boolean;
+}
+
+export interface UpdateAssignmentPayload {
+  title?: string;
+  description?: string | null;
+  subject_id?: string | null;
+  priority?: string;
+  status?: string;
+  due_date?: string | null;
+  estimated_study_time?: number | null;
+  tags?: string[];
+  notes?: string | null;
+  is_archived?: boolean;
+  is_pinned?: boolean;
+  is_favorite?: boolean;
+}
+
+export async function createAssignment(data: CreateAssignmentPayload): Promise<Assignment> {
   const response = await apiClient.post("/api/v1/assignments", data);
   return response.data;
 }
 
-export async function updateAssignment(id: string, data: Partial<Assignment>): Promise<Assignment> {
+export async function updateAssignment(id: string, data: UpdateAssignmentPayload): Promise<Assignment> {
   const response = await apiClient.put(`/api/v1/assignments/${id}`, data);
   return response.data;
 }

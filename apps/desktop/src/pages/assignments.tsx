@@ -18,7 +18,10 @@ import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { FilterBar } from "@/components/filter-bar";
 import { AssignmentEmptyState } from "@/components/assignment-empty-state";
 import { AssignmentSkeleton } from "@/components/assignment-skeleton";
+import { createLogger } from "@/lib/logger";
 import type { Assignment } from "@fixly/shared-types";
+
+const logger = createLogger("assignments-page");
 
 type ViewMode = "list" | "board";
 
@@ -44,18 +47,19 @@ export function AssignmentsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [pageError, setPageError] = useState<string | null>(null);
 
-  const { data: assignmentsData, isLoading } = useQuery({
+  const { data: assignmentsData, isLoading, isError: isAssignmentsError, error: assignmentsError } = useQuery({
     queryKey: ["assignments", query],
     queryFn: () => getAssignments(query),
   });
 
-  const { data: stats } = useQuery({
+  const { data: stats, isError: isStatsError } = useQuery({
     queryKey: ["assignment-stats"],
     queryFn: getAssignmentStats,
   });
 
-  const { data: subjects } = useQuery({
+  const { data: subjects, isError: isSubjectsError } = useQuery({
     queryKey: ["subjects"],
     queryFn: getSubjects,
   });
@@ -66,6 +70,11 @@ export function AssignmentsPage() {
       queryClient.invalidateQueries({ queryKey: ["assignments"] });
       queryClient.invalidateQueries({ queryKey: ["assignment-stats"] });
       setDeleteId(null);
+      setDetailId(null);
+    },
+    onError: (err) => {
+      logger.error("Failed to delete assignment", err);
+      setPageError("Failed to delete assignment. Please try again.");
     },
   });
 
@@ -77,12 +86,20 @@ export function AssignmentsPage() {
       queryClient.invalidateQueries({ queryKey: ["assignment-stats"] });
       setSelectedIds(new Set());
     },
+    onError: (err) => {
+      logger.error("Failed to perform bulk action", err);
+      setPageError("Failed to perform bulk action. Please try again.");
+    },
   });
 
   const duplicateMutation = useMutation({
     mutationFn: (id: string) => duplicateAssignment(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["assignments"] });
+    },
+    onError: (err) => {
+      logger.error("Failed to duplicate assignment", err);
+      setPageError("Failed to duplicate assignment. Please try again.");
     },
   });
 
@@ -109,7 +126,36 @@ export function AssignmentsPage() {
 
   const subjectMap = new Map(subjects?.map((s) => [s.id, s]));
 
+  const hasFilters = Object.entries(query).some(([k, v]) =>
+    k !== "is_archived" && k !== "sort_by" && k !== "sort_order" && k !== "page" && k !== "page_size" && v
+  );
+
   if (isLoading) return <AssignmentSkeleton />;
+
+  if (isAssignmentsError && !assignmentsData) {
+    return (
+      <div className="mx-auto max-w-3xl p-6">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+            <svg className="h-6 w-6 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-semibold text-foreground">Failed to load assignments</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {assignmentsError instanceof Error ? assignmentsError.message : "An unexpected error occurred"}
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            Reload
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6">
@@ -146,6 +192,18 @@ export function AssignmentsPage() {
         </div>
       </div>
 
+      {(isStatsError || isSubjectsError) && (
+        <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          Some data failed to load. Some features may be unavailable.
+        </div>
+      )}
+
+      {pageError && (
+        <div className="rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {pageError}
+        </div>
+      )}
+
       {selectedIds.size > 0 && (
         <motion.div
           initial={{ opacity: 0, y: -10 }}
@@ -171,11 +229,9 @@ export function AssignmentsPage() {
         subjects={subjects || []}
       />
 
-      {(!assignmentsData?.data || assignmentsData.data.length === 0) && (
+      {(!assignmentsData?.data || assignmentsData.data.length === 0) && !isAssignmentsError && (
         <AssignmentEmptyState
-          hasFilters={Object.entries(query).some(([k, v]) =>
-            k !== "is_archived" && k !== "sort_by" && k !== "sort_order" && k !== "page" && k !== "page_size" && v
-          )}
+          hasFilters={hasFilters}
           onCreateNew={() => { setEditingAssignment(null); setFormOpen(true); }}
         />
       )}
@@ -246,7 +302,7 @@ export function AssignmentsPage() {
         </div>
       )}
 
-      {viewMode === "board" && (
+      {viewMode === "board" && assignmentsData && assignmentsData.data.length > 0 && (
         <div className="grid grid-cols-4 gap-4">
           {STATUS_COLUMNS.map((col) => {
             const items = assignmentsByStatus(col.key);

@@ -92,34 +92,43 @@ class AssignmentService:
 
     async def bulk_action(
         self, ids: list[str], user_id: str, action: str, value: Any = None
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], int]:
         if action == "delete":
-            await self.repository.bulk_delete(ids, user_id)
-            return []
+            affected = await self.repository.bulk_delete(ids, user_id)
+            return [], affected
         elif action == "complete":
-            return await self.repository.bulk_update(ids, user_id, {
+            result = await self.repository.bulk_update(ids, user_id, {
                 "status": "completed",
                 "completion_date": datetime.now(timezone.utc).isoformat(),
             })
+            return result, len(result)
         elif action == "archive":
-            return await self.repository.bulk_update(ids, user_id, {"is_archived": True})
+            result = await self.repository.bulk_update(ids, user_id, {"is_archived": True})
+            return result, len(result)
         elif action == "restore":
-            return await self.repository.bulk_update(ids, user_id, {"is_archived": False})
+            result = await self.repository.bulk_update(ids, user_id, {"is_archived": False})
+            return result, len(result)
         elif action == "pin":
-            return await self.repository.bulk_update(ids, user_id, {"is_pinned": True})
+            result = await self.repository.bulk_update(ids, user_id, {"is_pinned": True})
+            return result, len(result)
         elif action == "unpin":
-            return await self.repository.bulk_update(ids, user_id, {"is_pinned": False})
+            result = await self.repository.bulk_update(ids, user_id, {"is_pinned": False})
+            return result, len(result)
         elif action == "favorite":
-            return await self.repository.bulk_update(ids, user_id, {"is_favorite": True})
+            result = await self.repository.bulk_update(ids, user_id, {"is_favorite": True})
+            return result, len(result)
         elif action == "unfavorite":
-            return await self.repository.bulk_update(ids, user_id, {"is_favorite": False})
+            result = await self.repository.bulk_update(ids, user_id, {"is_favorite": False})
+            return result, len(result)
         elif action == "set_status" and value:
-            return await self.repository.bulk_update(ids, user_id, {
+            result = await self.repository.bulk_update(ids, user_id, {
                 "status": str(value),
                 **({"completion_date": datetime.now(timezone.utc).isoformat()} if str(value) == "completed" else {}),
             })
+            return result, len(result)
         elif action == "set_priority" and value:
-            return await self.repository.bulk_update(ids, user_id, {"priority": str(value)})
+            result = await self.repository.bulk_update(ids, user_id, {"priority": str(value)})
+            return result, len(result)
         else:
             raise ValidationError(f"Unknown bulk action: {action}")
 

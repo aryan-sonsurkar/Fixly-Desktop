@@ -2,8 +2,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Button } from "@fixly/ui";
 import { getAssignment, getAssignmentAttachments, uploadAttachment, deleteAttachment } from "@/lib/assignment-service";
+import { createLogger } from "@/lib/logger";
 import type { Assignment } from "@fixly/shared-types";
 
+const logger = createLogger("assignment-detail-dialog");
 
 interface AssignmentDetailDialogProps {
   assignmentId: string | null;
@@ -19,13 +21,13 @@ export function AssignmentDetailDialog({
   const queryClient = useQueryClient();
   const open = !!assignmentId;
 
-  const { data: assignment, isLoading } = useQuery({
+  const { data: assignment, isLoading, isError: isAssignmentError, error: assignmentError } = useQuery({
     queryKey: ["assignment", assignmentId],
     queryFn: () => getAssignment(assignmentId!),
     enabled: !!assignmentId,
   });
 
-  const { data: attachments } = useQuery({
+  const { data: attachments, isError: isAttachmentsError } = useQuery({
     queryKey: ["attachments", assignmentId],
     queryFn: () => getAssignmentAttachments(assignmentId!),
     enabled: !!assignmentId,
@@ -39,12 +41,18 @@ export function AssignmentDetailDialog({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["attachments", assignmentId] });
     },
+    onError: (err) => {
+      logger.error("Failed to upload attachment", err);
+    },
   });
 
   const deleteAttachmentMutation = useMutation({
     mutationFn: (id: string) => deleteAttachment(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["attachments", assignmentId] });
+    },
+    onError: (err) => {
+      logger.error("Failed to delete attachment", err);
     },
   });
 
@@ -71,6 +79,15 @@ export function AssignmentDetailDialog({
         {isLoading ? (
           <div className="flex justify-center py-12">
             <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+          </div>
+        ) : isAssignmentError ? (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
+            <p className="text-sm text-destructive">
+              {assignmentError instanceof Error ? assignmentError.message : "Failed to load assignment"}
+            </p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
           </div>
         ) : assignment ? (
           <div className="space-y-6">
@@ -115,7 +132,7 @@ export function AssignmentDetailDialog({
                   {new Date(assignment.due_date).toLocaleDateString()}
                 </div>
               )}
-              {assignment.estimated_study_time && (
+              {assignment.estimated_study_time != null && (
                 <div><span className="text-muted-foreground">Est. time:</span> {assignment.estimated_study_time} min</div>
               )}
               {assignment.completion_date && (
@@ -136,6 +153,9 @@ export function AssignmentDetailDialog({
 
             <div>
               <h3 className="mb-2 text-sm font-medium text-muted-foreground">Attachments</h3>
+              {isAttachmentsError && (
+                <p className="mb-2 text-xs text-destructive">Failed to load attachments</p>
+              )}
               <div className="space-y-2">
                 {attachments?.map((att) => (
                   <div key={att.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
@@ -144,7 +164,7 @@ export function AssignmentDetailDialog({
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                       </svg>
                       <span className="text-sm">{att.file_name}</span>
-                      {att.file_size && (
+                      {att.file_size != null && (
                         <span className="text-xs text-muted-foreground">
                           ({(att.file_size / 1024).toFixed(0)} KB)
                         </span>
