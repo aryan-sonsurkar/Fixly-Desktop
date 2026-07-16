@@ -5,10 +5,13 @@ from pydantic import BaseModel, Field
 
 class EmailAccountConnect(BaseModel):
     email: str
-    provider: str = Field(default="gmail", pattern=r"^(gmail|outlook|icloud|other)$")
+    provider: str = Field(default="gmail", pattern=r"^(gmail|outlook|yahoo|zoho|icloud|other)$")
     access_token: str
     refresh_token: str | None = None
     token_expires_at: str | None = None
+    imap_host: str | None = None
+    imap_port: int | None = None
+    use_ssl: bool = True
 
 
 class EmailAccountResponse(BaseModel):
@@ -26,6 +29,12 @@ class EmailAccountResponse(BaseModel):
     auto_create_assignments: bool = False
     confidence_threshold: float = 0.70
     attachment_download: bool = True
+    history_id: str | None = None
+    known_uids: list[str] = []
+    last_uid: str | None = None
+    imap_host: str | None = None
+    imap_port: int | None = None
+    use_ssl: bool = True
     created_at: str
     updated_at: str
 

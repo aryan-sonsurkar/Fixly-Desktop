@@ -48,12 +48,17 @@ export function calculateStreak(dates: string[]): { current: number; longest: nu
   const sorted = [...new Set(dates)].sort().reverse();
   const mostRecent = sorted[0];
 
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
   let current = 0;
-  const checkDate = new Date(mostRecent + "T00:00:00Z");
-  const checkStr = () => checkDate.toISOString().slice(0, 10);
-  while (sorted.includes(checkStr())) {
-    current++;
-    checkDate.setUTCDate(checkDate.getUTCDate() - 1);
+  if (mostRecent === today || mostRecent === yesterday) {
+    const checkDate = new Date(mostRecent + "T00:00:00Z");
+    const checkStr = () => checkDate.toISOString().slice(0, 10);
+    while (sorted.includes(checkStr())) {
+      current++;
+      checkDate.setUTCDate(checkDate.getUTCDate() - 1);
+    }
   }
 
   let longest = 0;

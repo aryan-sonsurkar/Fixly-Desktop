@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str = ""
     gemini_api_key: str = ""
     ollama_host: str = "http://localhost:11434"
+    google_client_id: str = ""
+    google_client_secret: str = ""
     environment: str = "development"
     cors_origins: list[str] = ["*"]
 

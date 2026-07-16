@@ -6,6 +6,7 @@ from typing import Any
 
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.logging import get_logger
+from app.providers import get_provider
 from app.repositories.ai_repository import AIRepository
 from app.repositories.assignment_repository import AssignmentRepository
 from app.repositories.email_repository import EmailRepository
@@ -122,21 +123,27 @@ class EmailSyncWorker:
 
         synced = 0
         try:
-            # Simulate fetching messages from provider
-            # In production, this would call Gmail API / Microsoft Graph
-            last_id = await self.repository.get_last_message_id(account_id, user_id)
-            messages = await self._fetch_messages(account, last_id)
+            provider = get_provider(account.get("provider", "other"))
+            history_id = account.get("history_id")
 
-            for msg in messages:
-                await self.repository.upsert_message(user_id, msg)
+            if history_id:
+                result = await provider.fetch_delta(account, history_id)
+            else:
+                result = await provider.fetch_messages(account)
+
+            for sync_msg in result.messages:
+                row = self._to_message_row(account, sync_msg)
+                await self.repository.upsert_message(user_id, row)
                 synced += 1
 
-            total = account.get("total_emails", 0) + synced
-            await self.repository.update_account(account_id, user_id, {
+            updates: dict[str, Any] = {
                 "sync_status": "idle",
-                "total_emails": total,
+                "total_emails": account.get("total_emails", 0) + synced,
                 "last_synced_at": datetime.now(timezone.utc).isoformat(),
-            })
+            }
+            if result.history_id:
+                updates["history_id"] = result.history_id
+            await self.repository.update_account(account_id, user_id, updates)
 
             duration = int((time.time() - start) * 1000)
             return {"account_id": account_id, "synced": synced, "duration_ms": duration}
@@ -149,9 +156,24 @@ class EmailSyncWorker:
             })
             raise
 
-    async def _fetch_messages(self, account: dict[str, Any], last_message_id: str | None) -> list[dict[str, Any]]:
-        """Placeholder — replace with Gmail API / Microsoft Graph calls."""
-        return []
+    @staticmethod
+    def _to_message_row(account: dict[str, Any], msg: Any) -> dict[str, Any]:
+        return {
+            "user_id": account["user_id"],
+            "account_id": account["id"],
+            "message_id": msg.message_id,
+            "thread_id": msg.thread_id,
+            "subject": msg.subject,
+            "from_name": msg.from_name,
+            "from_email": msg.from_email,
+            "to_emails": msg.to_emails,
+            "body_text": msg.body_text,
+            "received_at": msg.received_at,
+            "is_read": msg.is_read,
+            "is_starred": msg.is_starred,
+            "has_attachments": msg.has_attachments,
+            "labels": msg.labels,
+        }
 
 
 class EmailService:
@@ -172,7 +194,24 @@ class EmailService:
         for acct in existing:
             if acct.get("email") == data.get("email"):
                 raise ValueError("Account already connected")
-        return await self.repository.create_account(user_id, data)
+
+        account = await self.repository.create_account(user_id, data)
+
+        try:
+            provider = get_provider(data.get("provider", "other"))
+            valid = await provider.validate(account)
+            await self.repository.update_account(account["id"], user_id, {
+                "sync_status": "idle" if valid else "error",
+                "sync_error": None if valid else "Provider validation failed",
+            })
+        except Exception as e:
+            logger.warning("Provider validation failed for %s: %s", data.get("email"), e)
+            await self.repository.update_account(account["id"], user_id, {
+                "sync_status": "error",
+                "sync_error": str(e),
+            })
+
+        return account
 
     async def get_accounts(self, user_id: str) -> list[dict[str, Any]]:
         return await self.repository.get_accounts(user_id)

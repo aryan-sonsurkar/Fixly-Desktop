@@ -163,21 +163,6 @@ class EmailRepository:
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
         return data.get("data") or data
 
-    async def get_last_message_id(self, account_id: str, user_id: str) -> str | None:
-        client = get_supabase()
-        response = (
-            client.table("email_messages")
-            .select("message_id")
-            .eq("account_id", account_id)
-            .eq("user_id", user_id)
-            .order("received_at", ascending=False)  # type: ignore[call-arg]
-            .limit(1)
-            .execute()
-        )
-        data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        rows = cast(list[dict[str, Any]], data.get("data", []))
-        return rows[0]["message_id"] if rows else None
-
     # ── Classifications ───────────────────────────────────
 
     async def create_classification(self, user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
