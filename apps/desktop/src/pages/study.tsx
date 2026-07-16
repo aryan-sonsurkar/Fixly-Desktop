@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@fixly/ui";
@@ -23,6 +23,14 @@ export function StudyPage() {
     setStatistics, setDiaryOpen,
     setIsLoadingCalendar, setIsLoadingDay, setIsLoadingStats,
   } = useStudyStore();
+  const [isSaving, setIsSaving] = useState(false);
+  const [diaryError, setDiaryError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const { data: calendarData, isLoading: calLoading } = useQuery({
     queryKey: ["study-calendar", calendarYear],
@@ -62,10 +70,15 @@ export function StudyPage() {
 
   const handleDiarySave = useCallback(async (data: { mood?: string | null; productivity_rating?: number | null; notes?: string | null }) => {
     if (!selectedDate) return;
+    setIsSaving(true);
+    setDiaryError(null);
     try {
       await updateDay(selectedDate, data);
     } catch (err) {
       logger.error("Failed to save diary", err);
+      if (mountedRef.current) setDiaryError("Failed to save diary entry. Please try again.");
+    } finally {
+      if (mountedRef.current) setIsSaving(false);
     }
   }, [selectedDate]);
 
@@ -83,9 +96,7 @@ export function StudyPage() {
         <p className="text-sm text-muted-foreground">Track your consistency and study habits</p>
       </motion.div>
 
-      {statistics && (
-        <StatisticsCards statistics={statistics} isLoading={statsLoading} />
-      )}
+      <StatisticsCards statistics={statistics} isLoading={statsLoading} />
 
       <Card>
         <CardHeader className="pb-3">
@@ -105,6 +116,9 @@ export function StudyPage() {
       {diaryOpen && selectedDate && (
         <Card>
           <CardContent className="pt-6">
+            {diaryError && (
+              <div className="mb-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">{diaryError}</div>
+            )}
             {dayLoading ? (
               <div className="space-y-4">
                 <div className="h-6 w-64 animate-pulse rounded bg-muted" />
@@ -119,6 +133,7 @@ export function StudyPage() {
                 day={selectedDay}
                 onSave={handleDiarySave}
                 onClose={() => setDiaryOpen(false)}
+                isSaving={isSaving}
               />
             ) : (
               <p className="text-sm text-muted-foreground">No data for this day</p>

@@ -119,8 +119,8 @@ class StudyRepository:
         weekly = [d for d in days if d.get("date", "") >= week_ago]
         monthly = [d for d in days if d.get("date", "") >= month_ago]
 
-        weekly_trend = [{"date": d["date"], "points": d.get("study_points", 0)} for d in weekly]
-        monthly_trend = [{"date": d["date"], "points": d.get("study_points", 0)} for d in monthly]
+        weekly_trend = [{"date": d.get("date", ""), "points": d.get("study_points", 0)} for d in weekly]
+        monthly_trend = [{"date": d.get("date", ""), "points": d.get("study_points", 0)} for d in monthly]
 
         return {
             "total_study_points": total_points,

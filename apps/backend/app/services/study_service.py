@@ -138,9 +138,9 @@ class StudyService:
         if not active_dates:
             return {"current_streak": 0, "longest_streak": 0}
 
-        today = date.today().isoformat()
+        most_recent = active_dates[0]
         current_streak = 0
-        check_date = today
+        check_date = most_recent
 
         while check_date in active_dates:
             current_streak += 1

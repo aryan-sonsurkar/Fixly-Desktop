@@ -72,12 +72,12 @@ function StatCard({ label, value, icon, color, suffix, prefix, decimals }: StatC
 }
 
 interface StatisticsCardsProps {
-  statistics: StudyStatistics;
+  statistics: StudyStatistics | null;
   isLoading?: boolean;
 }
 
 export function StatisticsCards({ statistics, isLoading }: StatisticsCardsProps) {
-  if (isLoading) {
+  if (isLoading || !statistics) {
     return (
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {Array.from({ length: 8 }).map((_, i) => (
