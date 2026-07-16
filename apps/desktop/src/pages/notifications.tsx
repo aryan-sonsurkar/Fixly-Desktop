@@ -37,6 +37,9 @@ const filterTypes = [
   { value: "email_sync", label: "Email" },
   { value: "ai_recommendation", label: "AI" },
   { value: "daily_briefing", label: "Briefing" },
+  { value: "document_processed", label: "Documents" },
+  { value: "ocr_completed", label: "OCR" },
+  { value: "pomodoro_finished", label: "Pomodoro" },
 ];
 
 function formatTime(dateStr: string): string {
@@ -52,8 +55,8 @@ function formatTime(dateStr: string): string {
 
 export function NotificationPage() {
   const {
-    notifications, total, page, unreadCount, loading, filterType, filterUnread,
-    setNotifications, addNotifications, setTotal, setPage, setUnreadCount, setLoading,
+    notifications, total, page, unreadCount, loading, error, filterType, filterUnread,
+    setNotifications, addNotifications, setTotal, setPage, setUnreadCount, setLoading, setError,
     setFilterType, setFilterUnread, markRead, markAllRead: markAllInStore, removeNotification,
   } = useNotificationStore();
 
@@ -61,6 +64,7 @@ export function NotificationPage() {
 
   const fetchNotifications = useCallback(async (pageNum: number, append: boolean = false) => {
     setLoading(true);
+    setError(null);
     try {
       const data = await getNotifications({
         unread_only: filterUnread,
@@ -76,11 +80,12 @@ export function NotificationPage() {
       setTotal(data.total);
       setPage(pageNum);
     } catch (err) {
+      setError("Failed to load notifications");
       logger.error("Failed to fetch notifications", err);
     } finally {
       setLoading(false);
     }
-  }, [filterType, filterUnread, setNotifications, addNotifications, setTotal, setPage, setLoading]);
+  }, [filterType, filterUnread, setNotifications, addNotifications, setTotal, setPage, setLoading, setError]);
 
   useEffect(() => {
     fetchNotifications(1);
@@ -89,7 +94,7 @@ export function NotificationPage() {
 
   useEffect(() => {
     if (page > 1) fetchNotifications(page, true);
-  }, [page]);
+  }, [page, fetchNotifications]);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -151,6 +156,20 @@ export function NotificationPage() {
           </Button>
         )}
       </div>
+
+      {error && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+          <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          <span className="flex-1">{error}</span>
+          <button type="button" onClick={() => setError(null)} className="rounded p-0.5 hover:bg-destructive/20">
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap gap-2">
         <button

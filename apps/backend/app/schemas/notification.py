@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -18,8 +19,8 @@ class NotificationResponse(BaseModel):
     message: str
     metadata: dict[str, Any]
     is_read: bool = False
-    read_at: str | None = None
-    created_at: str
+    read_at: datetime | None = None
+    created_at: datetime
 
 
 class NotificationListResponse(BaseModel):

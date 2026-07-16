@@ -7,6 +7,7 @@ export interface NotificationState {
   page: number;
   unreadCount: number;
   loading: boolean;
+  error: string | null;
   filterType: string | null;
   filterUnread: boolean;
   setNotifications: (notifications: NotificationItem[]) => void;
@@ -15,6 +16,7 @@ export interface NotificationState {
   setPage: (page: number) => void;
   setUnreadCount: (count: number) => void;
   setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
   setFilterType: (type: string | null) => void;
   setFilterUnread: (unread: boolean) => void;
   markRead: (id: string) => void;
@@ -29,6 +31,7 @@ export const useNotificationStore = create<NotificationState>((set) => ({
   page: 1,
   unreadCount: 0,
   loading: false,
+  error: null,
   filterType: null,
   filterUnread: false,
 
@@ -41,6 +44,7 @@ export const useNotificationStore = create<NotificationState>((set) => ({
   setPage: (page) => set({ page }),
   setUnreadCount: (count) => set({ unreadCount: count }),
   setLoading: (loading) => set({ loading }),
+  setError: (error) => set({ error }),
   setFilterType: (type) => set({ filterType: type, page: 1 }),
   setFilterUnread: (unread) => set({ filterUnread: unread, page: 1 }),
   markRead: (id) =>
@@ -58,7 +62,7 @@ export const useNotificationStore = create<NotificationState>((set) => ({
   removeNotification: (id) =>
     set((state) => ({
       notifications: state.notifications.filter((n) => n.id !== id),
-      total: state.total - 1,
+      total: Math.max(0, state.total - 1),
     })),
   reset: () =>
     set({

@@ -1,5 +1,6 @@
 from typing import Any
 
+from app.core.exceptions import ValidationError
 from app.core.logging import get_logger
 from app.repositories.notification_repository import NotificationRepository
 
@@ -18,7 +19,7 @@ class NotificationService:
 
     async def notify(self, user_id: str, ntype: str, title: str, message: str, data: dict[str, Any] | None = None) -> dict[str, Any]:  # noqa: E501
         if ntype not in NOTIFICATION_TYPES:
-            raise ValueError(f"Invalid notification type: {ntype}")
+            raise ValidationError(f"Invalid notification type: {ntype}")
         return await self.repository.create(user_id, {
             "type": ntype,
             "title": title,
