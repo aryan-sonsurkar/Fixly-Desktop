@@ -94,8 +94,8 @@ export async function getDiagnostics(): Promise<Diagnostics> {
     result.backend = { status: "unhealthy", error: message };
     result.supabase = { status: "unhealthy", error: "Backend unreachable" };
     result.database = { status: "unhealthy", error: "Backend unreachable" };
-    result.ai = { status: "checking", error: "Backend unreachable" };
-    result.sync = { status: "checking", error: "Backend unreachable" };
+    result.ai = { status: "unhealthy", error: "Backend unreachable" };
+    result.sync = { status: "unhealthy", error: "Backend unreachable" };
   }
 
   return result;

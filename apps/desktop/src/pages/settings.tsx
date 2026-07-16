@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Button, Input, Label } from "@fixly/ui";
 import { getMySettings, updateMySettings } from "@/lib/profile-service";
 import { createLogger } from "@/lib/logger";
+import { toast } from "@/stores/toast-store";
 
 const logger = createLogger("settings-page");
 
@@ -17,6 +18,7 @@ const settingsSchema = z.object({
   assignment_reminders: z.boolean(),
   daily_briefing: z.boolean(),
   email_monitoring: z.boolean(),
+  email_sync_enabled: z.boolean(),
   notification_enabled: z.boolean(),
 });
 
@@ -37,6 +39,7 @@ export function SettingsPage() {
       assignment_reminders: true,
       daily_briefing: true,
       email_monitoring: false,
+      email_sync_enabled: false,
       notification_enabled: true,
     },
   });
@@ -53,16 +56,18 @@ export function SettingsPage() {
           assignment_reminders: settings.assignment_reminders,
           daily_briefing: settings.daily_briefing,
           email_monitoring: settings.email_monitoring,
+          email_sync_enabled: settings.email_sync_enabled,
           notification_enabled: settings.notification_enabled,
         });
       } catch (err) {
         logger.error("Failed to load settings", err);
+        toast({ type: "error", title: "Failed to load settings" });
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [form]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSubmit = form.handleSubmit(async (data) => {
     setSaving(true);
@@ -73,6 +78,7 @@ export function SettingsPage() {
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       logger.error("Failed to save settings", err);
+      toast({ type: "error", title: "Failed to save settings" });
     } finally {
       setSaving(false);
     }
@@ -135,6 +141,7 @@ export function SettingsPage() {
               { key: "assignment_reminders" as const, label: "Assignment reminders" },
               { key: "daily_briefing" as const, label: "Daily briefing" },
               { key: "email_monitoring" as const, label: "Email monitoring" },
+              { key: "email_sync_enabled" as const, label: "Email sync enabled" },
             ].map(({ key, label }) => (
               <label key={key} className="flex cursor-pointer items-center gap-3">
                 <input type="checkbox" {...form.register(key)} className="h-4 w-4 accent-primary" />

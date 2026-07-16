@@ -204,16 +204,9 @@ export function StartupGate({ children }: StartupGateProps) {
 
   useEffect(() => {
     checkStatus();
-    const interval = setInterval(checkStatus, 500);
+    const interval = setInterval(checkStatus, status?.stage === "error" ? 2000 : 500);
     return () => clearInterval(interval);
-  }, [checkStatus]);
-
-  useEffect(() => {
-    if (status?.stage === "error") {
-      const interval = setInterval(checkStatus, 2000);
-      return () => clearInterval(interval);
-    }
-  }, [status, checkStatus]);
+  }, [checkStatus, status?.stage]);
 
   if (ready) {
     return <>{children}</>;
