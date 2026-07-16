@@ -11,21 +11,22 @@ export function PlannerPage() {
   const {
     dailyPlan, weeklyPlan, revisionPlan,
     loadingDaily, loadingWeekly, loadingRevision,
-    activeView, setActiveView,
+    activeView, setActiveView, error, setError,
     setDailyPlan, setWeeklyPlan, setRevisionPlan,
     setLoadingDaily, setLoadingWeekly, setLoadingRevision,
   } = usePlannerStore();
 
   const generate = async () => {
+    setError(null);
     if (activeView === "daily") {
       setLoadingDaily(true);
-      try { const p = await generateDailyPlan(); setDailyPlan(p); } catch (err) { logger.error("Failed to generate daily plan", err); } finally { setLoadingDaily(false); }
+      try { const p = await generateDailyPlan(); setDailyPlan(p); } catch (err) { setError("Failed to generate daily plan"); logger.error("Failed to generate daily plan", err); } finally { setLoadingDaily(false); }
     } else if (activeView === "weekly") {
       setLoadingWeekly(true);
-      try { const p = await generateWeeklyPlan(); setWeeklyPlan(p); } catch (err) { logger.error("Failed to generate weekly plan", err); } finally { setLoadingWeekly(false); }
+      try { const p = await generateWeeklyPlan(); setWeeklyPlan(p); } catch (err) { setError("Failed to generate weekly plan"); logger.error("Failed to generate weekly plan", err); } finally { setLoadingWeekly(false); }
     } else {
       setLoadingRevision(true);
-      try { const p = await generateRevisionPlan(); setRevisionPlan(p); } catch (err) { logger.error("Failed to generate revision plan", err); } finally { setLoadingRevision(false); }
+      try { const p = await generateRevisionPlan(); setRevisionPlan(p); } catch (err) { setError("Failed to generate revision plan"); logger.error("Failed to generate revision plan", err); } finally { setLoadingRevision(false); }
     }
   };
 
@@ -42,6 +43,20 @@ export function PlannerPage() {
           <p className="text-sm text-muted-foreground">AI-powered study plans tailored to your workload</p>
         </div>
       </div>
+
+      {error && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+          <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          <span className="flex-1">{error}</span>
+          <button type="button" onClick={() => setError(null)} className="rounded p-0.5 hover:bg-destructive/20">
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       <div className="mb-6 flex gap-2">
         {(["daily", "weekly", "revision"] as const).map((view) => (

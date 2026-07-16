@@ -27,13 +27,13 @@ export default function AIPage() {
         const s = await aiService.getAISettings();
         setSettings(s);
       } catch {
-        // silently fail
+        setError("Failed to load AI settings");
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, [setSettings]);
+  }, [setSettings, setError]);
 
   const handleSmartCommand = useCallback(async () => {
     if (!smartInput.trim()) return;

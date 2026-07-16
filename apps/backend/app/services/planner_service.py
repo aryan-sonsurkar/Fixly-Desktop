@@ -1,12 +1,15 @@
+import json
 from datetime import datetime, timezone
 from typing import Any
 
+from app.core.exceptions import ValidationError as FixlyValidationError
 from app.core.logging import get_logger
 from app.prompts import PromptManager, PromptType
 from app.repositories.ai_repository import AIRepository
 from app.repositories.assignment_repository import AssignmentRepository
 from app.repositories.pomodoro_repository import PomodoroRepository
 from app.repositories.study_repository import StudyRepository
+from app.schemas.planner import GeneratedScheduleItem
 from app.services.ai_service import AIService
 from app.services.workspace_context import WorkspaceContext
 
@@ -21,6 +24,43 @@ class PlannerService:
         self.pomodoro_repo = PomodoroRepository()
         self.study_repo = StudyRepository()
         self.context = WorkspaceContext()
+
+    def _validate_schedule_items(self, content: str) -> list[dict[str, Any]]:
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError as e:
+            raise FixlyValidationError(
+                detail=f"AI response is not valid JSON: {e}"
+            )
+
+        if isinstance(data, dict):
+            items = data.get("schedule_items")
+        elif isinstance(data, list):
+            items = data
+        else:
+            raise FixlyValidationError(
+                detail="AI response must be a JSON array or an object with a 'schedule_items' key"
+            )
+
+        if not isinstance(items, list):
+            raise FixlyValidationError(
+                detail="AI response does not contain a valid list of schedule items"
+            )
+
+        validated: list[dict[str, Any]] = []
+        errors: list[str] = []
+        for i, item in enumerate(items):
+            try:
+                validated.append(GeneratedScheduleItem(**item).model_dump())
+            except Exception as e:
+                errors.append(f"Item {i}: {e}")
+
+        if errors:
+            raise FixlyValidationError(
+                detail=f"Schedule item validation failed: {'; '.join(errors)}"
+            )
+
+        return validated
 
     async def generate_daily_plan(self, user_id: str) -> dict[str, Any]:
         ctx = await self.context.gather(user_id, budget="planner")
@@ -51,9 +91,13 @@ class PlannerService:
         prompt = await PromptManager().build(PromptType.PLANNER, user_id, **prompt_kwargs)
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
 
+        content = result["message"]["content"]
+        schedule_items = self._validate_schedule_items(content)
+
         plan = {
             "plan_type": "daily",
-            "content": result["message"]["content"],
+            "content": content,
+            "schedule_items": schedule_items,
             "conversation_id": conv["id"],
             "generated_at": now.isoformat(),
             "context_summary": {
@@ -93,9 +137,13 @@ class PlannerService:
         prompt = await PromptManager().build(PromptType.PLANNER, user_id, **prompt_kwargs)
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
 
+        content = result["message"]["content"]
+        schedule_items = self._validate_schedule_items(content)
+
         return {
             "plan_type": "weekly",
-            "content": result["message"]["content"],
+            "content": content,
+            "schedule_items": schedule_items,
             "conversation_id": conv["id"],
             "generated_at": now.isoformat(),
         }
@@ -135,9 +183,13 @@ class PlannerService:
         prompt = await PromptManager().build(PromptType.PLANNER, user_id, **prompt_kwargs)
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
 
+        content = result["message"]["content"]
+        schedule_items = self._validate_schedule_items(content)
+
         return {
             "plan_type": "revision",
-            "content": result["message"]["content"],
+            "content": content,
+            "schedule_items": schedule_items,
             "conversation_id": conv["id"],
             "generated_at": now.isoformat(),
         }

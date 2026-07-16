@@ -111,11 +111,14 @@ function DocumentCard({ doc, onSelect, onDelete, onFavorite }: {
 function DocumentViewer({ doc, onBack }: { doc: DocumentDetail; onBack: () => void }) {
   const [activeTab, setActiveTab] = useState<"chat" | "actions">("chat");
 
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const handleAction = async (action: () => Promise<unknown>) => {
     try {
+      setActionError(null);
       await action();
     } catch (err) {
-      console.error("Action failed:", err);
+      setActionError(err instanceof Error ? err.message : "Action failed");
     }
   };
 
@@ -154,8 +157,14 @@ function DocumentViewer({ doc, onBack }: { doc: DocumentDetail; onBack: () => vo
         {activeTab === "chat" ? (
           <DocumentChat documentId={doc.id} />
         ) : (
-          <div className="grid grid-cols-2 gap-2 p-4">
-            <ActionButton
+          <div className="p-4">
+            {actionError && (
+              <div className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {actionError}
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-2">
+              <ActionButton
               label="Summarize"
               icon="M4 6h16M4 12h16M4 18h7"
               onClick={() => handleAction(() => summarizeDocument(doc.id))}
@@ -175,6 +184,7 @@ function DocumentViewer({ doc, onBack }: { doc: DocumentDetail; onBack: () => vo
               icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
               onClick={() => handleAction(() => generateQuiz(doc.id))}
             />
+          </div>
           </div>
         )}
       </div>
@@ -205,7 +215,7 @@ export function DocumentsPage() {
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error: listError } = useQuery({
     queryKey: ["documents", search, filterType],
     queryFn: () => listDocuments({ search: search || undefined, file_type: filterType || undefined, page_size: 50 }),
   });
@@ -295,6 +305,14 @@ export function DocumentsPage() {
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-lg" />
           ))}
+        </div>
+      ) : listError ? (
+        <div className="flex flex-col items-center gap-4 py-16 text-center">
+          <svg className="h-16 w-16 text-destructive/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+          <p className="text-sm text-destructive">Failed to load documents</p>
+          <Button onClick={() => queryClient.invalidateQueries({ queryKey: ["documents"] })}>Retry</Button>
         </div>
       ) : docs.length === 0 ? (
         <div className="flex flex-col items-center gap-4 py-16 text-center">

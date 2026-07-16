@@ -96,6 +96,7 @@ class AIService:
         max_tokens_count = int(settings_data.get("max_tokens", 2048))
         system_prompt_override = settings_data.get("system_prompt")
         academic_context_enabled = bool(settings_data.get("academic_context", True))
+        conversation_memory = int(settings_data.get("conversation_memory", 50))
 
         provider = await self._resolve_provider(preferred, user_id)
 
@@ -103,7 +104,7 @@ class AIService:
 
         history = await self.repository.get_messages(conversation_id)
         formatted = await self._format_messages(
-            history, user_id, system_prompt_override, academic_context_enabled
+            history, user_id, system_prompt_override, academic_context_enabled, conversation_memory
         )
 
         response_text = await provider.generate(formatted, temperature, max_tokens_count)
@@ -145,17 +146,20 @@ class AIService:
         )
         history = all_messages[:cutoff]
 
+        await self.repository.delete_message(message_id, user_id)
+
         settings_data = await self._get_settings(user_id)
         preferred = str(settings_data.get("preferred_provider", "auto"))
         temperature = float(settings_data.get("temperature", 0.7))
         max_tokens_count = int(settings_data.get("max_tokens", 2048))
         system_prompt_override = settings_data.get("system_prompt")
         academic_context_enabled = bool(settings_data.get("academic_context", True))
+        conversation_memory = int(settings_data.get("conversation_memory", 50))
 
         provider = await self._resolve_provider(preferred, user_id)
 
         formatted = await self._format_messages(
-            history, user_id, system_prompt_override, academic_context_enabled
+            history, user_id, system_prompt_override, academic_context_enabled, conversation_memory
         )
 
         response_text = await provider.generate(formatted, temperature, max_tokens_count)
@@ -174,6 +178,7 @@ class AIService:
         user_id: str,
         system_prompt_override: str | None = None,
         academic_context_enabled: bool = True,
+        max_pairs: int = 50,
     ) -> list[dict[str, str]]:
         messages: list[dict[str, str]] = []
 
@@ -198,7 +203,8 @@ class AIService:
             system_content = await self.prompt_manager.build(PromptType.SYSTEM, user_id, **kwargs)
             messages.append({"role": "system", "content": system_content})
 
-        for msg in history:
+        truncated = history[-(max_pairs * 2):] if max_pairs else history
+        for msg in truncated:
             role = "assistant" if msg["role"] == "assistant" else "user"
             messages.append({"role": role, "content": msg["content"]})
 

@@ -69,10 +69,6 @@ export function ChatWindow() {
 
       abortRef.current = new AbortController();
 
-      if (streamingContent) {
-        appendStreamingContent(text);
-      }
-
       const response = await aiService.sendChat({
         conversation_id: convId,
         message: text,

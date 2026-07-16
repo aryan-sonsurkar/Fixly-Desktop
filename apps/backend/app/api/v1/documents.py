@@ -10,6 +10,7 @@ from app.schemas.document import (
     DocumentFlashcardsRequest,
     DocumentNotesRequest,
     DocumentQuizRequest,
+    DocumentRecentResponse,
     DocumentRename,
     DocumentResponse,
     DocumentSummaryRequest,
@@ -20,7 +21,7 @@ from app.services.document_service import DocumentService
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
-@router.get("/recent", response_model=list[DocumentResponse])
+@router.get("/recent", response_model=list[DocumentRecentResponse])
 async def get_recent_documents(
     limit: int = Query(default=5, ge=1, le=20),
     current_user: dict[str, Any] = Depends(get_current_user),

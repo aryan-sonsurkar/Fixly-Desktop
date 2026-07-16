@@ -8,6 +8,7 @@ export interface PlannerState {
   loadingDaily: boolean;
   loadingWeekly: boolean;
   loadingRevision: boolean;
+  error: string | null;
   activeView: "daily" | "weekly" | "revision";
   setDailyPlan: (plan: PlanResponse | null) => void;
   setWeeklyPlan: (plan: PlanResponse | null) => void;
@@ -15,6 +16,7 @@ export interface PlannerState {
   setLoadingDaily: (loading: boolean) => void;
   setLoadingWeekly: (loading: boolean) => void;
   setLoadingRevision: (loading: boolean) => void;
+  setError: (error: string | null) => void;
   setActiveView: (view: "daily" | "weekly" | "revision") => void;
   reset: () => void;
 }
@@ -26,6 +28,7 @@ export const usePlannerStore = create<PlannerState>((set) => ({
   loadingDaily: false,
   loadingWeekly: false,
   loadingRevision: false,
+  error: null,
   activeView: "daily",
 
   setDailyPlan: (plan) => set({ dailyPlan: plan }),
@@ -34,6 +37,7 @@ export const usePlannerStore = create<PlannerState>((set) => ({
   setLoadingDaily: (loading) => set({ loadingDaily: loading }),
   setLoadingWeekly: (loading) => set({ loadingWeekly: loading }),
   setLoadingRevision: (loading) => set({ loadingRevision: loading }),
+  setError: (error) => set({ error }),
   setActiveView: (view) => set({ activeView: view }),
   reset: () =>
     set({

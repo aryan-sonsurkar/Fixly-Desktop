@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from app.core.exceptions import NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.repositories.ai_repository import AIRepository
 from app.repositories.document_repository import DocumentRepository
@@ -36,9 +37,10 @@ class DocumentService:
         os.makedirs(UPLOAD_DIR, exist_ok=True)
 
     async def upload_document(self, user_id: str, file: Any) -> dict[str, Any]:
-        ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+        filename = file.filename or ""
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         if ext not in ALLOWED_TYPES:
-            raise ValueError(f"Unsupported file type: {ext}. Allowed: {', '.join(sorted(ALLOWED_TYPES))}")
+            raise ValidationError(f"Unsupported file type: {ext}. Allowed: {', '.join(sorted(ALLOWED_TYPES))}")
 
         content = await file.read()
         file_id = str(uuid.uuid4())
@@ -64,12 +66,12 @@ class DocumentService:
     async def process_document(self, document_id: str, user_id: str) -> dict[str, Any]:
         doc = await self.repository.get_document(document_id, user_id)
         if not doc:
-            raise ValueError("Document not found")
+            raise NotFoundError("Document not found")
 
         file_path = doc.get("storage_path")
         file_type = doc.get("file_type", "")
         if not file_path or not os.path.exists(file_path):
-            raise ValueError("File not found on disk")
+            raise NotFoundError("File not found on disk")
 
         await self.repository.update_document(document_id, user_id, {"status": "processing"})
 
@@ -129,7 +131,7 @@ class DocumentService:
     ) -> dict[str, Any]:
         doc = await self.repository.get_document(document_id, user_id)
         if not doc:
-            raise ValueError("Document not found")
+            raise ValidationError("Document not found")
 
         if not conversation_id:
             conv = await self.ai_repo.create_conversation(
@@ -182,7 +184,7 @@ class DocumentService:
     ) -> dict[str, Any]:
         doc = await self.repository.get_document(document_id, user_id)
         if not doc:
-            raise ValueError("Document not found")
+            raise ValidationError("Document not found")
 
         all_chunks = await self.repository.get_chunks(document_id, user_id)
         full_text = "\n\n".join(c.get("content", "") for c in all_chunks)
@@ -257,7 +259,7 @@ class DocumentService:
     async def get_document_detail(self, document_id: str, user_id: str) -> dict[str, Any]:
         doc = await self.repository.get_document(document_id, user_id)
         if not doc:
-            raise ValueError("Document not found")
+            raise ValidationError("Document not found")
 
         chunks = await self.repository.get_chunks(document_id, user_id)
         conv_ids = await self.repository.get_conversation_ids(document_id, user_id)
@@ -284,13 +286,13 @@ class DocumentService:
     ) -> dict[str, Any]:
         doc = await self.repository.get_document(document_id, user_id)
         if not doc:
-            raise ValueError("Document not found")
+            raise ValidationError("Document not found")
         return await self.repository.update_document(document_id, user_id, updates)
 
     async def delete_document(self, document_id: str, user_id: str) -> None:
         doc = await self.repository.get_document(document_id, user_id)
         if not doc:
-            raise ValueError("Document not found")
+            raise ValidationError("Document not found")
 
         file_path = doc.get("storage_path")
         if file_path and os.path.exists(file_path):
