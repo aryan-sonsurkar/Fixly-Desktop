@@ -7,6 +7,7 @@ export interface SearchState {
   results: SearchResult[];
   selectedIndex: number;
   loading: boolean;
+  searchError: string | null;
   categoryFilter: string | null;
   recentSearches: string[];
   setOpen: (open: boolean) => void;
@@ -14,6 +15,7 @@ export interface SearchState {
   setResults: (results: SearchResult[]) => void;
   setSelectedIndex: (index: number) => void;
   setLoading: (loading: boolean) => void;
+  setSearchError: (error: string | null) => void;
   setCategoryFilter: (filter: string | null) => void;
   addRecentSearch: (query: string) => void;
   clearRecentSearches: () => void;
@@ -26,6 +28,7 @@ export const useSearchStore = create<SearchState>((set) => ({
   results: [],
   selectedIndex: 0,
   loading: false,
+  searchError: null,
   categoryFilter: null,
   recentSearches: [],
 
@@ -34,6 +37,7 @@ export const useSearchStore = create<SearchState>((set) => ({
   setResults: (results) => set({ results }),
   setSelectedIndex: (index) => set({ selectedIndex: index }),
   setLoading: (loading) => set({ loading }),
+  setSearchError: (error) => set({ searchError: error }),
   setCategoryFilter: (filter) => set({ categoryFilter: filter, selectedIndex: 0 }),
   addRecentSearch: (query) =>
     set((state) => {

@@ -36,8 +36,8 @@ const categories = [
 export function CommandPalette() {
   const navigate = useNavigate();
   const {
-    open, query, results, selectedIndex, loading, categoryFilter, recentSearches,
-    setOpen, setQuery, setResults, setSelectedIndex, setLoading,
+    open, query, results, selectedIndex, loading, searchError, categoryFilter, recentSearches,
+    setOpen, setQuery, setResults, setSelectedIndex, setLoading, setSearchError,
     setCategoryFilter, addRecentSearch, clearRecentSearches, reset,
   } = useSearchStore();
 
@@ -67,18 +67,21 @@ export function CommandPalette() {
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) {
       setResults([]);
+      setSearchError(null);
       return;
     }
     setLoading(true);
+    setSearchError(null);
     try {
       const data = await searchAll(q, 10);
       setResults(data.results);
     } catch {
       setResults([]);
+      setSearchError("Search failed. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
-  }, [setResults, setLoading]);
+  }, [setResults, setLoading, setSearchError]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -198,7 +201,16 @@ export function CommandPalette() {
                 </div>
               )}
 
-              {!loading && query.trim() && filteredResults.length === 0 && (
+              {!loading && query.trim() && searchError && (
+                <div className="flex flex-col items-center gap-2 py-8 text-center">
+                  <svg className="h-10 w-10 text-destructive/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                  </svg>
+                  <p className="text-sm text-destructive">{searchError}</p>
+                </div>
+              )}
+
+              {!loading && query.trim() && !searchError && filteredResults.length === 0 && (
                 <div className="flex flex-col items-center gap-2 py-8 text-center">
                   <svg className="h-10 w-10 text-muted-foreground/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />

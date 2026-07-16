@@ -45,10 +45,11 @@ class SearchService:
         notes = await self._search_notes(user_id, q, limit)
         results.extend(notes)
 
+        total = len(results)
         results.sort(key=lambda r: r.get("_score", 0), reverse=True)
         results = results[:limit * 3]
 
-        return {"query": query, "results": results, "total": len(results)}
+        return {"query": query, "results": results, "total": total}
 
     async def _search_assignments(self, user_id: str, q: str, limit: int) -> list[dict[str, Any]]:
         try:
@@ -125,39 +126,34 @@ class SearchService:
 
     async def _search_conversations(self, user_id: str, q: str, limit: int) -> list[dict[str, Any]]:
         try:
-            convs = await self.ai_repo.list_conversations(user_id)
-            matches = []
-            for c in convs:
-                title = (c.get("title", "") or "").lower()
-                if q in title:
-                    matches.append({
-                        "type": "conversation", "id": c.get("id", ""),
-                        "title": c.get("title", ""),
-                        "subtitle": "AI Conversation",
-                        "url": f"/ai/{c.get('id', '')}",
-                        "_score": 5,
-                    })
-            return matches[:limit]
+            convs = await self.ai_repo.search_conversations(user_id, q)
+            return [{
+                "type": "conversation", "id": c.get("id", ""),
+                "title": c.get("title", ""),
+                "subtitle": "AI Conversation",
+                "url": f"/ai/{c.get('id', '')}",
+                "_score": 5,
+            } for c in convs[:limit]]
         except Exception as e:
             logger.warning("Search conversations failed: %s", e)
             return []
 
     async def _search_notes(self, user_id: str, q: str, limit: int) -> list[dict[str, Any]]:
         try:
-            notes = await self.ai_repo.list_conversations(user_id)
+            convs = await self.ai_repo.list_conversations(user_id)
             matches = []
-            for c in notes:
+            for c in convs:
                 msgs = await self.ai_repo.get_messages(c["id"])
                 for m in msgs:
-                    if m.get("role") == "assistant" and q in (m.get("content", "") or "").lower():
+                    content = (m.get("content", "") or "").lower()
+                    if q in content:
                         matches.append({
                             "type": "note", "id": m.get("id", ""),
                             "title": f"From: {c.get('title', 'Conversation')}",
-                            "subtitle": (m.get("content", "") or "")[:100],
+                            "subtitle": (m.get("content", "") or "")[:120],
                             "url": f"/ai/{c.get('id', '')}",
                             "_score": 4,
                         })
-                        break
             return matches[:limit]
         except Exception as e:
             logger.warning("Search notes failed: %s", e)
