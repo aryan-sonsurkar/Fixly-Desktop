@@ -10,7 +10,9 @@ import {
   deleteEmailAccount,
   markEmailRead,
   generateBriefing,
+  reviewAssignment,
   type EmailMessage,
+  type EmailAssignment,
 } from "@/lib/email-service";
 import { toast } from "@/stores/toast-store";
 
@@ -58,7 +60,6 @@ export function EmailPage() {
   const [search, setSearch] = useState("");
   const [selectedEmail, setSelectedEmail] = useState<EmailMessage | null>(null);
   const [briefingContent, setBriefingContent] = useState<string | null>(null);
-  const [categoryFilter] = useState<string | null>(null);
 
   const { data: accounts } = useQuery({
     queryKey: ["email-accounts"],
@@ -66,7 +67,7 @@ export function EmailPage() {
   });
 
   const { data: inbox, isLoading: inboxLoading } = useQuery({
-    queryKey: ["email-messages", search, categoryFilter],
+    queryKey: ["email-messages", search],
     queryFn: () => getEmailMessages({
       search: search || undefined,
       page_size: 50,
@@ -93,6 +94,15 @@ export function EmailPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["email-accounts"] }),
   });
 
+  const reviewMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => reviewAssignment(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["email-review-queue"] });
+      toast({ type: "success", title: "Review decision saved" });
+    },
+    onError: () => toast({ type: "error", title: "Failed to process review" }),
+  });
+
   const briefingMutation = useMutation({
     mutationFn: generateBriefing,
     onSuccess: (data) => {
@@ -104,8 +114,12 @@ export function EmailPage() {
 
   const handleMarkRead = async (msg: EmailMessage) => {
     if (!msg.is_read) {
-      await markEmailRead(msg.id);
-      queryClient.invalidateQueries({ queryKey: ["email-messages"] });
+      try {
+        await markEmailRead(msg.id);
+        queryClient.invalidateQueries({ queryKey: ["email-messages"] });
+      } catch {
+        toast({ type: "error", title: "Failed to mark email as read" });
+      }
     }
     setSelectedEmail(msg);
   };
@@ -162,7 +176,7 @@ export function EmailPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {queueItems.map((item) => (
+                {queueItems.map((item: EmailAssignment) => (
                   <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
                     <Card>
                       <CardContent className="pt-4">
@@ -188,6 +202,14 @@ export function EmailPage() {
                               <p className="mt-2 text-xs text-muted-foreground line-clamp-2">{item.description}</p>
                             )}
                           </div>
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <Button size="sm" onClick={() => reviewMutation.mutate({ id: item.id, status: "approved" })} disabled={reviewMutation.isPending}>
+                            Approve
+                          </Button>
+                          <Button size="sm" variant="secondary" onClick={() => reviewMutation.mutate({ id: item.id, status: "rejected" })} disabled={reviewMutation.isPending}>
+                            Reject
+                          </Button>
                         </div>
                       </CardContent>
                     </Card>

@@ -4,6 +4,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
+from app.core.exceptions import NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.repositories.ai_repository import AIRepository
 from app.repositories.assignment_repository import AssignmentRepository
@@ -115,7 +116,7 @@ class EmailSyncWorker:
         start = time.time()
         account = await self.repository.get_account(account_id, user_id)
         if not account:
-            raise ValueError("Account not found")
+            raise NotFoundError("Account not found")
 
         await self.repository.update_account(account_id, user_id, {"sync_status": "syncing"})
 
@@ -269,7 +270,7 @@ class EmailService:
     async def get_message(self, message_id: str, user_id: str) -> dict[str, Any]:
         msg = await self.repository.get_message(message_id, user_id)
         if not msg:
-            raise ValueError("Message not found")
+            raise NotFoundError("Message not found")
         return msg
 
     async def mark_read(self, message_id: str, user_id: str) -> dict[str, Any]:
@@ -286,7 +287,7 @@ class EmailService:
     ) -> dict[str, Any]:
         existing = await self.repository.get_assignment(assignment_id, user_id)
         if not existing:
-            raise ValueError("Assignment not found in review queue")
+            raise NotFoundError("Assignment not found in review queue")
 
         updates: dict[str, Any] = {"status": action}
 
@@ -314,7 +315,7 @@ class EmailService:
     async def generate_briefing(self, user_id: str) -> dict[str, Any]:
         accounts = await self.repository.get_accounts(user_id)
         if not accounts:
-            raise ValueError("No email accounts connected")
+            raise ValidationError("No email accounts connected")
 
         unread = await self.repository.get_unread_count(user_id)
         messages, _ = await self.repository.get_messages(user_id, limit=10)
