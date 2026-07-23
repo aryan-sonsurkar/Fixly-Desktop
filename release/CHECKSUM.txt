@@ -1,0 +1,1 @@
+Fixly_1.0.0_x64-setup.exe SHA256 checksum available via: certutil -hashfile "Fixly_1.0.0_x64-setup.exe" SHA256

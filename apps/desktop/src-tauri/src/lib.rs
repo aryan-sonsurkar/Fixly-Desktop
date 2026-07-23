@@ -93,6 +93,31 @@ fn health_check(port: u16) -> Result<(), String> {
     }
 }
 
+fn find_backend_exe(app: &AppHandle) -> Option<std::path::PathBuf> {
+    #[cfg(debug_assertions)]
+    {
+        let dev_exe = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("backend")
+            .join("dist")
+            .join("backend.exe");
+        if dev_exe.exists() {
+            return Some(dev_exe);
+        }
+    }
+
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .ok()?;
+    let exe_path = resource_dir.join("backend").join("backend.exe");
+    if exe_path.exists() {
+        return Some(exe_path);
+    }
+    None
+}
+
 fn find_python() -> Option<String> {
     let candidates = if cfg!(target_os = "windows") {
         vec!["pythonw.exe", "python.exe", "py.exe"]
@@ -136,14 +161,133 @@ fn find_backend_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     Err("Backend directory not found. Reinstall Fixly or verify backend files are present.".to_string())
 }
 
+fn start_backend_exe(_app: AppHandle, state: Arc<Mutex<BackendState>>, exe_path: std::path::PathBuf) {
+    {
+        if let Ok(mut s) = state.lock() {
+            s.stage = "starting_backend".to_string();
+            s.message = "Starting backend executable...".to_string();
+        }
+    }
+
+    let parent_dir = exe_path.parent().unwrap_or(&exe_path).to_path_buf();
+
+    let mut cmd = Command::new(&exe_path);
+    cmd.current_dir(&parent_dir);
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
+
+    #[cfg(target_os = "windows")]
+    {
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let mut child = match cmd.spawn() {
+        Ok(c) => c,
+        Err(e) => {
+            if let Ok(mut s) = state.lock() {
+                s.stage = "error".to_string();
+                s.message = "Failed to start backend executable".to_string();
+                s.error = Some(format!("Could not launch backend.exe: {}", e));
+            }
+            return;
+        }
+    };
+
+    let stdout = child.stdout.take();
+    {
+        if let Ok(mut s) = state.lock() {
+            s.child = Some(child);
+        }
+    }
+
+    let reader = match stdout {
+        Some(out) => BufReader::new(out),
+        None => {
+            if let Ok(mut s) = state.lock() {
+                s.stage = "error".to_string();
+                s.message = "Failed to capture backend output".to_string();
+            }
+            return;
+        }
+    };
+
+    let mut port: Option<u16> = None;
+    for line in reader.lines() {
+        match line {
+            Ok(line) => {
+                if let Some(port_str) = line.strip_prefix("FIXLY_PORT:") {
+                    if let Ok(p) = port_str.trim().parse::<u16>() {
+                        port = Some(p);
+                        if let Ok(mut s) = state.lock() {
+                            s.port = Some(p);
+                            s.stage = "waiting_health".to_string();
+                            s.message = format!("Backend starting on port {}...", p);
+                        }
+                        break;
+                    }
+                }
+            }
+            Err(_) => {
+                if let Ok(mut s) = state.lock() {
+                    s.stage = "error".to_string();
+                    s.message = "Backend output error".to_string();
+                    s.error = Some("Failed to read backend process output.".to_string());
+                }
+                return;
+            }
+        }
+    }
+
+    let port = match port {
+        Some(p) => p,
+        None => {
+            if let Ok(mut s) = state.lock() {
+                s.stage = "error".to_string();
+                s.message = "Backend port not detected".to_string();
+                s.error = Some("The backend executable did not report its port.".to_string());
+            }
+            return;
+        }
+    };
+
+    {
+        if let Ok(mut s) = state.lock() {
+            s.stage = "waiting_health".to_string();
+            s.message = format!("Waiting for backend health check on port {}...", port);
+        }
+    }
+
+    match health_check(port) {
+        Ok(_) => {
+            if let Ok(mut s) = state.lock() {
+                s.stage = "ready".to_string();
+                s.message = format!("Backend ready on port {}", port);
+            }
+        }
+        Err(e) => {
+            if let Ok(mut s) = state.lock() {
+                s.stage = "error".to_string();
+                s.message = "Backend health check failed".to_string();
+                s.error = Some(e);
+            }
+        }
+    }
+}
+
 fn start_backend(app: AppHandle, state: Arc<Mutex<BackendState>>) {
+    // Prefer the standalone backend.exe if available
+    if let Some(exe_path) = find_backend_exe(&app) {
+        return start_backend_exe(app, state, exe_path);
+    }
+
+    // Fallback to python -m app.main
     let python = match find_python() {
         Some(p) => p,
         None => {
             if let Ok(mut s) = state.lock() {
                 s.stage = "error".to_string();
-                s.message = "Python not found".to_string();
-                s.error = Some("Python 3.11+ is required. Install from python.org and restart Fixly.".to_string());
+                s.message = "Backend executable not found".to_string();
+                s.error = Some("Could not find backend.exe or Python 3.11+. Reinstall Fixly or install Python from python.org.".to_string());
             }
             return;
         }
@@ -164,7 +308,7 @@ fn start_backend(app: AppHandle, state: Arc<Mutex<BackendState>>) {
     {
         if let Ok(mut s) = state.lock() {
             s.stage = "starting_backend".to_string();
-            s.message = "Starting backend server...".to_string();
+            s.message = "Starting backend server (Python)...".to_string();
         }
     }
 
