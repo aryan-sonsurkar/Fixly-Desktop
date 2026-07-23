@@ -36,7 +36,8 @@
     ],
     "externalBin": [],
     "resources": {
-      "../../backend/dist/backend.exe": "backend/backend.exe"
+      "../../backend/dist/backend.exe": "backend/backend.exe",
+      "../../backend/.env.default": "backend/.env.default"
     },
     "publisher": "Aryan Sonsurkar",
     "copyright": "Copyright (c) 2026 Aryan Sonsurkar. All rights reserved.",

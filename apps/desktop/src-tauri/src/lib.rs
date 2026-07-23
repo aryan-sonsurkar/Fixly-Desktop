@@ -161,7 +161,49 @@ fn find_backend_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     Err("Backend directory not found. Reinstall Fixly or verify backend files are present.".to_string())
 }
 
-fn start_backend_exe(_app: AppHandle, state: Arc<Mutex<BackendState>>, exe_path: std::path::PathBuf) {
+fn restrict_file_permissions(path: &std::path::Path) {
+    #[cfg(target_os = "windows")]
+    {
+        let path_str = path.to_string_lossy();
+        let _ = std::process::Command::new("icacls")
+            .args([&*path_str, "/inheritance:r", "/grant", &*format!("%USERNAME%:F")])
+            .output();
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+    }
+}
+
+fn ensure_env_file(app: &AppHandle) -> Option<std::path::PathBuf> {
+    let app_data = app.path().app_data_dir().ok()?;
+    let env_path = app_data.join(".env");
+
+    if env_path.exists() {
+        return Some(env_path);
+    }
+
+    // Try bundled default
+    let resource_dir = app.path().resource_dir().ok()?;
+    let bundled_default = resource_dir.join("backend").join(".env.default");
+    if bundled_default.exists() {
+        if let Err(e) = std::fs::create_dir_all(&app_data) {
+            eprintln!("Failed to create app data dir: {}", e);
+            return None;
+        }
+        if let Err(e) = std::fs::copy(&bundled_default, &env_path) {
+            eprintln!("Failed to copy default .env: {}", e);
+            return None;
+        }
+        restrict_file_permissions(&env_path);
+        return Some(env_path);
+    }
+
+    None
+}
+
+fn start_backend_exe(app: AppHandle, state: Arc<Mutex<BackendState>>, exe_path: std::path::PathBuf) {
     {
         if let Ok(mut s) = state.lock() {
             s.stage = "starting_backend".to_string();
@@ -171,8 +213,14 @@ fn start_backend_exe(_app: AppHandle, state: Arc<Mutex<BackendState>>, exe_path:
 
     let parent_dir = exe_path.parent().unwrap_or(&exe_path).to_path_buf();
 
+    let env_file = ensure_env_file(&app);
+
     let mut cmd = Command::new(&exe_path);
     cmd.current_dir(&parent_dir);
+    if let Some(env) = &env_file {
+        // Set env var instead of CLI arg — invisible to process listings
+        cmd.env("FIXLY_ENV_FILE", env);
+    }
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 

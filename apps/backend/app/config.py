@@ -1,8 +1,14 @@
+import os
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _env_file() -> str:
+    return os.environ.get("FIXLY_ENV_FILE", ".env")
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=_env_file(), env_file_encoding="utf-8", extra="ignore")
 
     supabase_url: str = ""
     supabase_anon_key: str = ""
