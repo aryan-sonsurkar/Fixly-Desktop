@@ -18,6 +18,7 @@ import { DeleteConfirmDialog } from "@/components/delete-confirm-dialog";
 import { FilterBar } from "@/components/filter-bar";
 import { AssignmentEmptyState } from "@/components/assignment-empty-state";
 import { AssignmentSkeleton } from "@/components/assignment-skeleton";
+import { toast } from "@/stores/toast-store";
 import { createLogger } from "@/lib/logger";
 import type { Assignment } from "@fixly/shared-types";
 
@@ -71,6 +72,7 @@ export function AssignmentsPage() {
       queryClient.invalidateQueries({ queryKey: ["assignment-stats"] });
       setDeleteId(null);
       setDetailId(null);
+      toast({ type: "info", title: "Assignment deleted" });
     },
     onError: (err) => {
       logger.error("Failed to delete assignment", err);
@@ -96,6 +98,7 @@ export function AssignmentsPage() {
     mutationFn: (id: string) => duplicateAssignment(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["assignments"] });
+      toast({ type: "success", title: "Assignment duplicated" });
     },
     onError: (err) => {
       logger.error("Failed to duplicate assignment", err);
@@ -350,6 +353,10 @@ export function AssignmentsPage() {
           queryClient.invalidateQueries({ queryKey: ["assignment-stats"] });
           setFormOpen(false);
           setEditingAssignment(null);
+          toast({
+            type: "success",
+            title: editingAssignment ? "Assignment updated" : "Assignment created",
+          });
         }}
       />
 

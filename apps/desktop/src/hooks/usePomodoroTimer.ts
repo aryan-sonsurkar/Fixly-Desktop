@@ -55,6 +55,9 @@ export function usePomodoroTimer() {
 
   const startTimer = useCallback(() => {
     if (timeRemaining <= 0 || isRunning) return;
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
     startTimestampRef.current = Date.now();
     setIsRunning(true);
   }, [timeRemaining, isRunning, setIsRunning]);
