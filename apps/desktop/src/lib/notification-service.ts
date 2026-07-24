@@ -7,7 +7,7 @@ export interface NotificationItem {
   title: string;
   message: string;
   metadata: Record<string, unknown>;
-  is_read: boolean;
+  read: boolean;
   read_at: string | null;
   created_at: string;
 }

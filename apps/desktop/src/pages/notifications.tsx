@@ -139,7 +139,7 @@ export function NotificationPage() {
     }
   };
 
-  const unreadNotifications = notifications.filter((n) => !n.is_read);
+  const unreadNotifications = notifications.filter((n) => !n.read);
 
   return (
     <div className="mx-auto max-w-4xl p-6">
@@ -214,7 +214,7 @@ export function NotificationPage() {
               onDelete={handleDelete}
             />
           ))}
-          {notifications.filter((n) => n.is_read).map((n) => (
+          {notifications.filter((n) => n.read).map((n) => (
             <NotificationItem
               key={n.id}
               notification={n}
@@ -245,7 +245,7 @@ function NotificationItem({
   onMarkRead,
   onDelete,
 }: {
-  notification: { id: string; type: string; title: string; message: string; is_read: boolean; created_at: string };
+  notification: { id: string; type: string; title: string; message: string; read: boolean; created_at: string };
   onMarkRead: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
@@ -257,7 +257,7 @@ function NotificationItem({
       exit={{ opacity: 0, x: 8, height: 0, marginBottom: 0 }}
       transition={{ duration: 0.2 }}
       className={`group flex items-start gap-3 rounded-lg p-4 text-sm transition-colors ${
-        !n.is_read ? "border-l-2 border-l-primary bg-card" : "hover:bg-accent/50"
+        !n.read ? "border-l-2 border-l-primary bg-card" : "hover:bg-accent/50"
       }`}
     >
       <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${typeColors[n.type] || "bg-muted text-muted-foreground"}`}>
@@ -267,8 +267,8 @@ function NotificationItem({
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          {!n.is_read && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
-          <p className={`truncate ${!n.is_read ? "font-medium" : ""}`}>{n.title}</p>
+          {!n.read && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
+          <p className={`truncate ${!n.read ? "font-medium" : ""}`}>{n.title}</p>
         </div>
         {n.message && (
           <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{n.message}</p>
@@ -276,7 +276,7 @@ function NotificationItem({
         <p className="mt-1 text-[10px] text-muted-foreground">{formatTime(n.created_at)}</p>
       </div>
       <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-        {!n.is_read && (
+        {!n.read && (
           <button
             type="button"
             onClick={() => onMarkRead(n.id)}

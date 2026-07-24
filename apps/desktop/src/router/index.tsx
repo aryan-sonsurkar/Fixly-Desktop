@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { createMemoryRouter, RouterProvider as ReactRouterProvider } from "react-router-dom";
 import { Skeleton } from "@fixly/ui";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { ProtectedRoute } from "@/components/protected-route";
 import { AppLayout } from "@/components/app-layout";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
@@ -57,19 +58,21 @@ function ProtectedLayout() {
   useKeyboardShortcuts();
   return (
     <ProtectedRoute>
-      <AppLayout />
+      <ErrorBoundary>
+        <AppLayout />
+      </ErrorBoundary>
     </ProtectedRoute>
   );
 }
 
 const router = createMemoryRouter(
   [
-    { path: "/login", element: <LazyLoad><LoginPage /></LazyLoad> },
-    { path: "/register", element: <LazyLoad><RegisterPage /></LazyLoad> },
-    { path: "/forgot-password", element: <LazyLoad><ForgotPasswordPage /></LazyLoad> },
-    { path: "/verify-email", element: <LazyLoad><VerifyEmailPage /></LazyLoad> },
-    { path: "/auth/callback", element: <LazyLoad><AuthCallbackPage /></LazyLoad> },
-    { path: "/onboarding", element: <LazyLoad><OnboardingPage /></LazyLoad> },
+    { path: "/login", element: <ErrorBoundary><LazyLoad><LoginPage /></LazyLoad></ErrorBoundary> },
+    { path: "/register", element: <ErrorBoundary><LazyLoad><RegisterPage /></LazyLoad></ErrorBoundary> },
+    { path: "/forgot-password", element: <ErrorBoundary><LazyLoad><ForgotPasswordPage /></LazyLoad></ErrorBoundary> },
+    { path: "/verify-email", element: <ErrorBoundary><LazyLoad><VerifyEmailPage /></LazyLoad></ErrorBoundary> },
+    { path: "/auth/callback", element: <ErrorBoundary><LazyLoad><AuthCallbackPage /></LazyLoad></ErrorBoundary> },
+    { path: "/onboarding", element: <ErrorBoundary><LazyLoad><OnboardingPage /></LazyLoad></ErrorBoundary> },
     {
       path: "/",
       element: <ProtectedLayout />,
@@ -90,7 +93,7 @@ const router = createMemoryRouter(
         { path: "diagnostics", element: <LazyLoad><DiagnosticsPage /></LazyLoad> },
       ],
     },
-    { path: "*", element: <NotFoundPage /> },
+    { path: "*", element: <ErrorBoundary><NotFoundPage /></ErrorBoundary> },
   ],
   { initialEntries: ["/login"] },
 );
