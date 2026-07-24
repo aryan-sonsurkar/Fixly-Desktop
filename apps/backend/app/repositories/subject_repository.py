@@ -35,9 +35,10 @@ class SubjectRepository:
     async def create_subject(self, user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         client = get_supabase()
         data = {"user_id": user_id, **payload}
-        response = client.table("subjects").insert(data).single().execute()  # type: ignore[attr-defined]
+        response = client.table("subjects").insert(data).execute()
         result = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return result.get("data") or result
+        _result = result.get("data") or result
+        return _result[0] if isinstance(_result, list) else _result
 
     async def update_subject(
         self, subject_id: str, user_id: str, updates: dict[str, Any]
@@ -48,11 +49,12 @@ class SubjectRepository:
             .update(updates)
             .eq("id", subject_id)
             .eq("user_id", user_id)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def delete_subject(self, subject_id: str, user_id: str) -> None:
         client = get_supabase()

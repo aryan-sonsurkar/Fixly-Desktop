@@ -34,7 +34,7 @@ async def create_assignment(
 ) -> dict[str, Any]:
     service = AssignmentService()
     return await service.create_assignment(
-        current_user["id"], body.model_dump(exclude_none=True)
+        current_user["id"], body.model_dump(exclude_none=True, mode="json")
     )
 
 

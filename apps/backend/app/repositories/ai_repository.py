@@ -13,11 +13,12 @@ class AIRepository:
         response = (
             client.table("conversations")
             .insert({"user_id": user_id, "title": title})
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def list_conversations(self, user_id: str) -> list[dict[str, Any]]:
         client = get_supabase()
@@ -25,8 +26,8 @@ class AIRepository:
             client.table("conversations")
             .select("id, title, created_at, updated_at, is_pinned, is_archived")
             .eq("user_id", user_id)
-            .order("is_pinned", ascending=False)  # type: ignore[call-arg]
-            .order("updated_at", ascending=False)
+            .order("is_pinned", desc=True)
+            .order("updated_at", desc=True)
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
@@ -45,7 +46,7 @@ class AIRepository:
             .select("id, title, created_at, updated_at, is_pinned, is_archived")
             .eq("user_id", user_id)
             .ilike("title", f"%{query}%")
-            .order("updated_at", ascending=False)  # type: ignore[call-arg]
+            .order("updated_at", desc=True)
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
@@ -76,11 +77,12 @@ class AIRepository:
             .update(updates)
             .eq("id", conversation_id)
             .eq("user_id", user_id)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def delete_conversation(self, conversation_id: str, user_id: str) -> None:
         client = get_supabase()
@@ -119,11 +121,12 @@ class AIRepository:
         response = (
             client.table("messages")
             .insert(payload)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        result = data.get("data") or data
+        _result = data.get("data") or data
+        result = _result[0] if isinstance(_result, list) else _result
 
         client.table("conversations").update({"updated_at": datetime.now(timezone.utc).isoformat()}).eq(
             "id", conversation_id
@@ -150,11 +153,12 @@ class AIRepository:
             .update(updates)
             .eq("id", message_id)
             .eq("user_id", user_id)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def delete_message(self, message_id: str, user_id: str) -> None:
         client = get_supabase()
@@ -204,9 +208,10 @@ class AIRepository:
         response = (
             client.table("settings")
             .upsert(payload, on_conflict="user_id")
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        result = data.get("data") or data
+        _result = data.get("data") or data
+        result = _result[0] if isinstance(_result, list) else _result
         return result

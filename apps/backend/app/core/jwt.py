@@ -6,6 +6,8 @@ import time
 from typing import Any, cast
 
 import httpx
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.asymmetric import ec, utils
 
 from app.config import settings
 from app.core.logging import get_logger
@@ -40,13 +42,26 @@ async def _fetch_jwks() -> dict[str, Any]:
         return JWKS_CACHE
 
 
-def _get_kid_from_header(token: str) -> str | None:
+def _get_header(token: str) -> dict[str, Any] | None:
     try:
         header_b64 = token.split(".")[0]
-        header: dict[str, Any] = json.loads(_base64url_decode(header_b64))
-        return cast(str, header.get("kid"))
+        return cast(dict[str, Any], json.loads(_base64url_decode(header_b64)))
     except (IndexError, json.JSONDecodeError, Exception):
         return None
+
+
+def _get_kid_from_header(token: str) -> str | None:
+    header = _get_header(token)
+    if header:
+        return cast(str, header.get("kid"))
+    return None
+
+
+def _get_alg_from_header(token: str) -> str | None:
+    header = _get_header(token)
+    if header:
+        return cast(str, header.get("alg"))
+    return None
 
 
 def _verify_hmac_signature(token: str, secret: str) -> bool:
@@ -62,6 +77,48 @@ def _verify_hmac_signature(token: str, secret: str) -> bool:
         return hmac.compare_digest(signature, expected)
     except Exception:
         return False
+
+
+def _verify_es256_signature(token: str, public_key: ec.EllipticCurvePublicKey) -> bool:
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            return False
+        raw_sig = _base64url_decode(parts[2])
+        message = f"{parts[0]}.{parts[1]}".encode("utf-8")
+
+        # Raw ECDSA signature is r||s (32 bytes each for P-256)
+        if len(raw_sig) != 64:
+            return False
+        r = int.from_bytes(raw_sig[:32], "big")
+        s = int.from_bytes(raw_sig[32:], "big")
+        der_sig = utils.encode_dss_signature(r, s)
+
+        public_key.verify(der_sig, message, ec.ECDSA(hashes.SHA256()))
+        return True
+    except Exception:
+        return False
+
+
+def _build_public_key_from_jwk(jwk: dict[str, Any]) -> ec.EllipticCurvePublicKey | None:
+    try:
+        x_bytes = _base64url_decode(jwk["x"])
+        y_bytes = _base64url_decode(jwk["y"])
+        x = int.from_bytes(x_bytes, "big")
+        y = int.from_bytes(y_bytes, "big")
+        return ec.EllipticCurvePublicNumbers(
+            x, y, ec.SECP256R1()
+        ).public_key()
+    except Exception as e:
+        logger.error("Failed to build EC public key from JWK", extra={"error": str(e)})
+        return None
+
+
+def _find_jwk_by_kid(jwks: dict[str, Any], kid: str) -> dict[str, Any] | None:
+    for key in jwks.get("keys", []):
+        if key.get("kid") == kid:
+            return cast(dict[str, Any], key)
+    return None
 
 
 def _decode_payload(token: str) -> dict[str, Any] | None:
@@ -88,8 +145,37 @@ async def verify_token(token: str) -> dict[str, Any] | None:
         logger.debug("Invalid token audience")
         return None
 
-    is_valid = _verify_hmac_signature(token, settings.supabase_jwt_secret)
-    if not is_valid:
+    alg = _get_alg_from_header(token)
+
+    if alg == "ES256":
+        kid = _get_kid_from_header(token)
+        if not kid:
+            logger.debug("No kid in ES256 token header")
+            return None
+        try:
+            jwks = await _fetch_jwks()
+        except Exception as e:
+            logger.error("Failed to fetch JWKS", extra={"error": str(e)})
+            return None
+        jwk = _find_jwk_by_kid(jwks, kid)
+        if not jwk:
+            logger.debug("No JWK found for kid %s", kid)
+            return None
+        public_key = _build_public_key_from_jwk(jwk)
+        if not public_key:
+            return None
+        if not _verify_es256_signature(token, public_key):
+            logger.debug("ES256 signature verification failed")
+            return None
+    elif alg == "HS256":
+        if not settings.supabase_jwt_secret:
+            logger.debug("HMAC secret not configured")
+            return None
+        if not _verify_hmac_signature(token, settings.supabase_jwt_secret):
+            logger.debug("HMAC signature verification failed")
+            return None
+    else:
+        logger.debug("Unsupported JWT algorithm: %s", alg)
         return None
 
     return payload

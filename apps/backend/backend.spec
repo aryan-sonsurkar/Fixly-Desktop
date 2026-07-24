@@ -7,6 +7,13 @@ a = Analysis(
     binaries=[],
     datas=[],
     hiddenimports=[
+        'cryptography',
+        'cryptography.hazmat',
+        'cryptography.hazmat.primitives',
+        'cryptography.hazmat.primitives.asymmetric',
+        'cryptography.hazmat.primitives.asymmetric.ec',
+        'cryptography.hazmat.backends',
+        'cryptography.hazmat.backends.openssl',
         'app.main',
         'app.config',
         'app.core.exceptions',

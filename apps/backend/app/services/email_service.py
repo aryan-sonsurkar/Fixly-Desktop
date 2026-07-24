@@ -401,6 +401,9 @@ class EmailService:
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
+    async def get_unread_count(self, user_id: str) -> int:
+        return await self.repository.get_unread_count(user_id)
+
     # ── Dashboard Stats ───────────────────────────────────
 
     async def get_dashboard_stats(self, user_id: str) -> dict[str, Any]:

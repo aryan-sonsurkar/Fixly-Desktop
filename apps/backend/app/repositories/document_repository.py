@@ -13,11 +13,12 @@ class DocumentRepository:
         response = (
             client.table("documents")
             .insert(payload)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def get_document(self, document_id: str, user_id: str) -> dict[str, Any] | None:
         client = get_supabase()
@@ -44,11 +45,12 @@ class DocumentRepository:
             .update(updates)
             .eq("id", document_id)
             .eq("user_id", user_id)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def delete_document(self, document_id: str, user_id: str) -> None:
         client = get_supabase()
@@ -80,7 +82,7 @@ class DocumentRepository:
         if search:
             query = query.ilike("original_name", f"%{search}%")
 
-        query = query.order("created_at", ascending=False)  # type: ignore[call-arg]
+        query = query.order("created_at", desc=True)
 
         offset = (page - 1) * page_size
         query = query.range(offset, offset + page_size - 1)
@@ -119,11 +121,12 @@ class DocumentRepository:
         response = (
             client.table("document_ocr_results")
             .insert(payload)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def get_ocr_result(self, document_id: str, user_id: str) -> dict[str, Any] | None:
         client = get_supabase()
@@ -152,11 +155,12 @@ class DocumentRepository:
         response = (
             client.table("document_conversations")
             .insert(payload)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def get_conversation_ids(self, document_id: str, user_id: str) -> list[str]:
         client = get_supabase()
@@ -178,7 +182,7 @@ class DocumentRepository:
             .select("id, original_name, file_type, status, created_at, page_count, file_size")
             .eq("user_id", user_id)
             .eq("status", "processed")
-            .order("last_opened_at", ascending=False)  # type: ignore[call-arg]
+            .order("last_opened_at", desc=True)
             .limit(limit)
             .execute()
         )

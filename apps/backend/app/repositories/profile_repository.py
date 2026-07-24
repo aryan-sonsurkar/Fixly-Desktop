@@ -15,9 +15,10 @@ class ProfileRepository:
 
     async def update_profile(self, user_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         client = get_supabase()
-        response = client.table("profiles").update(updates).eq("id", user_id).single().execute()  # type: ignore[attr-defined]
+        response = client.table("profiles").update(updates).eq("id", user_id).execute()
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def get_settings(self, user_id: str) -> dict[str, Any] | None:
         client = get_supabase()
@@ -31,8 +32,9 @@ class ProfileRepository:
         response = (
             client.table("settings")
             .upsert(payload, on_conflict="user_id")
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data

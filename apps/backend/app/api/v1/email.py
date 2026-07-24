@@ -142,6 +142,16 @@ async def generate_briefing(
     return await service.generate_briefing(current_user["id"])
 
 
+# ── Unread Count ──────────────────────────────────────────
+
+@router.get("/unread-count")
+async def get_unread_count(
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, int]:
+    service = EmailService()
+    count = await service.get_unread_count(current_user["id"])
+    return {"unread_count": count}
+
 # ── Dashboard ─────────────────────────────────────────────
 
 @router.get("/dashboard")

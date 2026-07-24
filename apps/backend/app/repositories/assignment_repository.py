@@ -62,7 +62,7 @@ class AssignmentRepository:
         total_response = total_query.execute()
         total = total_response.count or 0
 
-        query = query.order(sort_by, ascending=(sort_order == "asc"))
+        query = query.order(sort_by, desc=(sort_order != "asc"))
         offset = (page - 1) * page_size
         query = query.range(offset, offset + page_size - 1)
         response = query.execute()
@@ -89,9 +89,10 @@ class AssignmentRepository:
     async def create_assignment(self, user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         client = get_supabase()
         data = {"user_id": user_id, **payload}
-        response = client.table("assignments").insert(data).single().execute()  # type: ignore[attr-defined]
+        response = client.table("assignments").insert(data).execute()
         result = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return result.get("data") or result
+        _result = result.get("data") or result
+        return _result[0] if isinstance(_result, list) else _result
 
     async def update_assignment(
         self, assignment_id: str, user_id: str, updates: dict[str, Any]
@@ -104,11 +105,12 @@ class AssignmentRepository:
             .update(updates)
             .eq("id", assignment_id)
             .eq("user_id", user_id)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def delete_assignment(self, assignment_id: str, user_id: str) -> None:
         client = get_supabase()
@@ -148,9 +150,10 @@ class AssignmentRepository:
 
     async def create_attachment(self, payload: dict[str, Any]) -> dict[str, Any]:
         client = get_supabase()
-        response = client.table("attachments").insert(payload).single().execute()  # type: ignore[attr-defined]
+        response = client.table("attachments").insert(payload).execute()
         result = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return result.get("data") or result
+        _result = result.get("data") or result
+        return _result[0] if isinstance(_result, list) else _result
 
     async def delete_attachment(self, attachment_id: str, user_id: str) -> None:
         client = get_supabase()

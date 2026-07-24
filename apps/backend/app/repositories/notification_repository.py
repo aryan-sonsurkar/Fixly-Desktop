@@ -12,9 +12,10 @@ class NotificationRepository:
             **payload,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
-        response = client.table("notifications").insert(data).single().execute()  # type: ignore[attr-defined]
+        response = client.table("notifications").insert(data).execute()
         raw = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return raw.get("data") or raw
+        _raw = raw.get("data") or raw
+        return _raw[0] if isinstance(_raw, list) else _raw
 
     async def list_notifications(
         self, user_id: str, unread_only: bool = False,
@@ -24,10 +25,10 @@ class NotificationRepository:
         client = get_supabase()
         query = client.table("notifications").select("*", count="exact").eq("user_id", user_id)  # type: ignore[arg-type]
         if unread_only:
-            query = query.eq("is_read", False)
+            query = query.eq("read", False)
         if ntype:
             query = query.eq("type", ntype)
-        query = query.order("created_at", ascending=False)  # type: ignore[call-arg]
+        query = query.order("created_at", desc=True)
         query = query.range(offset, offset + limit - 1)
         response = query.execute()
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
@@ -40,23 +41,24 @@ class NotificationRepository:
         now = datetime.now(timezone.utc).isoformat()
         response = (
             client.table("notifications")
-            .update({"is_read": True, "read_at": now})
+            .update({"read": True, "read_at": now})
             .eq("id", notification_id)
             .eq("user_id", user_id)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def mark_all_read(self, user_id: str) -> int:
         client = get_supabase()
         now = datetime.now(timezone.utc).isoformat()
         response = (
             client.table("notifications")
-            .update({"is_read": True, "read_at": now})
+            .update({"read": True, "read_at": now})
             .eq("user_id", user_id)
-            .eq("is_read", False)
+            .eq("read", False)
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
@@ -73,7 +75,7 @@ class NotificationRepository:
             client.table("notifications")
             .select("id", count="exact")  # type: ignore[arg-type]
             .eq("user_id", user_id)
-            .eq("is_read", False)
+            .eq("read", False)
             .execute()
         )
         return response.count or 0

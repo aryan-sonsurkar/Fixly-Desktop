@@ -32,14 +32,15 @@ class PomodoroRepository:
                 client.table("pomodoro_settings")
                 .update(settings)
                 .eq("user_id", user_id)
-                .single()  # type: ignore[attr-defined]
+
                 .execute()
             )
         else:
             payload = {"user_id": user_id, **settings, "created_at": now, "updated_at": now}
-            response = client.table("pomodoro_settings").insert(payload).single().execute()  # type: ignore[attr-defined]
+            response = client.table("pomodoro_settings").insert(payload).execute()
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def create_session(self, user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         client = get_supabase()
@@ -51,10 +52,12 @@ class PomodoroRepository:
 
         payload["daily_goal_progress"] = round(progress, 2)
         payload["date"] = today
+        payload["user_id"] = user_id
 
-        response = client.table("pomodoro_sessions").insert(payload).single().execute()  # type: ignore[attr-defined]
+        response = client.table("pomodoro_sessions").insert(payload).execute()
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def get_sessions_for_date(self, user_id: str, session_date: str) -> list[dict[str, Any]]:
         client = get_supabase()

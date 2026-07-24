@@ -16,11 +16,12 @@ class EmailRepository:
         response = (
             client.table("email_accounts")
             .insert(payload)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         raw = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return raw.get("data") or raw
+        _raw = raw.get("data") or raw
+        return _raw[0] if isinstance(_raw, list) else _raw
 
     async def get_accounts(self, user_id: str) -> list[dict[str, Any]]:
         client = get_supabase()
@@ -28,7 +29,7 @@ class EmailRepository:
             client.table("email_accounts")
             .select("*")
             .eq("user_id", user_id)
-            .order("created_at", ascending=False)  # type: ignore[call-arg]
+            .order("created_at", desc=True)
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
@@ -57,11 +58,12 @@ class EmailRepository:
             .update(updates)
             .eq("id", account_id)
             .eq("user_id", user_id)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def delete_account(self, account_id: str, user_id: str) -> None:
         client = get_supabase()
@@ -74,11 +76,12 @@ class EmailRepository:
         response = (
             client.table("email_messages")
             .upsert(payload, on_conflict="user_id,message_id")
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def get_messages(
         self, user_id: str, account_id: str | None = None,
@@ -95,7 +98,7 @@ class EmailRepository:
             query = query.eq("is_read", False)
         if search:
             query = query.or_(f"subject.ilike.%{search}%,from_name.ilike.%{search}%,body_text.ilike.%{search}%")
-        query = query.order("received_at", ascending=False)  # type: ignore[call-arg]
+        query = query.order("received_at", desc=True)
         query = query.range(offset, offset + limit - 1)
         response = query.execute()
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
@@ -122,7 +125,7 @@ class EmailRepository:
             client.table("email_messages")
             .select("id,message_id,from_email,subject,account_id")
             .eq("user_id", user_id)
-            .order("received_at", ascending=False)  # type: ignore[call-arg]
+            .order("received_at", desc=True)
             .limit(limit)
             .execute()
         )
@@ -157,11 +160,12 @@ class EmailRepository:
             .update(updates)
             .eq("id", message_id)
             .eq("user_id", user_id)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     # ── Classifications ───────────────────────────────────
 
@@ -170,11 +174,12 @@ class EmailRepository:
         response = (
             client.table("email_classifications")
             .insert(payload)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def get_classification(self, email_id: str, user_id: str) -> dict[str, Any] | None:
         client = get_supabase()
@@ -213,11 +218,12 @@ class EmailRepository:
         response = (
             client.table("email_assignments")
             .insert(payload)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def get_assignment(self, email_id: str, user_id: str) -> dict[str, Any] | None:
         client = get_supabase()
@@ -256,11 +262,12 @@ class EmailRepository:
             .update(updates)
             .eq("id", assignment_id)
             .eq("user_id", user_id)
-            .single()  # type: ignore[attr-defined]
+
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def get_review_queue(
         self, user_id: str, status: str | None = None
@@ -276,7 +283,7 @@ class EmailRepository:
             query = query.eq("status", status)
         else:
             query = query.in_("status", ["pending", "approved", "edited"])
-        query = query.order("created_at", ascending=False)  # type: ignore[call-arg]
+        query = query.order("created_at", desc=True)
         response = query.execute()
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
         return cast(list[dict[str, Any]], data.get("data", []))
@@ -299,7 +306,7 @@ class EmailRepository:
             .select("*, classification:email_id(*)")
             .eq("user_id", user_id)
             .not_.is_("body_text", "null")
-            .order("received_at", ascending=False)  # type: ignore[call-arg]
+            .order("received_at", desc=True)
             .limit(limit)
             .execute()
         )

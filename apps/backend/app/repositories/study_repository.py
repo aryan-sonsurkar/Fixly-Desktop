@@ -50,20 +50,22 @@ class StudyRepository:
                 .update(updates)
                 .eq("user_id", user_id)
                 .eq("date", day_date)
-                .single()  # type: ignore[attr-defined]
+
                 .execute()
             )
         else:
             payload = {"user_id": user_id, "date": day_date, **updates, "created_at": now, "updated_at": now}
-            response = client.table("study_days").insert(payload).single().execute()  # type: ignore[attr-defined]
+            response = client.table("study_days").insert(payload).execute()
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def create_session(self, user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         client = get_supabase()
-        response = client.table("study_sessions").insert(payload).single().execute()  # type: ignore[attr-defined]
+        response = client.table("study_sessions").insert(payload).execute()
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def get_sessions_for_date(self, user_id: str, session_date: str) -> list[dict[str, Any]]:
         client = get_supabase()
@@ -158,7 +160,7 @@ class StudyRepository:
                 .update({"content": content, "updated_at": now})
                 .eq("user_id", user_id)
                 .eq("date", note_date)
-                .single()  # type: ignore[attr-defined]
+
                 .execute()
             )
         else:
@@ -169,9 +171,10 @@ class StudyRepository:
                 "created_at": now,
                 "updated_at": now,
             }
-            response = client.table("study_notes").insert(payload).single().execute()  # type: ignore[attr-defined]
+            response = client.table("study_notes").insert(payload).execute()
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        _data = data.get("data") or data
+        return _data[0] if isinstance(_data, list) else _data
 
     async def get_subject_names(self, user_id: str, subject_ids: list[str]) -> dict[str, str]:
         if not subject_ids:
