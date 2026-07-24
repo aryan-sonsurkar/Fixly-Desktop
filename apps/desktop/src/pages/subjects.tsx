@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion, AnimatePresence } from "framer-motion";
-import { Button, Input, Label } from "@fixly/ui";
+import { Button, Input, Label, Skeleton } from "@fixly/ui";
 import { getSubjects, createSubject, updateSubject, deleteSubject } from "@/lib/profile-service";
 import { toast } from "@/stores/toast-store";
 import { createLogger } from "@/lib/logger";
@@ -149,8 +149,20 @@ export function SubjectsPage() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <div className="mx-auto max-w-2xl space-y-8 p-6">
+        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-4 w-56" />
+        <div className="space-y-4 rounded-lg border p-6">
+          <Skeleton className="h-6 w-24" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-3/4" />
+          <Skeleton className="h-10 w-24" />
+        </div>
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 rounded-lg" />
+          ))}
+        </div>
       </div>
     );
   }

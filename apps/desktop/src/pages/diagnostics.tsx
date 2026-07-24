@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Button } from "@fixly/ui";
+import { Button, Skeleton } from "@fixly/ui";
 import { getDiagnostics, type Diagnostics } from "@/lib/diagnostics-service";
 import { useAnalyticsStore } from "@/stores/analytics-store";
 import { createLogger } from "@/lib/logger";
@@ -139,6 +139,39 @@ export function DiagnosticsPage() {
 
   const errorEvents = events.filter((e) => e.name === "error" || e.name === "api_error");
   const lastErrors = errorEvents.slice(-5).reverse();
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-8 p-6">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-64" />
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-24" />
+          <div className="space-y-2">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <Skeleton key={i} className="h-9 w-full rounded-lg" />
+            ))}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-20" />
+          <div className="space-y-1">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full rounded-lg" />
+            ))}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-24" />
+          <div className="space-y-1">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <Skeleton key={i} className="h-20 w-full rounded-lg" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-8 p-6">

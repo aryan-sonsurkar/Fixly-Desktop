@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion } from "framer-motion";
-import { Button, Input, Label } from "@fixly/ui";
+import { Button, Input, Label, Skeleton } from "@fixly/ui";
 import { getMyProfile, updateMyProfile } from "@/lib/profile-service";
 import { createLogger } from "@/lib/logger";
 
@@ -83,8 +83,32 @@ export function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <div className="mx-auto max-w-2xl space-y-8 p-6">
+        <Skeleton className="h-8 w-32" />
+        <Skeleton className="h-4 w-56" />
+        <div className="space-y-4 rounded-lg border p-6">
+          <Skeleton className="h-6 w-24" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+        <div className="space-y-4 rounded-lg border p-6">
+          <Skeleton className="h-6 w-24" />
+          <div className="grid grid-cols-2 gap-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </div>
+        <div className="space-y-4 rounded-lg border p-6">
+          <Skeleton className="h-6 w-24" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <div className="grid grid-cols-2 gap-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        </div>
+        <Skeleton className="h-10 w-32" />
       </div>
     );
   }
