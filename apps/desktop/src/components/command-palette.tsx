@@ -33,6 +33,15 @@ const categories = [
   { value: "note", label: "Notes" },
 ];
 
+const quickActions = [
+  { label: "Create Assignment", url: "/assignments", icon: "M12 4v16m8-8H4", color: "text-blue-500" },
+  { label: "Start Pomodoro", url: "/pomodoro", icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z", color: "text-red-500" },
+  { label: "Study Diary", url: "/study", icon: "M13 10V3L4 14h7v7l9-11h-7z", color: "text-purple-500" },
+  { label: "AI Workspace", url: "/ai", icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z", color: "text-green-500" },
+  { label: "Planner", url: "/planner", icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z", color: "text-orange-500" },
+  { label: "Settings", url: "/settings", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z", color: "text-muted-foreground" },
+];
+
 export function CommandPalette() {
   const navigate = useNavigate();
   const {
@@ -198,6 +207,29 @@ export function CommandPalette() {
                       {s}
                     </button>
                   ))}
+                </div>
+              )}
+
+              {!loading && !query.trim() && !categoryFilter && (
+                <div>
+                  <div className="px-3 py-1.5">
+                    <span className="text-xs font-medium text-muted-foreground">Quick Actions</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1 px-2 pb-2">
+                    {quickActions.map((action) => (
+                      <button
+                        key={action.label}
+                        type="button"
+                        onClick={() => { navigate(action.url); reset(); }}
+                        className="flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+                      >
+                        <svg className={`h-4 w-4 shrink-0 ${action.color}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d={action.icon} />
+                        </svg>
+                        <span className="text-xs font-medium">{action.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
