@@ -1,7 +1,8 @@
-import { Outlet, NavLink } from "react-router-dom";
+import { Outlet, NavLink, useLocation } from "react-router-dom";
 import { useUIStore } from "@/stores/ui-store";
 import { useAuthContext } from "@/contexts/auth-context";
 import { useSearchStore } from "@/stores/search-store";
+import { motion } from "framer-motion";
 import { Button } from "@fixly/ui";
 import { cn } from "@fixly/shared-utils";
 import { CommandPalette } from "@/components/command-palette";
@@ -26,7 +27,13 @@ const bottomNavItems = [
   { to: "/profile", label: "Profile", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
 ];
 
+const pageVariants = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
+};
+
 export function AppLayout() {
+  const location = useLocation();
   const { sidebarOpen, toggleSidebar } = useUIStore();
   const { user, signOut } = useAuthContext();
   const { setOpen: setSearchOpen } = useSearchStore();
@@ -159,7 +166,15 @@ export function AppLayout() {
         </header>
 
         <div className="flex-1 overflow-y-auto">
-          <Outlet />
+          <motion.div
+            key={location.pathname}
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
+            <Outlet />
+          </motion.div>
         </div>
       </main>
 
