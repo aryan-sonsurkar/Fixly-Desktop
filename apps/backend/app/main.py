@@ -3,8 +3,12 @@ import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+from typing import Any
+
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from starlette.datastructures import Headers
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse, Response
 
 from app.api.v1 import routers
 from app.config import settings
@@ -33,6 +37,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Fixly backend shutting down")
 
 
+CORS_HEADERS: dict[str, str] = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "*",
+    "Access-Control-Allow-Headers": "*",
+    "Access-Control-Max-Age": "86400",
+}
+
+
+async def cors_middleware(request: Request, call_next: Any) -> Response:
+    if request.method == "OPTIONS":
+        return PlainTextResponse("", status_code=204, headers=dict(CORS_HEADERS))
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
+
 app = FastAPI(
     title="Fixly API",
     version="0.1.0",
@@ -40,13 +62,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.middleware("http")(cors_middleware)
 
 
 app.add_exception_handler(FixlyError, fixly_exception_handler)  # type: ignore[arg-type]
