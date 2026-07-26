@@ -1,4 +1,5 @@
 import axios from "axios";
+import type { AxiosRequestConfig, AxiosResponse } from "axios";
 import { createLogger } from "@/lib/logger";
 import { getAccessToken, getRefreshToken, setTokens, clearTokens } from "@/lib/secure-storage";
 
@@ -25,6 +26,65 @@ function getBaseUrl(): string {
   return "http://localhost:8000";
 }
 
+function serializeHeaders(headers: Record<string, unknown>): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (typeof value === "string") {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+async function createTauriAdapter(): Promise<typeof axios.defaults.adapter> {
+  const { fetch } = await import("@tauri-apps/plugin-http");
+
+  return async (config: AxiosRequestConfig): Promise<AxiosResponse> => {
+    const url = `${config.baseURL || ""}${config.url || ""}`;
+    const method = (config.method || "get").toUpperCase();
+
+    const headers: Record<string, string> = {};
+    if (config.headers) {
+      Object.assign(headers, serializeHeaders(config.headers as Record<string, unknown>));
+    }
+
+    let body: string | undefined;
+    if (config.data && method !== "GET" && method !== "HEAD") {
+      body = typeof config.data === "string" ? config.data : JSON.stringify(config.data);
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers,
+      body,
+    });
+
+    const responseText = await response.text();
+    let data: unknown;
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      data = responseText;
+    }
+
+    const responseHeaders: Record<string, string> = {};
+    if (response.headers && typeof response.headers.forEach === "function") {
+      response.headers.forEach((value: string, key: string) => {
+        responseHeaders[key] = value;
+      });
+    }
+
+    return {
+      data,
+      status: response.status,
+      statusText: response.statusText || "",
+      headers: responseHeaders,
+      config,
+      request: undefined,
+    };
+  };
+}
+
 const apiClient = axios.create({
   baseURL: getBaseUrl(),
   timeout: 30000,
@@ -32,6 +92,15 @@ const apiClient = axios.create({
     "Content-Type": "application/json",
   },
 });
+
+const isTauri = typeof window !== "undefined" && (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+
+if (isTauri) {
+  createTauriAdapter().then((adapter) => {
+    apiClient.defaults.adapter = adapter;
+    logger.info("Using Tauri HTTP plugin adapter (CORS bypass)");
+  });
+}
 
 let isRefreshing = false;
 let pendingRequests: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = [];
