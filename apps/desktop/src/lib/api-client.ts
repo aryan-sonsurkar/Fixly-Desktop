@@ -19,7 +19,7 @@ function getBaseUrl(): string {
   if (import.meta.env.DEV) {
     return import.meta.env.VITE_API_URL || "http://localhost:8000";
   }
-  if (typeof window !== "undefined" && (window as { __TAURI__?: unknown }).__TAURI__) {
+  if (typeof window !== "undefined" && (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) {
     return "http://127.0.0.1:8000";
   }
   return "http://localhost:8000";

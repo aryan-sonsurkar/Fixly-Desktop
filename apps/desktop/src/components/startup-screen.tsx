@@ -180,7 +180,7 @@ export function StartupGate({ children }: StartupGateProps) {
   const [ready, setReady] = useState(false);
 
   const checkStatus = useCallback(async () => {
-    if (typeof window !== "undefined" && !(window as { __TAURI__?: unknown }).__TAURI__) {
+    if (typeof window !== "undefined" && !(window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) {
       setReady(true);
       return;
     }

@@ -7,7 +7,7 @@ from app.main import app
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("port", nargs="?", type=int, default=0)
+    parser.add_argument("port", nargs="?", type=int, default=8000)
     parser.add_argument("--env-file", "-e", default="")
     args = parser.parse_args()
 
