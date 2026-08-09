@@ -99,6 +99,8 @@ if (isTauri) {
   createTauriAdapter().then((adapter) => {
     apiClient.defaults.adapter = adapter;
     logger.info("Using Tauri HTTP plugin adapter (CORS bypass)");
+  }).catch((err) => {
+    logger.error("Tauri HTTP plugin unavailable, using default adapter:", err);
   });
 }
 
