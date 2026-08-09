@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { AxiosRequestConfig, AxiosResponse } from "axios";
+import type { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import { createLogger } from "@/lib/logger";
 import { getAccessToken, getRefreshToken, setTokens, clearTokens } from "@/lib/secure-storage";
 
@@ -39,7 +39,7 @@ function serializeHeaders(headers: Record<string, unknown>): Record<string, stri
 async function createTauriAdapter(): Promise<typeof axios.defaults.adapter> {
   const { fetch } = await import("@tauri-apps/plugin-http");
 
-  return async (config: AxiosRequestConfig): Promise<AxiosResponse> => {
+  return async (config: InternalAxiosRequestConfig): Promise<AxiosResponse> => {
     const url = `${config.baseURL || ""}${config.url || ""}`;
     const method = (config.method || "get").toUpperCase();
 

@@ -1,7 +1,7 @@
 from typing import Any
 
 from app.core.logging import get_logger
-from app.core.supabase import get_supabase, get_supabase_service
+from app.core.supabase import get_supabase
 
 logger = get_logger(__name__)
 
@@ -22,9 +22,10 @@ class AuthRepository:
         response = client.auth.sign_in_with_password({"email": email, "password": password})
         return response.model_dump() if hasattr(response, "model_dump") else dict(response)
 
-    async def sign_out(self, user_id: str) -> None:
-        service = get_supabase_service()
-        service.auth.admin.sign_out(user_id)
+    async def sign_out(self, token: str) -> None:
+        client = get_supabase()
+        client.auth.set_session(token, "")
+        client.auth.sign_out()
 
     async def refresh_token(self, refresh_token: str) -> dict[str, Any]:
         client = get_supabase()
@@ -53,9 +54,10 @@ class AuthRepository:
         client = get_supabase()
         client.auth.reset_password_email(email)
 
-    async def update_user(self, user_id: str, password: str) -> dict[str, Any]:
-        service = get_supabase_service()
-        response = service.auth.admin.update_user_by_id(user_id, {"password": password})
+    async def update_user(self, token: str, password: str) -> dict[str, Any]:
+        client = get_supabase()
+        client.auth.set_session(token, "")
+        response = client.auth.update_user({"password": password})
         return response.model_dump() if hasattr(response, "model_dump") else dict(response)
 
     async def resend_verification(self, email: str) -> None:

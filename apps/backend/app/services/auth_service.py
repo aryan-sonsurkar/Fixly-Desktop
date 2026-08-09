@@ -76,9 +76,9 @@ class AuthService:
             logger.error("Sign in failed: %s", e)
             raise AuthenticationError("Sign in failed. Please check your credentials.")
 
-    async def sign_out(self, user_id: str) -> None:
+    async def sign_out(self, token: str) -> None:
         try:
-            await self.repository.sign_out(user_id)
+            await self.repository.sign_out(token)
         except Exception as e:
             logger.error("Sign out failed", extra={"error": str(e)})
 
@@ -127,9 +127,9 @@ class AuthService:
             logger.error("Forgot password failed", extra={"error": str(e), "email": email})
             raise AuthenticationError("Could not send reset email. Please try again.")
 
-    async def reset_password(self, user_id: str, new_password: str) -> None:
+    async def reset_password(self, token: str, new_password: str) -> None:
         try:
-            await self.repository.update_user(user_id, new_password)
+            await self.repository.update_user(token, new_password)
         except Exception as e:
             logger.error("Reset password failed", extra={"error": str(e)})
             raise AuthenticationError("Could not reset password. The link may have expired.")

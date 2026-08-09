@@ -136,7 +136,7 @@ class AssignmentService:
         assignment = await self.repository.get_assignment(assignment_id, user_id)
         if not assignment:
             raise NotFoundError("Assignment not found")
-        return await self.repository.get_attachments(assignment_id)
+        return await self.repository.get_attachments(assignment_id, user_id)
 
     async def get_stats(self, user_id: str) -> dict[str, Any]:
         await self._auto_mark_overdue(user_id)

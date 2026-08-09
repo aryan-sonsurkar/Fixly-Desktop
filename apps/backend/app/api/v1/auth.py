@@ -2,6 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import settings
 from app.dependencies.auth import get_current_user
@@ -36,9 +37,11 @@ async def sign_in(body: SignInRequest) -> dict[str, Any]:
 
 
 @router.post("/signout")
-async def sign_out(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, str]:
+async def sign_out(
+    credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer(auto_error=False)),
+) -> dict[str, str]:
     service = AuthService()
-    await service.sign_out(current_user.get("id", ""))
+    await service.sign_out(credentials.credentials if credentials else "")
     return {"message": "Signed out successfully"}
 
 
@@ -69,9 +72,8 @@ async def forgot_password(body: ForgotPasswordRequest) -> dict[str, str]:
 @router.post("/reset-password")
 async def reset_password(body: ResetPasswordRequest) -> dict[str, str]:
     service = AuthService()
-    payload = await service.validate_token(body.access_token)
-    user_id = payload.get("sub", "")
-    await service.reset_password(user_id, body.new_password)
+    await service.validate_token(body.access_token)
+    await service.reset_password(body.access_token, body.new_password)
     return {"message": "Password reset successfully"}
 
 

@@ -136,12 +136,13 @@ class AssignmentRepository:
         data = result.model_dump() if hasattr(result, "model_dump") else dict(result)
         return len(data.get("data", []))
 
-    async def get_attachments(self, assignment_id: str) -> list[dict[str, Any]]:
+    async def get_attachments(self, assignment_id: str, user_id: str) -> list[dict[str, Any]]:
         client = get_supabase()
         response = (
             client.table("attachments")
             .select("*")
             .eq("assignment_id", assignment_id)
+            .eq("user_id", user_id)
             .order("created_at")
             .execute()
         )
@@ -159,13 +160,23 @@ class AssignmentRepository:
         client = get_supabase()
         client.table("attachments").delete().eq("id", attachment_id).eq("user_id", user_id).execute()
 
-    async def get_attachment(self, attachment_id: str) -> dict[str, Any] | None:
+    async def get_attachment(self, attachment_id: str, user_id: str) -> dict[str, Any] | None:
         client = get_supabase()
-        response = client.table("attachments").select("*").eq("id", attachment_id).single().execute()
-        data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        try:
+            response = (
+                client.table("attachments")
+                .select("*")
+                .eq("id", attachment_id)
+                .eq("user_id", user_id)
+                .single()
+                .execute()
+            )
+            data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
+            return data.get("data") or data
+        except Exception:
+            return None
 
-    async def mark_overdue_assignments(self, user_id: str | None = None) -> int:
+    async def mark_overdue_assignments(self, user_id: str) -> int:
         client = get_supabase()
         now = datetime.now(timezone.utc).isoformat()
         query = (
@@ -174,8 +185,7 @@ class AssignmentRepository:
             .lt("due_date", now)
             .in_("status", ["pending", "in_progress"])
         )
-        if user_id:
-            query = query.eq("user_id", user_id)
+        query = query.eq("user_id", user_id)
         response = query.execute()
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
         return len(data.get("data", []))

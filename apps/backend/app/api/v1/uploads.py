@@ -39,6 +39,11 @@ async def upload_file(
     if len(content) > MAX_FILE_SIZE:
         raise ValidationError("File exceeds maximum size of 50MB")
 
+    repo = AssignmentRepository()
+    assignment = await repo.get_assignment(assignment_id, current_user["id"])
+    if not assignment:
+        raise ValidationError("Assignment not found")
+
     client = get_supabase()
     storage_path = f"{current_user['id']}/{assignment_id}/{file.filename}"
 
@@ -50,7 +55,6 @@ async def upload_file(
         logger.error("Storage upload failed", extra={"error": str(e)})
         raise ValidationError("Failed to upload file to storage")
 
-    repo = AssignmentRepository()
     attachment = await repo.create_attachment({
         "assignment_id": assignment_id,
         "user_id": current_user["id"],
@@ -69,7 +73,7 @@ async def delete_upload(
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, str]:
     repo = AssignmentRepository()
-    attachment = await repo.get_attachment(attachment_id)
+    attachment = await repo.get_attachment(attachment_id, current_user["id"])
     if not attachment:
         raise ValidationError("Attachment not found")
 

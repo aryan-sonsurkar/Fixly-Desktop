@@ -2,11 +2,9 @@ import socket
 import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-
 from typing import Any
 
 from fastapi import FastAPI
-from starlette.datastructures import Headers
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse, Response
 
@@ -48,7 +46,7 @@ CORS_HEADERS: dict[str, str] = {
 async def cors_middleware(request: Request, call_next: Any) -> Response:
     if request.method == "OPTIONS":
         return PlainTextResponse("", status_code=204, headers=dict(CORS_HEADERS))
-    response = await call_next(request)
+    response: Response = await call_next(request)
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "*"
