@@ -1,8 +1,8 @@
 # Fixly v1.0.0 — Internal Test Runbook
 
-Build date: 2026-08-09
+Build date: 2026-08-10
 Installer: `release/Fixly_1.0.0_x64-setup.exe`
-SHA-256: `686b1be23a2682f2c5bf8ff0ef5f1d86bfca3dbc0e930918869d990bfc7c445e`
+SHA-256: `e5ff7b17d1d47515f1918d3cbd225b2321574415a7ca90b209fbbcc07cd31401`
 
 ## About this build (what changed vs. previous installers)
 
@@ -13,6 +13,8 @@ SHA-256: `686b1be23a2682f2c5bf8ff0ef5f1d86bfca3dbc0e930918869d990bfc7c445e`
    - All queries are scoped to the signed-in user only
 3. **IDOR hardening** — attachments/uploads/overdue-marking can no longer touch another user's data.
 4. Backend still auto-runs on `127.0.0.1:8000` (random port on conflict) — no Python needed.
+5. **Health check fix** — `/api/v1/health` now probes the real `profiles` table instead of a nonexistent `_health` table, so the app's System Diagnostics shows "Database: Connected" instead of a scary red "unable to fetch db" state.
+6. **Stale-backend protection** — the app now always launches its backend on a **random free port** instead of fixed 8000. A leftover `backend.exe` from an old session can no longer hijack the app (old symptom: sign-in "Network Error" / wrong-port health failures after a crash or old install).
 
 ## Test credentials
 
@@ -44,6 +46,4 @@ SHA-256: `686b1be23a2682f2c5bf8ff0ef5f1d86bfca3dbc0e930918869d990bfc7c445e`
 
 ## Known open items (not blocking this test cycle)
 
-- `/api/v1/health` reports `supabase: disconnected` until the health-check table is created — cosmetic only; core features still work.
-- Attachments upload requires an assignment to exist first (ownership-verified now).
 - Ollama/Gemini must be configured via `.env` for AI features; not configured = graceful fallbacks.

@@ -216,6 +216,8 @@ fn start_backend_exe(app: AppHandle, state: Arc<Mutex<BackendState>>, exe_path: 
     let env_file = ensure_env_file(&app);
 
     let mut cmd = Command::new(&exe_path);
+    // Random free port: avoids hijacking by stale backend processes from previous sessions.
+    cmd.arg("0");
     cmd.current_dir(&parent_dir);
     if let Some(env) = &env_file {
         // Set env var instead of CLI arg — invisible to process listings
@@ -363,6 +365,8 @@ fn start_backend(app: AppHandle, state: Arc<Mutex<BackendState>>) {
     let mut cmd = Command::new(&python);
     cmd.arg("-m");
     cmd.arg("app.main");
+    // Random free port: avoids hijacking by stale backend processes from previous sessions.
+    cmd.arg("0");
     cmd.current_dir(&backend_dir);
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());

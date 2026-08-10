@@ -15,7 +15,7 @@ async def check_supabase() -> tuple[str, str | None]:
         from supabase import create_client
 
         client = create_client(settings.supabase_url, settings.supabase_anon_key)
-        client.table("_health").select("1").limit(1).execute()
+        client.table("profiles").select("id").limit(1).execute()
         return "connected", None
     except Exception as e:
         logger.warning("Supabase health check failed", extra={"error": str(e)})
