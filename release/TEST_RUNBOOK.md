@@ -2,7 +2,7 @@
 
 Build date: 2026-08-10
 Installer: `release/Fixly_1.0.0_x64-setup.exe`
-SHA-256: `5b5cd06f5d17f8099ee03038cb4c3047a92f139dbc7beb6d3e1492b3d6fc18b2`
+SHA-256: `24228b97856834e04227f8fee2d2e4363458f59abe8159e488e323585a1cd081`
 
 ## About this build (what changed vs. previous installers)
 

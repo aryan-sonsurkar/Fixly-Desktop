@@ -1,6 +1,5 @@
-from typing import Any
-
 import secrets
+from typing import Any
 
 from app.config import settings
 from app.core.exceptions import AuthenticationError
