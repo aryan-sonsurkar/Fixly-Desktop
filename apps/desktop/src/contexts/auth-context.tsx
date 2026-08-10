@@ -82,24 +82,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Handle deep links for authentication (OAuth callbacks, email verification, etc.)
   useEffect(() => {
     let unlisten: (() => void) | null = null;
-    
+
     const setupDeepLinkListener = async () => {
       if (typeof window !== "undefined" && (window as { __TAURI__?: unknown }).__TAURI__) {
         try {
-          const { listen } = await import("@tauri-apps/api/event");
-          unlisten = await listen("deep-link", async (event: { payload: string }) => {
-            const uri = event.payload;
+          const { getCurrent, onOpenUrl } = await import("@tauri-apps/plugin-deep-link");
+          const { googleCallback } = await import("@/lib/auth-service");
+
+          const urlToString = (value: unknown): string => {
+            if (typeof value === "string") return value;
+            if (value instanceof URL) return value.href;
+            if (Array.isArray(value) && value.length > 0) return urlToString(value[0]);
+            return String(value);
+          };
+
+          const handleDeepLink = async (uri: string) => {
             logger.info("Deep link received:", uri);
-            
+
             try {
               const url = new URL(uri);
-              
+
               if (url.pathname === "/auth/callback" || url.pathname === "/auth/verified") {
+                const code = url.searchParams.get("code");
                 const accessToken = url.searchParams.get("access_token") || url.hash.split("access_token=")[1]?.split("&")[0];
                 const refreshToken = url.searchParams.get("refresh_token") || url.hash.split("refresh_token=")[1]?.split("&")[0];
                 const token = url.searchParams.get("token");
-                
-                if (accessToken && refreshToken) {
+
+                if (code) {
+                  const response = await googleCallback(code, "fixly://auth/callback");
+                  handleAuthResponse(response);
+                  logger.info("Google OAuth authentication successful via deep link");
+                } else if (accessToken && refreshToken) {
                   const response = await apiClient.get("/api/v1/auth/me", {
                     headers: { Authorization: `Bearer ${accessToken}` },
                   });
@@ -113,15 +126,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             } catch (error) {
               logger.error("Failed to handle deep link:", error);
             }
+          };
+
+          unlisten = await onOpenUrl((payload: unknown) => {
+            void handleDeepLink(urlToString(payload));
           });
+
+          const current = await getCurrent();
+          if (current && current.length > 0) {
+            void handleDeepLink(urlToString(current[0]));
+          }
         } catch (error) {
           logger.error("Failed to set up deep link listener:", error);
         }
       }
     };
-    
+
     setupDeepLinkListener();
-    
+
     return () => {
       if (unlisten) unlisten();
     };

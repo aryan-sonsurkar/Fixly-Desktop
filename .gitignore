@@ -55,4 +55,6 @@ coverage/
 supabase/.temp/
 supabase/.branches/
 supabase/.env
-".freebuff/"  
+
+# Local scratch DB
+.freebuff/

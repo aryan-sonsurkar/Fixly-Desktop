@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::{AppHandle, Manager, RunEvent};
+use tauri_plugin_deep_link::DeepLinkExt;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -471,10 +472,22 @@ fn start_backend(app: AppHandle, state: Arc<Mutex<BackendState>>) {
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {
+            // Windows/Linux hand a fixly:// URL to a NEW instance on deep-link;
+            // with the single-instance "deep-link" feature the URL is forwarded to
+            // this instance's deep-link plugin (which emits "deep-link://new-url")
+            // BEFORE this callback runs, so there is nothing to do here.
+        }))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_http::init())
         .setup(|app| {
+            // Register the fixly:// scheme (HKCU) so OAuth callbacks reach this app.
+            if let Err(e) = app.deep_link().register_all() {
+                eprintln!("failed to register fixly:// deep link: {}", e);
+            }
+
             let backend_state = Arc::new(Mutex::new(BackendState {
                 child: None,
                 port: None,

@@ -58,7 +58,7 @@ export function RegisterPage() {
       navigate("/dashboard", { replace: true });
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { error?: string } } };
-      const message = axiosError?.response?.data?.error || (err instanceof Error ? err.message : "Registration failed. Please try again.");
+      const message = axiosError?.response?.data?.error || (err instanceof Error && err.message ? err.message : "Registration failed. Please check your connection and try again.");
       setError(message);
       logger.error("Registration failed", err);
     }

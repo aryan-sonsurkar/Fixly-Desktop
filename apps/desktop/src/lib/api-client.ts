@@ -1,5 +1,5 @@
-import axios from "axios";
-import type { AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from "axios";
+import axios, { AxiosError } from "axios";
+import type { AxiosResponse, InternalAxiosRequestConfig } from "axios";
 import { createLogger } from "@/lib/logger";
 import { getAccessToken, getRefreshToken, setTokens, clearTokens } from "@/lib/secure-storage";
 
@@ -36,7 +36,7 @@ function serializeHeaders(headers: Record<string, unknown>): Record<string, stri
   return result;
 }
 
-async function createTauriAdapter(): Promise<typeof axios.defaults.adapter> {
+export async function createTauriAdapter(): Promise<typeof axios.defaults.adapter> {
   const { fetch } = await import("@tauri-apps/plugin-http");
 
   return async (config: InternalAxiosRequestConfig): Promise<AxiosResponse> => {
@@ -53,11 +53,24 @@ async function createTauriAdapter(): Promise<typeof axios.defaults.adapter> {
       body = typeof config.data === "string" ? config.data : JSON.stringify(config.data);
     }
 
-    const response = await fetch(url, {
-      method,
-      headers,
-      body,
-    });
+    let response;
+    try {
+      response = await fetch(url, {
+        method,
+        headers,
+        body,
+      });
+    } catch (error) {
+      // The Tauri fetch wrapper rejects with a plain (non-Error) object on
+      // network-level failures; normalize it so interceptors/UI always see an Error.
+      throw error instanceof Error
+        ? error
+        : new Error(
+            typeof error === "object" && error !== null && "message" in error
+              ? String((error as { message: unknown }).message)
+              : "Network request failed",
+          );
+    }
 
     const responseText = await response.text();
     let data: unknown;
@@ -74,7 +87,7 @@ async function createTauriAdapter(): Promise<typeof axios.defaults.adapter> {
       });
     }
 
-    return {
+    const responsePayload: AxiosResponse = {
       data,
       status: response.status,
       statusText: response.statusText || "",
@@ -82,6 +95,24 @@ async function createTauriAdapter(): Promise<typeof axios.defaults.adapter> {
       config,
       request: undefined,
     };
+
+    // Official axios adapters reject non-2xx via settle(); our custom adapter
+    // must do the same or HTTP errors would silently "succeed" and the UI would
+    // never surface the real backend error message (e.g. sign-up failures).
+    const validateStatus = config.validateStatus ?? ((status: number) => status >= 200 && status < 300);
+    if (!validateStatus(responsePayload.status)) {
+      throw new AxiosError(
+        `Request failed with status code ${responsePayload.status}`,
+        responsePayload.status >= 400 && responsePayload.status < 500
+          ? AxiosError.ERR_BAD_REQUEST
+          : AxiosError.ERR_BAD_RESPONSE,
+        config,
+        undefined,
+        responsePayload,
+      );
+    }
+
+    return responsePayload;
   };
 }
 

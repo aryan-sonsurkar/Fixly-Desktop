@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -20,9 +20,11 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { signIn, isAuthenticated } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [googleState, setGoogleState] = useState<"idle" | "waiting" | "error">("idle");
+  const [googleError, setGoogleError] = useState<string | null>(null);
 
   const {
     register,
@@ -32,6 +34,38 @@ export function LoginPage() {
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
+
+  const handleGoogleLogin = async () => {
+    setError(null);
+    setGoogleError(null);
+    setGoogleState("waiting");
+    try {
+      const { getGoogleAuthUrl } = await import("@/lib/auth-service");
+      const url = await getGoogleAuthUrl();
+      const isTauri =
+        typeof window !== "undefined" &&
+        (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+      if (isTauri) {
+        const { open } = await import("@tauri-apps/plugin-shell");
+        await open(url);
+      } else {
+        window.open(url, "_blank", "noopener,noreferrer");
+      }
+    } catch (err) {
+      logger.error("Google sign-in failed to start", err);
+      setGoogleState("error");
+      setGoogleError("Could not start Google sign-in. Please try again.");
+    }
+  };
+
+  // When Google OAuth completes via deep link the auth context flips
+  // isAuthenticated; finish by navigating to the dashboard.
+  useEffect(() => {
+    if (googleState === "waiting" && isAuthenticated) {
+      setGoogleState("idle");
+      navigate("/dashboard", { replace: true });
+    }
+  }, [googleState, isAuthenticated, navigate]);
 
   const onSubmit = async (data: LoginForm) => {
     setError(null);
@@ -143,12 +177,31 @@ export function LoginPage() {
           </span>
         </div>
 
+        {(googleState === "waiting" || googleState === "error") && (
+          <AnimatePresence mode="wait">
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="rounded-lg px-4 py-3 text-sm"
+            >
+              {googleState === "waiting" ? (
+                <p className="text-muted-foreground">
+                  Waiting for Google sign-in in your browser… return to Fixly when you're done.
+                </p>
+              ) : (
+                <p className="text-destructive">{googleError || googleState}</p>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        )}
+
         <Button
           type="button"
           variant="outline"
           className="w-full"
-          disabled
-          title="Coming soon"
+          disabled={googleState === "waiting"}
+          onClick={handleGoogleLogin}
         >
           <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
@@ -156,8 +209,7 @@ export function LoginPage() {
             <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
             <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
           </svg>
-          Google
-          <span className="ml-2 text-xs text-muted-foreground">Coming soon</span>
+          {googleState === "waiting" ? "Opening browser…" : "Continue with Google"}
         </Button>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
