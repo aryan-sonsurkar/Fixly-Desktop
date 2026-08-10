@@ -2,7 +2,7 @@
 
 Build date: 2026-08-10
 Installer: `release/Fixly_1.0.0_x64-setup.exe`
-SHA-256: `213eb26b905cb5ebd35dcd342dfcabbfaae8bb0a25f4e79ff619f83b9e112c53`
+SHA-256: `5b5cd06f5d17f8099ee03038cb4c3047a92f139dbc7beb6d3e1492b3d6fc18b2`
 
 ## About this build (what changed vs. previous installers)
 
@@ -17,6 +17,8 @@ SHA-256: `213eb26b905cb5ebd35dcd342dfcabbfaae8bb0a25f4e79ff619f83b9e112c53`
 6. **Stale-backend protection** — the app now always launches its backend on a **random free port** instead of fixed 8000. A leftover `backend.exe` from an old session can no longer hijack the app (old symptom: sign-in "Network Error" / wrong-port health failures after a crash or old install).
 7. **Real registration errors (fix for "Registration failed. Please try again.")** — the desktop webview's HTTP adapter used to swallow non-2xx HTTP responses, so sign-up failures surfaced as a misleading generic message. Now HTTP error statuses properly reject through axios with the backend's real error body attached, so the UI shows the actual reason (e.g. "An account with this email already exists."). Wrong-password sign-in also shows the real backend message.
 8. **Google login is now available** — the "Continue with Google" button on the Sign-in page is enabled. It opens your default browser at Supabase's Google OAuth page (PKCE, no password anywhere); when you finish, the browser returns to the app via the newly registered `fixly://` protocol and you're signed in automatically. The app registers the `fixly://` scheme on your machine at startup (deep-link plugin + single-instance forwarding). **To make Google login work you must enable it in Supabase once** (see below).
+9. **Password-based sign-in is GONE — replaced with one-tap account creation.** The Sign-in / Forgot password / Verify email pages have been removed. Creating an account now needs only a **name + email** (no password). The backend generates a random, non-recoverable server-side password so the account still exists in Supabase, enabling per-user data isolation (each user sees only their own views/data) — and you can still log in with the same email via Google later if the provider is enabled. Duplicate email → clear "An account with this email already exists." message.
+10. **Local profile switching** — accounts created on this device are remembered. On the Create account page, previous profiles for this machine appear under "Previously used on this device" — click one to instantly restore that session (no typing).
 
 ## Enabling Google login in Supabase (one-time, by you)
 
@@ -29,21 +31,20 @@ The app and backend are ready; the remaining step is provider config on the Supa
 
 ## Test credentials
 
-| Role | Email | Password |
-|------|-------|----------|
-| Admin (you) | `boyalone28405@gmail.com` | `Aryan@1234` |
-| Tester | (create your own accounts in-app via "Create account") | — |
+| Role | Email | How to enter |
+|------|-------|--------------|
+| Admin (you) | `boyalone28405@gmail.com` | Create account → choose a NEW email on first run, or use Google. Note: this email already exists in Supabase — if you use it plain (no Google), you'll get "An account with this email already exists." |
+| Tester | (create your own accounts in-app) | Create account with name + email; no password needed |
 
 ## Critical test checklist (run in this order)
 
 1. **Install**: run `Fixly_1.0.0_x64-setup.exe`. If a previous Fixly version is installed, **uninstall it first** (Start Menu → Fixly → Uninstall), then install fresh.
-2. **Sign in** with `boyalone28405@gmail.com` / `Aryan@1234` → should reach the dashboard within a few seconds.
-3. **Wrong password test:** enter a wrong password → should now show the backend's real message like "Email or password is incorrect" (NOT a generic fallback).
-4. **Create account:** sign out → Create account with a NEW email → must succeed. Then try re-creating the SAME email → should now show "An account with this email already exists."
-5. **Sign out → sign back in:** tokens are invalidated server-side; sign-out button must work in every page footer/menu where it appears.
-6. **Data isolation smoke test (optional):** upload a file on one account, then confirm a second account cannot see it (attachment list stays empty).
-7. **Passwords:** Settings → Change password → use the NEW password to sign back in.
-8. **Google login:** (after enabling the provider — see above) Sign in page → "Continue with Google" → browser opens → pick a Google account → app comes back and lands on the dashboard signed in. Also verify the `fixly://` scheme got registered: `reg query HKCU\Software\Classes\fixly\shell\open\command` shows your install path.
+2. **Fresh app opens on the Create account page** (no sign-in page anywhere).
+3. **Create account:** enter a name + a NEW email → lands on the dashboard within a few seconds. Then **sign out → Create account with the SAME email** → should show "An account with this email already exists." (not a generic fallback).
+4. **Create without email / blank fields** → clear validation message, no crash.
+5. **Profile restore:** after creating one account and resigning out, the Create account page lists "Previously used on this device" — click your previous profile → straight back into the dashboard.
+6. **Data isolation smoke test (optional):** upload a file on one account, then create a second account and confirm the second account cannot see it (attachment list stays empty).
+7. **Google login:** (after enabling the provider — see below) Create account page → "Continue with Google" → browser opens → pick a Google account → app comes back and lands on the dashboard signed in. Also verify the `fixly://` scheme got registered: `reg query HKCU\Software\Classes\fixly\shell\open\command` shows your install path.
 
 ## Where to find logs
 

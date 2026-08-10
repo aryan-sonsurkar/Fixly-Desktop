@@ -207,7 +207,7 @@ apiClient.interceptors.response.use(
 
         pendingRequests.forEach((p) => p.reject(new Error("Refresh failed")));
         pendingRequests = [];
-        window.location.hash = "#/login";
+        window.location.hash = "#/register";
       }
     } else if (error.request) {
       logger.error("Network error: No response received");

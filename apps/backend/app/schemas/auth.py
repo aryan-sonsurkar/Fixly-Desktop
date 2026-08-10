@@ -5,15 +5,8 @@ from pydantic import BaseModel, EmailStr, field_validator
 
 class SignUpRequest(BaseModel):
     email: EmailStr
-    password: str
+    password: str | None = None
     full_name: str | None = None
-
-    @field_validator("password")
-    @classmethod
-    def password_min_length(cls, v: str) -> str:
-        if len(v) < 6:
-            raise ValueError("Password must be at least 6 characters")
-        return v
 
 
 class SignInRequest(BaseModel):

@@ -4,7 +4,7 @@ const logger = createLogger("secure-storage");
 
 type StoreValue = string | null;
 
-interface AuthTokens {
+export interface AuthTokens {
   accessToken: string;
   refreshToken: string;
 }
@@ -75,4 +75,58 @@ export async function restoreSession(): Promise<AuthTokens | null> {
     return { accessToken, refreshToken };
   }
   return null;
+}
+
+const PROFILES_KEY = "saved_profiles";
+
+interface StoredProfile {
+  name: string;
+  accessToken: string;
+  refreshToken: string;
+}
+
+export interface SavedProfileSummary {
+  email: string;
+  name: string;
+}
+
+export async function saveProfile(email: string, name: string, tokens: AuthTokens): Promise<void> {
+  try {
+    const s = await getStore();
+    const raw = await s.get(PROFILES_KEY);
+    const profiles = raw ? (JSON.parse(raw) as Record<string, StoredProfile>) : {};
+    profiles[email] = { name, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
+    await s.set(PROFILES_KEY, JSON.stringify(profiles));
+    logger.debug("Profile saved");
+  } catch (error) {
+    logger.warn("Failed to save profile", error);
+  }
+}
+
+export async function listProfiles(): Promise<SavedProfileSummary[]> {
+  try {
+    const s = await getStore();
+    const raw = await s.get(PROFILES_KEY);
+    if (!raw) return [];
+    const profiles = JSON.parse(raw) as Record<string, StoredProfile>;
+    return Object.entries(profiles).map(([email, p]) => ({ email, name: p.name }));
+  } catch {
+    return [];
+  }
+}
+
+export async function restoreProfile(email: string): Promise<AuthTokens | null> {
+  try {
+    const s = await getStore();
+    const raw = await s.get(PROFILES_KEY);
+    if (!raw) return null;
+    const profiles = JSON.parse(raw) as Record<string, StoredProfile>;
+    const profile = profiles[email];
+    if (profile && profile.accessToken && profile.refreshToken) {
+      return { accessToken: profile.accessToken, refreshToken: profile.refreshToken };
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }

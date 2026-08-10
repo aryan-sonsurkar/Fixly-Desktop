@@ -1,2 +1,2 @@
 Fixly_1.0.0_x64-setup.exe
-SHA-256: 213eb26b905cb5ebd35dcd342dfcabbfaae8bb0a25f4e79ff619f83b9e112c53
+SHA-256: 5b5cd06f5d17f8099ee03038cb4c3047a92f139dbc7beb6d3e1492b3d6fc18b2

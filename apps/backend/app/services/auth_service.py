@@ -1,5 +1,7 @@
 from typing import Any
 
+import secrets
+
 from app.config import settings
 from app.core.exceptions import AuthenticationError
 from app.core.jwt import verify_token
@@ -14,9 +16,13 @@ class AuthService:
         self.repository = AuthRepository()
 
     async def sign_up(
-        self, email: str, password: str, full_name: str | None = None
+        self, email: str, password: str | None, full_name: str | None = None
     ) -> dict[str, Any]:
         try:
+            # Account creation without authentication: no password is ever shown.
+            # A random secret is generated server-side solely to satisfy Supabase.
+            if not password:
+                password = secrets.token_urlsafe(24)
             result = await self.repository.sign_up(email, password, full_name)
             session = result.get("session") or {}
             user = result.get("user") or {}

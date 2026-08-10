@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { useAuthStore, type AuthUser } from "@/stores/auth-store";
-import { setTokens, clearTokens, restoreSession } from "@/lib/secure-storage";
+import { setTokens, clearTokens, restoreSession, saveProfile, type AuthTokens } from "@/lib/secure-storage";
 import apiClient from "@/lib/api-client";
 import { createLogger } from "@/lib/logger";
 
@@ -11,7 +11,7 @@ export interface AuthContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName?: string) => Promise<void>;
+  signUp: (email: string, password?: string, fullName?: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
 }
@@ -22,12 +22,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, setAuth, clearAuth } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
 
+  const persistSession = useCallback((email: string, name: string, tokens: AuthTokens) => {
+    setTokens(tokens);
+    void saveProfile(email, name, tokens);
+  }, []);
+
   const handleAuthResponse = useCallback(
     (data: { access_token: string; refresh_token: string; user: AuthUser }) => {
       setAuth(data.access_token, data.user);
-      setTokens({ accessToken: data.access_token, refreshToken: data.refresh_token });
+      const profile = data.user.profile as Record<string, unknown> | null | undefined;
+      const metadata = data.user.user_metadata as Record<string, unknown> | null | undefined;
+      const displayName =
+        (profile && typeof profile.full_name === "string" ? profile.full_name : "") ||
+        (metadata && typeof metadata.full_name === "string" ? metadata.full_name : "") ||
+        data.user.email;
+      persistSession(data.user.email, displayName, {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+      });
     },
-    [setAuth],
+    [setAuth, persistSession],
   );
 
   const signIn = useCallback(
@@ -39,12 +53,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signUp = useCallback(
-    async (email: string, password: string, fullName?: string) => {
-      const response = await apiClient.post("/api/v1/auth/signup", {
-        email,
-        password,
-        full_name: fullName,
-      });
+    async (email: string, password?: string, fullName?: string) => {
+      const body: Record<string, unknown> = { email, full_name: fullName };
+      if (password) body.password = password;
+      const response = await apiClient.post("/api/v1/auth/signup", body);
       handleAuthResponse(response.data);
     },
     [handleAuthResponse],

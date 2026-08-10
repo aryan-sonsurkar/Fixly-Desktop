@@ -32,7 +32,7 @@ export function AuthCallbackPage() {
         if (verified === "true" && token) {
           setStatus("success");
           setMessage("Email verified successfully! Redirecting to login...");
-          setTimeout(() => { if (mountedRef.current) navigate("/login"); }, 2000);
+          setTimeout(() => { if (mountedRef.current) navigate("/register"); }, 2000);
           return;
         }
 
@@ -62,7 +62,7 @@ export function AuthCallbackPage() {
           return;
         }
 
-        navigate("/login?error=callback_failed");
+        navigate("/register?error=callback_failed");
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Authentication failed";
         logger.error("Auth callback error", err);
@@ -125,7 +125,7 @@ export function AuthCallbackPage() {
             <p className="text-sm text-foreground">Authentication failed</p>
             <p className="text-xs text-muted-foreground">{message}</p>
           </div>
-          <Button onClick={() => navigate("/login")} className="w-full">
+          <Button onClick={() => navigate("/register")} className="w-full">
             Return to Login
           </Button>
         </motion.div>

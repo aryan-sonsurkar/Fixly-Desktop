@@ -12,12 +12,10 @@ export async function signIn(email: string, password: string): Promise<AuthRespo
   return response.data;
 }
 
-export async function signUp(email: string, password: string, fullName?: string): Promise<AuthResponse> {
-  const response = await apiClient.post("/api/v1/auth/signup", {
-    email,
-    password,
-    full_name: fullName,
-  });
+export async function signUp(email: string, password?: string, fullName?: string): Promise<AuthResponse> {
+  const body: Record<string, unknown> = { email, full_name: fullName };
+  if (password) body.password = password;
+  const response = await apiClient.post("/api/v1/auth/signup", body);
   return response.data;
 }
 
@@ -33,21 +31,6 @@ export async function refreshToken(refresh_token: string): Promise<AuthResponse>
 export async function getCurrentUser(): Promise<AuthUser> {
   const response = await apiClient.get("/api/v1/auth/me");
   return response.data;
-}
-
-export async function forgotPassword(email: string): Promise<void> {
-  await apiClient.post("/api/v1/auth/forgot-password", { email });
-}
-
-export async function resetPassword(accessToken: string, newPassword: string): Promise<void> {
-  await apiClient.post("/api/v1/auth/reset-password", {
-    access_token: accessToken,
-    new_password: newPassword,
-  });
-}
-
-export async function resendVerification(email: string): Promise<void> {
-  await apiClient.post("/api/v1/auth/resend-verification", { email });
 }
 
 export async function getGoogleAuthUrl(): Promise<string> {

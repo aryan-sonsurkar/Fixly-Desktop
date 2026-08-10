@@ -50,6 +50,21 @@ describe("AuthService", () => {
     expect(result.access_token).toBe("abc");
   });
 
+  it("signs up without a password (passwordless account creation)", async () => {
+    mockPost.mockResolvedValueOnce({
+      data: { access_token: "abc", refresh_token: "def", user: { id: "3", email: "nopass@test.com" } },
+    });
+
+    const { signUp } = await import("@/lib/auth-service");
+    const result = await signUp("nopass@test.com", undefined, "No Password");
+
+    expect(mockPost).toHaveBeenCalledWith("/api/v1/auth/signup", {
+      email: "nopass@test.com",
+      full_name: "No Password",
+    });
+    expect(result.access_token).toBe("abc");
+  });
+
   it("signs out", async () => {
     mockPost.mockResolvedValueOnce({ data: {} });
 
@@ -81,27 +96,6 @@ describe("AuthService", () => {
 
     expect(mockGet).toHaveBeenCalledWith("/api/v1/auth/me");
     expect(result.id).toBe("1");
-  });
-
-  it("sends forgot password request", async () => {
-    mockPost.mockResolvedValueOnce({ data: {} });
-
-    const { forgotPassword } = await import("@/lib/auth-service");
-    await forgotPassword("test@test.com");
-
-    expect(mockPost).toHaveBeenCalledWith("/api/v1/auth/forgot-password", { email: "test@test.com" });
-  });
-
-  it("resets password", async () => {
-    mockPost.mockResolvedValueOnce({ data: {} });
-
-    const { resetPassword } = await import("@/lib/auth-service");
-    await resetPassword("token-123", "NewPass123");
-
-    expect(mockPost).toHaveBeenCalledWith("/api/v1/auth/reset-password", {
-      access_token: "token-123",
-      new_password: "NewPass123",
-    });
   });
 
   it("gets Google auth URL", async () => {

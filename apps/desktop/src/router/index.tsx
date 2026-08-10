@@ -6,10 +6,7 @@ import { ProtectedRoute } from "@/components/protected-route";
 import { AppLayout } from "@/components/app-layout";
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
-const LoginPage = lazy(() => import("@/pages/login").then((m) => ({ default: m.LoginPage })));
 const RegisterPage = lazy(() => import("@/pages/register").then((m) => ({ default: m.RegisterPage })));
-const ForgotPasswordPage = lazy(() => import("@/pages/forgot-password").then((m) => ({ default: m.ForgotPasswordPage })));
-const VerifyEmailPage = lazy(() => import("@/pages/verify-email").then((m) => ({ default: m.VerifyEmailPage })));
 const AuthCallbackPage = lazy(() => import("@/pages/auth-callback").then((m) => ({ default: m.AuthCallbackPage })));
 const OnboardingPage = lazy(() => import("@/pages/onboarding").then((m) => ({ default: m.OnboardingPage })));
 const DashboardPage = lazy(() => import("@/pages/dashboard").then((m) => ({ default: m.DashboardPage })));
@@ -67,10 +64,7 @@ function ProtectedLayout() {
 
 const router = createMemoryRouter(
   [
-    { path: "/login", element: <ErrorBoundary><LazyLoad><LoginPage /></LazyLoad></ErrorBoundary> },
     { path: "/register", element: <ErrorBoundary><LazyLoad><RegisterPage /></LazyLoad></ErrorBoundary> },
-    { path: "/forgot-password", element: <ErrorBoundary><LazyLoad><ForgotPasswordPage /></LazyLoad></ErrorBoundary> },
-    { path: "/verify-email", element: <ErrorBoundary><LazyLoad><VerifyEmailPage /></LazyLoad></ErrorBoundary> },
     { path: "/auth/callback", element: <ErrorBoundary><LazyLoad><AuthCallbackPage /></LazyLoad></ErrorBoundary> },
     { path: "/onboarding", element: <ErrorBoundary><LazyLoad><OnboardingPage /></LazyLoad></ErrorBoundary> },
     {
@@ -95,7 +89,7 @@ const router = createMemoryRouter(
     },
     { path: "*", element: <ErrorBoundary><NotFoundPage /></ErrorBoundary> },
   ],
-  { initialEntries: ["/login"] },
+  { initialEntries: ["/register"] },
 );
 
 export function RouterProvider() {
