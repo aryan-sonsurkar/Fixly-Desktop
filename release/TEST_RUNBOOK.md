@@ -2,7 +2,7 @@
 
 Build date: 2026-08-10
 Installer: `release/Fixly_1.0.0_x64-setup.exe`
-SHA-256: `24228b97856834e04227f8fee2d2e4363458f59abe8159e488e323585a1cd081`
+SHA-256: `a3b0fc0ae9630e629e4c87458c13bf1c6684b1e7c2ce5b4a10d14580d1fa2769`
 
 ## About this build (what changed vs. previous installers)
 
@@ -31,9 +31,11 @@ The app and backend are ready; the remaining step is provider config on the Supa
 
 ## Test credentials
 
+> **NOTE — database was reset on 2026-08-11.** All `auth.users` (including `boyalone28405@gmail.com`) and all user-scoped data (profiles, assignments, subjects, documents, emails, conversations, study/pomodoro data, notifications, settings) were deleted from the Supabase project. This is a clean start — everyone must create a fresh account in-app.
+
 | Role | Email | How to enter |
 |------|-------|--------------|
-| Admin (you) | `boyalone28405@gmail.com` | Create account → choose a NEW email on first run, or use Google. Note: this email already exists in Supabase — if you use it plain (no Google), you'll get "An account with this email already exists." |
+| Admin (you) | (create a new one) | Create account → choose a NEW email (the old `boyalone28405@gmail.com` no longer exists). |
 | Tester | (create your own accounts in-app) | Create account with name + email; no password needed |
 
 ## Critical test checklist (run in this order)
