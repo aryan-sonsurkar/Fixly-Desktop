@@ -7,6 +7,13 @@ const logger = createLogger("api-client");
 
 let dynamicPort: number | null = null;
 
+function isTauriRuntime(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== undefined
+  );
+}
+
 export function setBackendPort(port: number) {
   dynamicPort = port;
   apiClient.defaults.baseURL = getBaseUrl();
@@ -20,10 +27,46 @@ function getBaseUrl(): string {
   if (import.meta.env.DEV) {
     return import.meta.env.VITE_API_URL || "http://localhost:8000";
   }
-  if (typeof window !== "undefined" && (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) {
+  if (isTauriRuntime()) {
     return "http://127.0.0.1:8000";
   }
   return "http://localhost:8000";
+}
+
+let backendPortPromise: Promise<number> | null = null;
+
+// Resolves the real backend port from the Rust side. The desktop backend is
+// spawned on a RANDOM free port (never the fixed 8000), so every caller must
+// learn it from the backend process. This retries until the port is published.
+export function ensureBackendPort(timeoutMs = 20000): Promise<number> {
+  if (dynamicPort) return Promise.resolve(dynamicPort);
+  if (!isTauriRuntime()) return Promise.resolve(8000);
+
+  if (!backendPortPromise) {
+    backendPortPromise = (async () => {
+      const deadline = Date.now() + timeoutMs;
+      let lastError: unknown = new Error("Backend port not resolved");
+      while (Date.now() < deadline) {
+        try {
+          const { invoke } = await import("@tauri-apps/api/core");
+          const port = await invoke<number>("get_backend_port");
+          if (port && port > 0) {
+            setBackendPort(port);
+            logger.info(`Backend port resolved from Rust: ${port}`);
+            return port;
+          }
+        } catch (error) {
+          lastError = error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+      logger.error("Timed out waiting for backend port", lastError);
+      throw lastError instanceof Error ? lastError : new Error("Backend failed to start on time");
+    })().finally(() => {
+      backendPortPromise = null;
+    });
+  }
+  return backendPortPromise;
 }
 
 function serializeHeaders(headers: Record<string, unknown>): Record<string, string> {
@@ -40,7 +83,8 @@ export async function createTauriAdapter(): Promise<typeof axios.defaults.adapte
   const { fetch } = await import("@tauri-apps/plugin-http");
 
   return async (config: InternalAxiosRequestConfig): Promise<AxiosResponse> => {
-    const url = `${config.baseURL || ""}${config.url || ""}`;
+    await ensureBackendPort();
+    const url = `${getBaseUrl()}${config.url || ""}`;
     const method = (config.method || "get").toUpperCase();
 
     const headers: Record<string, string> = {};
@@ -124,7 +168,7 @@ const apiClient = axios.create({
   },
 });
 
-const isTauri = typeof window !== "undefined" && (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+const isTauri = isTauriRuntime();
 
 if (isTauri) {
   createTauriAdapter().then((adapter) => {
@@ -143,7 +187,7 @@ async function refreshTokens(): Promise<string | null> {
   if (!refreshToken) return null;
 
   try {
-    const response = await axios.post(`${getBaseUrl()}/api/v1/auth/refresh`, {
+    const response = await apiClient.post("/api/v1/auth/refresh", {
       refresh_token: refreshToken,
     });
     const { access_token, refresh_token: newRefreshToken } = response.data;

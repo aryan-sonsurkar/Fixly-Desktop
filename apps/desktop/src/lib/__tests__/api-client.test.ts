@@ -6,6 +6,10 @@ vi.mock("@tauri-apps/plugin-http", () => ({
   fetch: vi.fn(),
 }));
 
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn(),
+}));
+
 function makeResponse(status: number, body: unknown) {
   return {
     status,
@@ -15,6 +19,14 @@ function makeResponse(status: number, body: unknown) {
   };
 }
 
+function setTauriWindow() {
+  (globalThis as { window?: unknown }).window = { __TAURI_INTERNALS__: {} } as never;
+}
+
+function clearTauriWindow() {
+  delete (globalThis as { window?: unknown }).window;
+}
+
 describe("Tauri HTTP adapter", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -22,6 +34,7 @@ describe("Tauri HTTP adapter", () => {
 
   afterEach(() => {
     vi.resetModules();
+    clearTauriWindow();
   });
 
   it("rejects non-2xx responses with the backend error payload attached", async () => {
@@ -67,5 +80,26 @@ describe("Tauri HTTP adapter", () => {
     const response = await adapter(config as never);
     expect(response.status).toBe(200);
     expect(response.data).toEqual({ access_token: "abc" });
+  });
+
+  it("resolves the backend port from Rust and targets it for requests", async () => {
+    const { invoke } = await import("@tauri-apps/api/core");
+    (invoke as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(12345);
+
+    const { fetch } = await import("@tauri-apps/plugin-http");
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(makeResponse(200, { ok: true }));
+
+    setTauriWindow();
+
+    const { createTauriAdapter, ensureBackendPort } = await import("@/lib/api-client");
+    const port = await ensureBackendPort();
+    expect(port).toBe(12345);
+
+    const adapter = (await createTauriAdapter()) as unknown as MockAdapter;
+    const config = { url: "/api/v1/auth/me", method: "get", headers: {} };
+    await adapter(config as never);
+
+    const calls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    expect(String(calls[0][0])).toContain("127.0.0.1:12345");
   });
 });

@@ -180,7 +180,10 @@ export function StartupGate({ children }: StartupGateProps) {
   const [ready, setReady] = useState(false);
 
   const checkStatus = useCallback(async () => {
-    if (typeof window !== "undefined" && !(window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__) {
+    if (
+      typeof window !== "undefined" &&
+      (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ === undefined
+    ) {
       setReady(true);
       return;
     }
@@ -191,14 +194,26 @@ export function StartupGate({ children }: StartupGateProps) {
       setStatus(result);
 
       if (result.stage === "ready") {
-        if (result.port) {
+        let port = result.port ?? null;
+        if (!port) {
+          // Backend reported ready but the poll response lacked the port;
+          // ask for it directly so the API client targets the right process.
+          try {
+            port = await invoke<number>("get_backend_port");
+          } catch {
+            port = null;
+          }
+        }
+        if (port) {
           const { setBackendPort } = await import("@/lib/api-client");
-          setBackendPort(result.port);
+          setBackendPort(port);
         }
         setReady(true);
       }
     } catch {
-      setReady(true);
+      // Transient IPC error: keep polling. Do NOT proceed without a backend
+      // port, otherwise every request would target a stale/default port and
+      // fail with "Network request failed".
     }
   }, []);
 
