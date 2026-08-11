@@ -105,14 +105,17 @@ export async function createTauriAdapter(): Promise<typeof axios.defaults.adapte
         body,
       });
     } catch (error) {
-      // The Tauri fetch wrapper rejects with a plain (non-Error) object on
-      // network-level failures; normalize it so interceptors/UI always see an Error.
+      // The Tauri fetch wrapper rejects with a plain (non-Error) value on
+      // network-level failures (often the raw Rust error string); normalize it
+      // so interceptors/UI always see an Error with the real reason.
       throw error instanceof Error
         ? error
         : new Error(
-            typeof error === "object" && error !== null && "message" in error
-              ? String((error as { message: unknown }).message)
-              : "Network request failed",
+            typeof error === "string"
+              ? error
+              : typeof error === "object" && error !== null && "message" in error
+                ? String((error as { message: unknown }).message)
+                : "Network request failed",
           );
     }
 

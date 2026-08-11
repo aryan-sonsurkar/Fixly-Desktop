@@ -1,8 +1,8 @@
 # Fixly v1.0.0 — Internal Test Runbook
 
-Build date: 2026-08-10
+Build date: 2026-08-11
 Installer: `release/Fixly_1.0.0_x64-setup.exe`
-SHA-256: `6d89f1a8ead4de1881e91c7992bd5392bc1197b99686ac56ef569c84c6f275fa`
+SHA-256: `c3f5071defe4fdee22b144d5a80aded41a07f40c74e6b216e9302f857c4e621e`
 
 ## About this build (what changed vs. previous installers)
 
@@ -19,7 +19,8 @@ SHA-256: `6d89f1a8ead4de1881e91c7992bd5392bc1197b99686ac56ef569c84c6f275fa`
 8. **Google login is now available** — the "Continue with Google" button on the Sign-in page is enabled. It opens your default browser at Supabase's Google OAuth page (PKCE, no password anywhere); when you finish, the browser returns to the app via the newly registered `fixly://` protocol and you're signed in automatically. The app registers the `fixly://` scheme on your machine at startup (deep-link plugin + single-instance forwarding). **To make Google login work you must enable it in Supabase once** (see below).
 9. **Password-based sign-in is GONE — replaced with one-tap account creation.** The Sign-in / Forgot password / Verify email pages have been removed. Creating an account now needs only a **name + email** (no password). The backend generates a random, non-recoverable server-side password so the account still exists in Supabase, enabling per-user data isolation (each user sees only their own views/data) — and you can still log in with the same email via Google later if the provider is enabled. Duplicate email → clear "An account with this email already exists." message.
 10. **Local profile switching** — accounts created on this device are remembered. On the Create account page, previous profiles for this machine appear under "Previously used on this device" — click one to instantly restore that session (no typing).
-11. **Fix: "Network request failed" on Create account (packaged build)** — the desktop backend now always runs on a RANDOM free port, but the webview could still default to the fixed `127.0.0.1:8000` if the startup gate didn't propagate the real port, so every request failed. The API client now resolves the backend port from the Rust process itself (with retries) before every request, and the startup gate no longer proceeds without a port. This makes the packaged app reach the backend on whatever port it actually started on.
+11. **Fix: "Network request failed" on Create account (packaged build) — REAL root cause.** The webview's HTTP requests go through `tauri-plugin-http`, whose `http:default` permission **blocks every URL unless a scope is configured** — so all webview API calls were rejected with `url not allowed on the configured scope` (silently mangled into "Network request failed" by the error normalizer). The API client also now resolves the backend's real random port from Rust before every request (so the right port is used, whatever it is), and the startup gate no longer proceeds without a port. Verified end-to-end in the packaged app via WebView2 remote debugging: Create account → signup 200 → auto-login → onboarding.
+12. **Build pipeline fix** — `tauri.conf.json` had no `beforeBuildCommand`, so `pnpm build` (tauri build) embedded whatever `dist/` already existed — meaning source changes could silently NOT reach the installer. Added `beforeBuildCommand`/`beforeDevCommand` so the frontend is always rebuilt fresh for installers and dev.
 
 ## Enabling Google login in Supabase (one-time, by you)
 

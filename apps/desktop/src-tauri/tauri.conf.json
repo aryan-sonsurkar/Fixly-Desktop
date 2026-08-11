@@ -4,6 +4,8 @@
   "version": "1.0.0",
   "identifier": "com.fixly.desktop",
   "build": {
+    "beforeDevCommand": "pnpm --filter @fixly/desktop exec vite",
+    "beforeBuildCommand": "pnpm --filter @fixly/desktop build:ci",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist"
   },
