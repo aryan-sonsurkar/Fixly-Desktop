@@ -14,13 +14,14 @@ logger = get_logger(__name__)
 
 
 class CopilotService:
-    def __init__(self) -> None:
-        self.context = WorkspaceContext()
-        self.ai_service = AIService()
-        self.ai_repo = AIRepository()
-        self.risk_detector = RiskDetectorService()
-        self.insight_service = InsightService()
-        self.command_service = CommandService()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.context = WorkspaceContext(access_token=access_token)
+        self.ai_service = AIService(access_token=access_token)
+        self.ai_repo = AIRepository(access_token=access_token)
+        self.risk_detector = RiskDetectorService(access_token=access_token)
+        self.insight_service = InsightService(access_token=access_token)
+        self.command_service = CommandService(access_token=access_token)
 
     async def get_daily_mission(self, user_id: str) -> dict[str, Any]:
         return await self.insight_service.get_daily_mission(user_id)
@@ -57,7 +58,9 @@ class CopilotService:
         }
 
         conv = await self.ai_repo.create_conversation(user_id, "Productivity Coach")
-        prompt = await PromptManager().build(PromptType.PRODUCTIVITY_COACH, user_id, **prompt_kwargs)
+        prompt = await PromptManager(access_token=self.access_token).build(
+    PromptType.PRODUCTIVITY_COACH, user_id, **prompt_kwargs
+)
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
 
         return {
@@ -90,7 +93,9 @@ class CopilotService:
         }
 
         conv = await self.ai_repo.create_conversation(user_id, f"Reschedule: {message[:50]}")
-        prompt = await PromptManager().build(PromptType.RESCHEDULER, user_id, **prompt_kwargs)
+        prompt = await PromptManager(access_token=self.access_token).build(
+    PromptType.RESCHEDULER, user_id, **prompt_kwargs
+)
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
 
         return {

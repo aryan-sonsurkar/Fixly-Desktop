@@ -10,9 +10,9 @@ logger = get_logger(__name__)
 
 
 class PromptManager:
-    def __init__(self) -> None:
-        self.profile_repo = ProfileRepository()
-        self.subject_repo = SubjectRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.profile_repo = ProfileRepository(access_token=access_token)
+        self.subject_repo = SubjectRepository(access_token=access_token)
         self.registry: PromptRegistry = get_registry()
 
     async def build(

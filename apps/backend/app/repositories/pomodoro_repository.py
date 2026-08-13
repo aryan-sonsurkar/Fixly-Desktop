@@ -1,15 +1,32 @@
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, cast
 
+from supabase import Client
+
 from app.core.logging import get_logger
-from app.core.supabase import get_supabase
+from app.core.supabase import get_supabase, get_supabase_for_user
 
 logger = get_logger(__name__)
 
 
 class PomodoroRepository:
+
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self._client_instance: Client | None = None
+
+    @property
+    def _client(self) -> Client:
+        if self._client_instance is None:
+            self._client_instance = (
+                get_supabase_for_user(self.access_token)
+                if self.access_token
+                else get_supabase()
+            )
+        return self._client_instance
+
     async def get_settings(self, user_id: str) -> dict[str, Any] | None:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("pomodoro_settings")
             .select("*")
@@ -23,7 +40,7 @@ class PomodoroRepository:
         return result.get("data")
 
     async def upsert_settings(self, user_id: str, settings: dict[str, Any]) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         existing = await self.get_settings(user_id)
         now = datetime.now(timezone.utc).isoformat()
         if existing:
@@ -43,7 +60,7 @@ class PomodoroRepository:
         return _data[0] if isinstance(_data, list) else _data
 
     async def create_session(self, user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         daily_goal = await self._get_daily_goal(user_id)
         today = date.today().isoformat()
         today_sessions = await self.get_sessions_for_date(user_id, today)
@@ -60,7 +77,7 @@ class PomodoroRepository:
         return _data[0] if isinstance(_data, list) else _data
 
     async def get_sessions_for_date(self, user_id: str, session_date: str) -> list[dict[str, Any]]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("pomodoro_sessions")
             .select("*")
@@ -75,7 +92,7 @@ class PomodoroRepository:
     async def get_sessions_range(
         self, user_id: str, start_date: str, end_date: str
     ) -> list[dict[str, Any]]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("pomodoro_sessions")
             .select("*")
@@ -89,7 +106,7 @@ class PomodoroRepository:
         return cast(list[dict[str, Any]], data.get("data", []))
 
     async def get_streak_data(self, user_id: str) -> list[dict[str, Any]]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("pomodoro_sessions")
             .select("date")

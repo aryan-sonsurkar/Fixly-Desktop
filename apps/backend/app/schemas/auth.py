@@ -3,6 +3,14 @@ from typing import Any
 from pydantic import BaseModel, EmailStr, field_validator
 
 
+class CurrentUser(BaseModel):
+    id: str
+    email: str = ""
+    profile: dict[str, Any] | None = None
+    user_metadata: dict[str, Any] | None = None
+    access_token: str = ""
+
+
 class SignUpRequest(BaseModel):
     email: EmailStr
     password: str | None = None

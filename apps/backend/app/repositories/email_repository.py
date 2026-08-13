@@ -1,17 +1,34 @@
 from datetime import datetime, timezone
 from typing import Any, cast
 
+from supabase import Client
+
 from app.core.logging import get_logger
-from app.core.supabase import get_supabase
+from app.core.supabase import get_supabase, get_supabase_for_user
 
 logger = get_logger(__name__)
 
 
 class EmailRepository:
+
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self._client_instance: Client | None = None
+
+    @property
+    def _client(self) -> Client:
+        if self._client_instance is None:
+            self._client_instance = (
+                get_supabase_for_user(self.access_token)
+                if self.access_token
+                else get_supabase()
+            )
+        return self._client_instance
+
     # ── Accounts ──────────────────────────────────────────
 
     async def create_account(self, user_id: str, data: dict[str, Any]) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         payload = {"user_id": user_id, **data}
         response = (
             client.table("email_accounts")
@@ -24,7 +41,7 @@ class EmailRepository:
         return _raw[0] if isinstance(_raw, list) else _raw
 
     async def get_accounts(self, user_id: str) -> list[dict[str, Any]]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("email_accounts")
             .select("*")
@@ -36,7 +53,7 @@ class EmailRepository:
         return cast(list[dict[str, Any]], data.get("data", []))
 
     async def get_account(self, account_id: str, user_id: str) -> dict[str, Any] | None:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("email_accounts")
             .select("*")
@@ -51,7 +68,7 @@ class EmailRepository:
         return result.get("data")
 
     async def update_account(self, account_id: str, user_id: str, updates: dict[str, Any]) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         response = (
             client.table("email_accounts")
@@ -66,13 +83,13 @@ class EmailRepository:
         return _data[0] if isinstance(_data, list) else _data
 
     async def delete_account(self, account_id: str, user_id: str) -> None:
-        client = get_supabase()
+        client = self._client
         client.table("email_accounts").delete().eq("id", account_id).eq("user_id", user_id).execute()
 
     # ── Messages ──────────────────────────────────────────
 
     async def upsert_message(self, user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("email_messages")
             .upsert(payload, on_conflict="user_id,message_id")
@@ -89,7 +106,7 @@ class EmailRepository:
         unread_only: bool = False,
         search: str | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
-        client = get_supabase()
+        client = self._client
         query = client.table("email_messages").select("*", count="exact").eq("user_id", user_id)  # type: ignore[arg-type]
 
         if account_id:
@@ -120,7 +137,7 @@ class EmailRepository:
         self, user_id: str, limit: int = 100,
     ) -> list[dict[str, Any]]:
         """Fetch messages with only key fields — no classifications attached."""
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("email_messages")
             .select("id,message_id,from_email,subject,account_id")
@@ -133,7 +150,7 @@ class EmailRepository:
         return cast(list[dict[str, Any]], data.get("data", []))
 
     async def get_message(self, message_id: str, user_id: str) -> dict[str, Any] | None:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("email_messages")
             .select("*")
@@ -154,7 +171,7 @@ class EmailRepository:
         return msg
 
     async def update_message(self, message_id: str, user_id: str, updates: dict[str, Any]) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("email_messages")
             .update(updates)
@@ -170,7 +187,7 @@ class EmailRepository:
     # ── Classifications ───────────────────────────────────
 
     async def create_classification(self, user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("email_classifications")
             .insert(payload)
@@ -182,7 +199,7 @@ class EmailRepository:
         return _data[0] if isinstance(_data, list) else _data
 
     async def get_classification(self, email_id: str, user_id: str) -> dict[str, Any] | None:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("email_classifications")
             .select("*")
@@ -199,7 +216,7 @@ class EmailRepository:
     async def _get_classifications_bulk(self, user_id: str, email_ids: list[str]) -> dict[str, Any]:
         if not email_ids:
             return {}
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("email_classifications")
             .select("*")
@@ -214,7 +231,7 @@ class EmailRepository:
     # ── Assignments ───────────────────────────────────────
 
     async def create_assignment(self, user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("email_assignments")
             .insert(payload)
@@ -226,7 +243,7 @@ class EmailRepository:
         return _data[0] if isinstance(_data, list) else _data
 
     async def get_assignment(self, email_id: str, user_id: str) -> dict[str, Any] | None:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("email_assignments")
             .select("*")
@@ -243,7 +260,7 @@ class EmailRepository:
     async def _get_assignments_bulk(self, user_id: str, email_ids: list[str]) -> dict[str, Any]:
         if not email_ids:
             return {}
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("email_assignments")
             .select("*")
@@ -256,7 +273,7 @@ class EmailRepository:
         return {r["email_id"]: r for r in rows}
 
     async def update_assignment(self, assignment_id: str, user_id: str, updates: dict[str, Any]) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("email_assignments")
             .update(updates)
@@ -272,7 +289,7 @@ class EmailRepository:
     async def get_review_queue(
         self, user_id: str, status: str | None = None
     ) -> list[dict[str, Any]]:
-        client = get_supabase()
+        client = self._client
         query = (
             client.table("email_assignments")
             .select("*, email:email_id(*)")
@@ -289,7 +306,7 @@ class EmailRepository:
         return cast(list[dict[str, Any]], data.get("data", []))
 
     async def get_unread_count(self, user_id: str) -> int:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("email_messages")
             .select("id", count="exact")  # type: ignore[arg-type]
@@ -300,7 +317,7 @@ class EmailRepository:
         return response.count or 0
 
     async def get_recent_academic_emails(self, user_id: str, limit: int = 5) -> list[dict[str, Any]]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("email_messages")
             .select("*, classification:email_id(*)")

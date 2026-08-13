@@ -1,15 +1,34 @@
+import asyncio
 from datetime import datetime, timezone
 from typing import Any, cast
 
+from supabase import Client
+
 from app.core.logging import get_logger
-from app.core.supabase import get_supabase
+from app.core.supabase import get_supabase, get_supabase_for_user
+from app.core.threads import run_in_thread
 
 logger = get_logger(__name__)
 
 
 class AIRepository:
+
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self._client_instance: Client | None = None
+
+    @property
+    def _client(self) -> Client:
+        if self._client_instance is None:
+            self._client_instance = (
+                get_supabase_for_user(self.access_token)
+                if self.access_token
+                else get_supabase()
+            )
+        return self._client_instance
+
     async def create_conversation(self, user_id: str, title: str = "New conversation") -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("conversations")
             .insert({"user_id": user_id, "title": title})
@@ -21,7 +40,7 @@ class AIRepository:
         return _data[0] if isinstance(_data, list) else _data
 
     async def list_conversations(self, user_id: str) -> list[dict[str, Any]]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("conversations")
             .select("id, title, created_at, updated_at, is_pinned, is_archived")
@@ -33,14 +52,16 @@ class AIRepository:
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
         convs = cast(list[dict[str, Any]], data.get("data", []))
 
-        for conv in convs:
-            msg_count = await self.get_message_count(conv["id"])
-            conv["message_count"] = msg_count
+        counts = await asyncio.gather(
+            *(run_in_thread(self.get_message_count, conv["id"]) for conv in convs)
+        )
+        for conv, count in zip(convs, counts):
+            conv["message_count"] = count
 
         return convs
 
     async def search_conversations(self, user_id: str, query: str) -> list[dict[str, Any]]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("conversations")
             .select("id, title, created_at, updated_at, is_pinned, is_archived")
@@ -51,13 +72,15 @@ class AIRepository:
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
         convs = cast(list[dict[str, Any]], data.get("data", []))
-        for conv in convs:
-            msg_count = await self.get_message_count(conv["id"])
-            conv["message_count"] = msg_count
+        counts = await asyncio.gather(
+            *(run_in_thread(self.get_message_count, conv["id"]) for conv in convs)
+        )
+        for conv, count in zip(convs, counts):
+            conv["message_count"] = count
         return convs
 
     async def get_conversation(self, conversation_id: str, user_id: str) -> dict[str, Any] | None:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("conversations")
             .select("*")
@@ -70,7 +93,7 @@ class AIRepository:
         return raw.get("data") or (raw if isinstance(raw, dict) and raw.get("id") else None)
 
     async def update_conversation(self, conversation_id: str, user_id: str, updates: dict[str, Any]) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         updates["updated_at"] = datetime.now(timezone.utc).isoformat()
         response = (
             client.table("conversations")
@@ -85,11 +108,11 @@ class AIRepository:
         return _data[0] if isinstance(_data, list) else _data
 
     async def delete_conversation(self, conversation_id: str, user_id: str) -> None:
-        client = get_supabase()
+        client = self._client
         client.table("conversations").delete().eq("id", conversation_id).eq("user_id", user_id).execute()
 
     async def get_messages(self, conversation_id: str) -> list[dict[str, Any]]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("messages")
             .select("*")
@@ -109,7 +132,7 @@ class AIRepository:
         provider: str | None = None,
         tokens: int | None = None,
     ) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         payload = {
             "conversation_id": conversation_id,
             "user_id": user_id,
@@ -135,7 +158,7 @@ class AIRepository:
         return result
 
     async def get_message_count(self, conversation_id: str) -> int:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("messages")
             .select("id", count="exact")  # type: ignore[arg-type]
@@ -147,7 +170,7 @@ class AIRepository:
     async def update_message(
         self, message_id: str, user_id: str, updates: dict[str, Any]
     ) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("messages")
             .update(updates)
@@ -161,11 +184,11 @@ class AIRepository:
         return _data[0] if isinstance(_data, list) else _data
 
     async def delete_message(self, message_id: str, user_id: str) -> None:
-        client = get_supabase()
+        client = self._client
         client.table("messages").delete().eq("id", message_id).eq("user_id", user_id).execute()
 
     async def get_ai_settings(self, user_id: str) -> dict[str, Any] | None:
-        client = get_supabase()
+        client = self._client
         from app.config import settings
 
         has_gemini = bool(settings.gemini_api_key)
@@ -203,7 +226,7 @@ class AIRepository:
         }
 
     async def update_ai_settings(self, user_id: str, updates: dict[str, Any]) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         payload = {"user_id": user_id, **updates}
         response = (
             client.table("settings")

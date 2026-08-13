@@ -9,8 +9,9 @@ logger = get_logger(__name__)
 
 
 class StudyService:
-    def __init__(self) -> None:
-        self.repository = StudyRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.repository = StudyRepository(access_token=access_token)
 
     async def get_calendar(self, user_id: str, year: int) -> dict[str, Any]:
         days = await self.repository.get_calendar_days(user_id, year)

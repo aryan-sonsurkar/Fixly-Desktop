@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 
-from app.dependencies.auth import get_current_user
+from app.dependencies.auth import CurrentUser, get_current_user
 from app.schemas.document import (
     DocumentChatRequest,
     DocumentChatResponse,
@@ -24,48 +24,48 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 @router.get("/recent", response_model=list[DocumentRecentResponse])
 async def get_recent_documents(
     limit: int = Query(default=5, ge=1, le=20),
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
-    service = DocumentService()
-    return await service.get_recent_documents(current_user["id"], limit)
+    service = DocumentService(access_token=current_user.access_token)
+    return await service.get_recent_documents(current_user.id, limit)
 
 
 @router.post("/upload", response_model=DocumentResponse)
 async def upload_document(
     file: UploadFile = File(...),
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
-    service = DocumentService()
-    return await service.upload_document(current_user["id"], file)
+    service = DocumentService(access_token=current_user.access_token)
+    return await service.upload_document(current_user.id, file)
 
 
 @router.post("/{document_id}/process")
 async def process_document(
     document_id: str,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
-    service = DocumentService()
-    return await service.process_document(document_id, current_user["id"])
+    service = DocumentService(access_token=current_user.access_token)
+    return await service.process_document(document_id, current_user.id)
 
 
 @router.get("/{document_id}", response_model=DocumentDetailResponse)
 async def get_document(
     document_id: str,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
-    service = DocumentService()
-    return await service.get_document_detail(document_id, current_user["id"])
+    service = DocumentService(access_token=current_user.access_token)
+    return await service.get_document_detail(document_id, current_user.id)
 
 
 @router.put("/{document_id}", response_model=DocumentResponse)
 async def update_document(
     document_id: str,
     body: DocumentUpdate,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
-    service = DocumentService()
+    service = DocumentService(access_token=current_user.access_token)
     return await service.update_document(
-        document_id, current_user["id"], body.model_dump(exclude_none=True)
+        document_id, current_user.id, body.model_dump(exclude_none=True)
     )
 
 
@@ -73,32 +73,32 @@ async def update_document(
 async def rename_document(
     document_id: str,
     body: DocumentRename,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
-    service = DocumentService()
+    service = DocumentService(access_token=current_user.access_token)
     return await service.update_document(
-        document_id, current_user["id"], {"original_name": body.original_name}
+        document_id, current_user.id, {"original_name": body.original_name}
     )
 
 
 @router.delete("/{document_id}")
 async def delete_document(
     document_id: str,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, str]:
-    service = DocumentService()
-    await service.delete_document(document_id, current_user["id"])
+    service = DocumentService(access_token=current_user.access_token)
+    await service.delete_document(document_id, current_user.id)
     return {"message": "Document deleted"}
 
 
 @router.post("/chat", response_model=DocumentChatResponse)
 async def chat_with_document(
     body: DocumentChatRequest,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
-    service = DocumentService()
+    service = DocumentService(access_token=current_user.access_token)
     return await service.chat_with_document(
-        current_user["id"], body.document_id, body.message, body.conversation_id
+        current_user.id, body.document_id, body.message, body.conversation_id
     )
 
 
@@ -106,11 +106,11 @@ async def chat_with_document(
 async def summarize_document(
     document_id: str,
     body: DocumentSummaryRequest,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
-    service = DocumentService()
+    service = DocumentService(access_token=current_user.access_token)
     return await service.generate_document_content(
-        current_user["id"], document_id, "summarize", max_length=body.max_length
+        current_user.id, document_id, "summarize", max_length=body.max_length
     )
 
 
@@ -118,11 +118,11 @@ async def summarize_document(
 async def generate_notes(
     document_id: str,
     body: DocumentNotesRequest,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
-    service = DocumentService()
+    service = DocumentService(access_token=current_user.access_token)
     return await service.generate_document_content(
-        current_user["id"], document_id, "notes", style=body.style
+        current_user.id, document_id, "notes", style=body.style
     )
 
 
@@ -130,11 +130,11 @@ async def generate_notes(
 async def generate_flashcards(
     document_id: str,
     body: DocumentFlashcardsRequest,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
-    service = DocumentService()
+    service = DocumentService(access_token=current_user.access_token)
     return await service.generate_document_content(
-        current_user["id"], document_id, "flashcards", count=body.count
+        current_user.id, document_id, "flashcards", count=body.count
     )
 
 
@@ -142,11 +142,11 @@ async def generate_flashcards(
 async def generate_quiz(
     document_id: str,
     body: DocumentQuizRequest,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
-    service = DocumentService()
+    service = DocumentService(access_token=current_user.access_token)
     return await service.generate_document_content(
-        current_user["id"], document_id, "quiz",
+        current_user.id, document_id, "quiz",
         count=body.count, difficulty=body.difficulty,
     )
 
@@ -160,10 +160,10 @@ async def list_documents(
     file_type: str | None = None,
     search: str | None = None,
     favorites_only: bool = False,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
-    service = DocumentService()
-    return await service.list_documents(current_user["id"], {
+    service = DocumentService(access_token=current_user.access_token)
+    return await service.list_documents(current_user.id, {
         "page": page,
         "page_size": page_size,
         "subject_id": subject_id,

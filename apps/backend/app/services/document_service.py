@@ -26,14 +26,15 @@ UPLOAD_DIR = os.path.join(
 
 
 class DocumentService:
-    def __init__(self) -> None:
-        self.repository = DocumentRepository()
-        self.ai_repo = AIRepository()
-        self.pdf_service = PDFService()
-        self.ocr_service = OCRService()
-        self.context_service = ContextService()
-        self.ai_service = AIService()
-        self.study_service = StudyService()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.repository = DocumentRepository(access_token=access_token)
+        self.ai_repo = AIRepository(access_token=access_token)
+        self.pdf_service = PDFService(access_token=access_token)
+        self.ocr_service = OCRService(access_token=access_token)
+        self.context_service = ContextService(access_token=access_token)
+        self.ai_service = AIService(access_token=access_token)
+        self.study_service = StudyService(access_token=access_token)
         os.makedirs(UPLOAD_DIR, exist_ok=True)
 
     async def upload_document(self, user_id: str, file: Any) -> dict[str, Any]:

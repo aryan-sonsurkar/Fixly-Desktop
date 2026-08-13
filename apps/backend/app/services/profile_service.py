@@ -8,8 +8,9 @@ logger = get_logger(__name__)
 
 
 class ProfileService:
-    def __init__(self) -> None:
-        self.repository = ProfileRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.repository = ProfileRepository(access_token=access_token)
 
     async def get_profile(self, user_id: str) -> dict[str, Any]:
         profile = await self.repository.get_profile(user_id)

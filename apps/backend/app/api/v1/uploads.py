@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 from app.core.exceptions import ValidationError
 from app.core.logging import get_logger
-from app.core.supabase import get_supabase
-from app.dependencies.auth import get_current_user
+from app.core.supabase import get_supabase_for_user
+from app.dependencies.auth import CurrentUser, get_current_user
 from app.repositories.assignment_repository import AssignmentRepository
 
 logger = get_logger(__name__)
@@ -30,7 +30,7 @@ ALLOWED_TYPES = {
 async def upload_file(
     file: UploadFile = File(...),
     assignment_id: str = Form(...),
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     if file.content_type and file.content_type not in ALLOWED_TYPES:
         raise ValidationError(f"File type '{file.content_type}' is not supported")
@@ -39,13 +39,13 @@ async def upload_file(
     if len(content) > MAX_FILE_SIZE:
         raise ValidationError("File exceeds maximum size of 50MB")
 
-    repo = AssignmentRepository()
-    assignment = await repo.get_assignment(assignment_id, current_user["id"])
+    repo = AssignmentRepository(access_token=current_user.access_token)
+    assignment = await repo.get_assignment(assignment_id, current_user.id)
     if not assignment:
         raise ValidationError("Assignment not found")
 
-    client = get_supabase()
-    storage_path = f"{current_user['id']}/{assignment_id}/{file.filename}"
+    client = get_supabase_for_user(current_user.access_token)
+    storage_path = f"{current_user.id}/{assignment_id}/{file.filename}"
 
     try:
         client.storage.from_("attachments").upload(
@@ -57,7 +57,7 @@ async def upload_file(
 
     attachment = await repo.create_attachment({
         "assignment_id": assignment_id,
-        "user_id": current_user["id"],
+        "user_id": current_user.id,
         "file_name": file.filename or "unnamed",
         "file_type": file.content_type,
         "file_size": len(content),
@@ -70,18 +70,18 @@ async def upload_file(
 @router.delete("/{attachment_id}")
 async def delete_upload(
     attachment_id: str,
-    current_user: dict[str, Any] = Depends(get_current_user),
+    current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, str]:
-    repo = AssignmentRepository()
-    attachment = await repo.get_attachment(attachment_id, current_user["id"])
+    repo = AssignmentRepository(access_token=current_user.access_token)
+    attachment = await repo.get_attachment(attachment_id, current_user.id)
     if not attachment:
         raise ValidationError("Attachment not found")
 
-    client = get_supabase()
+    client = get_supabase_for_user(current_user.access_token)
     try:
         client.storage.from_("attachments").remove([attachment["storage_path"]])
     except Exception as e:
         logger.warning("Storage delete failed", extra={"error": str(e)})
 
-    await repo.delete_attachment(attachment_id, current_user["id"])
+    await repo.delete_attachment(attachment_id, current_user.id)
     return {"message": "File deleted"}

@@ -9,8 +9,9 @@ logger = get_logger(__name__)
 
 
 class SubjectService:
-    def __init__(self) -> None:
-        self.repository = SubjectRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.repository = SubjectRepository(access_token=access_token)
 
     async def list_subjects(self, user_id: str) -> list[dict[str, Any]]:
         return await self.repository.list_subjects(user_id)

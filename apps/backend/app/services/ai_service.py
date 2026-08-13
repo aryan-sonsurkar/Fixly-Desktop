@@ -13,10 +13,11 @@ logger = get_logger(__name__)
 
 
 class AIService:
-    def __init__(self) -> None:
-        self.repository = AIRepository()
-        self.assignment_repo = AssignmentRepository()
-        self.prompt_manager = PromptManager()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.repository = AIRepository(access_token=access_token)
+        self.assignment_repo = AssignmentRepository(access_token=access_token)
+        self.prompt_manager = PromptManager(access_token=self.access_token)
         self.token_counter = TokenCounter()
 
     def _get_providers(self) -> dict[str, AIProvider]:

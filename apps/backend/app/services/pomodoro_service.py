@@ -8,9 +8,10 @@ logger = get_logger(__name__)
 
 
 class PomodoroService:
-    def __init__(self) -> None:
-        self.repository = PomodoroRepository()
-        self.study_service = StudyService()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.repository = PomodoroRepository(access_token=access_token)
+        self.study_service = StudyService(access_token=access_token)
 
     async def get_settings(self, user_id: str) -> dict[str, Any]:
         settings = await self.repository.get_settings(user_id)

@@ -12,8 +12,9 @@ class ContextService:
     MAX_TOKENS = 3000
     CHUNKS_PER_QUERY = 5
 
-    def __init__(self) -> None:
-        self.repository = DocumentRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.repository = DocumentRepository(access_token=access_token)
 
     async def get_relevant_chunks(
         self, document_id: str, user_id: str, query: str, max_tokens: int | None = None

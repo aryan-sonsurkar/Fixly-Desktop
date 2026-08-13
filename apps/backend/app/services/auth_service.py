@@ -11,8 +11,8 @@ logger = get_logger(__name__)
 
 
 class AuthService:
-    def __init__(self) -> None:
-        self.repository = AuthRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.repository = AuthRepository(access_token)
 
     async def sign_up(
         self, email: str, password: str | None, full_name: str | None = None

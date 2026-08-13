@@ -11,10 +11,11 @@ logger = get_logger(__name__)
 
 
 class RiskDetectorService:
-    def __init__(self) -> None:
-        self.context = WorkspaceContext()
-        self.ai_service = AIService()
-        self.ai_repo = AIRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.context = WorkspaceContext(access_token=access_token)
+        self.ai_service = AIService(access_token=access_token)
+        self.ai_repo = AIRepository(access_token=access_token)
 
     async def assess(self, user_id: str) -> dict[str, Any]:
         ctx = await self.context.gather(user_id, budget="copilot")
@@ -29,7 +30,9 @@ class RiskDetectorService:
         prompt_kwargs = self._build_kwargs(ctx, today, profile, study, pomo, email, assignments, now)
 
         conv = await self.ai_repo.create_conversation(user_id, "Risk Assessment")
-        prompt = await PromptManager().build(PromptType.RISK_DETECTOR, user_id, **prompt_kwargs)
+        prompt = await PromptManager(access_token=self.access_token).build(
+    PromptType.RISK_DETECTOR, user_id, **prompt_kwargs
+)
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
         content = result["message"]["content"]
 

@@ -12,8 +12,9 @@ class AssignmentService:
     VALID_STATUSES = {"pending", "in_progress", "completed", "cancelled", "overdue"}
     VALID_PRIORITIES = {"low", "medium", "high", "urgent"}
 
-    def __init__(self) -> None:
-        self.repository = AssignmentRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.repository = AssignmentRepository(access_token=access_token)
 
     async def _auto_mark_overdue(self, user_id: str) -> None:
         try:

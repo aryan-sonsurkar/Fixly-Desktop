@@ -8,8 +8,9 @@ logger = get_logger(__name__)
 
 
 class PDFService:
-    def __init__(self) -> None:
-        self.repository = DocumentRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.repository = DocumentRepository(access_token=access_token)
 
     async def extract_text(self, file_path: str) -> str:
         try:

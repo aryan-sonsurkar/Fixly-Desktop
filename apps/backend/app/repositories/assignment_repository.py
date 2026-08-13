@@ -1,13 +1,30 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
+from supabase import Client
+
 from app.core.logging import get_logger
-from app.core.supabase import get_supabase
+from app.core.supabase import get_supabase, get_supabase_for_user
 
 logger = get_logger(__name__)
 
 
 class AssignmentRepository:
+
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self._client_instance: Client | None = None
+
+    @property
+    def _client(self) -> Client:
+        if self._client_instance is None:
+            self._client_instance = (
+                get_supabase_for_user(self.access_token)
+                if self.access_token
+                else get_supabase()
+            )
+        return self._client_instance
+
     def _parse_row(self, row: dict[str, Any]) -> dict[str, Any]:
         return {
             k: v.isoformat() if isinstance(v, datetime) else v
@@ -36,7 +53,7 @@ class AssignmentRepository:
         return query
 
     async def count(self, user_id: str, filters: dict[str, Any] | None = None) -> int:
-        client = get_supabase()
+        client = self._client
         query = client.table("assignments").select("id", count="exact")  # type: ignore[arg-type]
         query = query.eq("user_id", user_id)
         if filters:
@@ -53,7 +70,7 @@ class AssignmentRepository:
         sort_order: str = "desc",
         filters: dict[str, Any] | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
-        client = get_supabase()
+        client = self._client
         query = client.table("assignments").select("*")
         query = self._apply_filters(query, {"user_id": user_id, **(filters or {})})
 
@@ -71,7 +88,7 @@ class AssignmentRepository:
         return rows, total
 
     async def get_assignment(self, assignment_id: str, user_id: str) -> dict[str, Any] | None:
-        client = get_supabase()
+        client = self._client
         try:
             response = (
                 client.table("assignments")
@@ -87,7 +104,7 @@ class AssignmentRepository:
             return None
 
     async def create_assignment(self, user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         data = {"user_id": user_id, **payload}
         response = client.table("assignments").insert(data).execute()
         result = response.model_dump() if hasattr(response, "model_dump") else dict(response)
@@ -97,7 +114,7 @@ class AssignmentRepository:
     async def update_assignment(
         self, assignment_id: str, user_id: str, updates: dict[str, Any]
     ) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         if "status" in updates and updates["status"] == "completed":
             updates["completion_date"] = datetime.now(timezone.utc).isoformat()
         response = (
@@ -113,13 +130,13 @@ class AssignmentRepository:
         return _data[0] if isinstance(_data, list) else _data
 
     async def delete_assignment(self, assignment_id: str, user_id: str) -> None:
-        client = get_supabase()
+        client = self._client
         client.table("assignments").delete().eq("id", assignment_id).eq("user_id", user_id).execute()
 
     async def bulk_update(
         self, ids: list[str], user_id: str, updates: dict[str, Any]
     ) -> list[dict[str, Any]]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("assignments")
             .update(updates)
@@ -131,13 +148,13 @@ class AssignmentRepository:
         return cast(list[dict[str, Any]], data.get("data", []))
 
     async def bulk_delete(self, ids: list[str], user_id: str) -> int:
-        client = get_supabase()
+        client = self._client
         result = client.table("assignments").delete().in_("id", ids).eq("user_id", user_id).execute()
         data = result.model_dump() if hasattr(result, "model_dump") else dict(result)
         return len(data.get("data", []))
 
     async def get_attachments(self, assignment_id: str, user_id: str) -> list[dict[str, Any]]:
-        client = get_supabase()
+        client = self._client
         response = (
             client.table("attachments")
             .select("*")
@@ -150,18 +167,18 @@ class AssignmentRepository:
         return cast(list[dict[str, Any]], data.get("data", []))
 
     async def create_attachment(self, payload: dict[str, Any]) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         response = client.table("attachments").insert(payload).execute()
         result = response.model_dump() if hasattr(response, "model_dump") else dict(response)
         _result = result.get("data") or result
         return _result[0] if isinstance(_result, list) else _result
 
     async def delete_attachment(self, attachment_id: str, user_id: str) -> None:
-        client = get_supabase()
+        client = self._client
         client.table("attachments").delete().eq("id", attachment_id).eq("user_id", user_id).execute()
 
     async def get_attachment(self, attachment_id: str, user_id: str) -> dict[str, Any] | None:
-        client = get_supabase()
+        client = self._client
         try:
             response = (
                 client.table("attachments")
@@ -177,7 +194,7 @@ class AssignmentRepository:
             return None
 
     async def mark_overdue_assignments(self, user_id: str) -> int:
-        client = get_supabase()
+        client = self._client
         now = datetime.now(timezone.utc).isoformat()
         query = (
             client.table("assignments")
@@ -191,7 +208,7 @@ class AssignmentRepository:
         return len(data.get("data", []))
 
     async def get_stats(self, user_id: str) -> dict[str, Any]:
-        client = get_supabase()
+        client = self._client
         now = datetime.now(timezone.utc)
 
         tbl = client.table("assignments")

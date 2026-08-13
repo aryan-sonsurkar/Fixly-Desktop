@@ -17,17 +17,18 @@ logger = get_logger(__name__)
 
 
 class DashboardService:
-    def __init__(self) -> None:
-        self.profile_repo = ProfileRepository()
-        self.assignment_repo = AssignmentRepository()
-        self.subject_repo = SubjectRepository()
-        self.email_repo = EmailRepository()
-        self.document_repo = DocumentRepository()
-        self.pomodoro_repo = PomodoroRepository()
-        self.study_repo = StudyRepository()
-        self.notification_repo = NotificationRepository()
-        self.planner = PlannerService()
-        self.context = WorkspaceContext()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.profile_repo = ProfileRepository(access_token=access_token)
+        self.assignment_repo = AssignmentRepository(access_token=access_token)
+        self.subject_repo = SubjectRepository(access_token=access_token)
+        self.email_repo = EmailRepository(access_token=access_token)
+        self.document_repo = DocumentRepository(access_token=access_token)
+        self.pomodoro_repo = PomodoroRepository(access_token=access_token)
+        self.study_repo = StudyRepository(access_token=access_token)
+        self.notification_repo = NotificationRepository(access_token=access_token)
+        self.planner = PlannerService(access_token=access_token)
+        self.context = WorkspaceContext(access_token=access_token)
 
     async def get_dashboard(self, user_id: str) -> dict[str, Any]:
         ctx = await self.context.gather(user_id, budget="briefing")

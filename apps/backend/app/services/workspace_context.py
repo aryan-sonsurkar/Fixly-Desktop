@@ -25,16 +25,17 @@ BUDGETS = {
 
 
 class WorkspaceContext:
-    def __init__(self) -> None:
-        self.profile_repo = ProfileRepository()
-        self.subject_repo = SubjectRepository()
-        self.assignment_repo = AssignmentRepository()
-        self.email_repo = EmailRepository()
-        self.document_repo = DocumentRepository()
-        self.pomodoro_repo = PomodoroRepository()
-        self.study_repo = StudyRepository()
-        self.ai_repo = AIRepository()
-        self.notification_repo = NotificationRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.profile_repo = ProfileRepository(access_token=access_token)
+        self.subject_repo = SubjectRepository(access_token=access_token)
+        self.assignment_repo = AssignmentRepository(access_token=access_token)
+        self.email_repo = EmailRepository(access_token=access_token)
+        self.document_repo = DocumentRepository(access_token=access_token)
+        self.pomodoro_repo = PomodoroRepository(access_token=access_token)
+        self.study_repo = StudyRepository(access_token=access_token)
+        self.ai_repo = AIRepository(access_token=access_token)
+        self.notification_repo = NotificationRepository(access_token=access_token)
 
     async def gather(
         self, user_id: str, budget: str = "full",

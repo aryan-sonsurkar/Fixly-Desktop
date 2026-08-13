@@ -23,9 +23,10 @@ MEDIUM_CONFIDENCE = 0.70
 class EmailClassifier:
     """AI Email Classification via PromptManager."""
 
-    def __init__(self) -> None:
-        self.ai_service = AIService()
-        self.ai_repo = AIRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.ai_service = AIService(access_token=access_token)
+        self.ai_repo = AIRepository(access_token=access_token)
 
     async def classify(self, email: dict[str, Any], user_id: str) -> dict[str, Any]:
         subject = email.get("subject", "")
@@ -86,8 +87,9 @@ class EmailClassifier:
 class DuplicateDetector:
     """Prevent duplicate assignments from email."""
 
-    def __init__(self) -> None:
-        self.repository = EmailRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.repository = EmailRepository(access_token=access_token)
 
     async def is_duplicate(self, email: dict[str, Any], user_id: str) -> bool:
         existing = await self.repository.get_messages_light(
@@ -110,8 +112,9 @@ class DuplicateDetector:
 
 
 class EmailSyncWorker:
-    def __init__(self) -> None:
-        self.repository = EmailRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.repository = EmailRepository(access_token=access_token)
 
     async def sync_account(self, account_id: str, user_id: str) -> dict[str, Any]:
         start = time.time()
@@ -177,15 +180,16 @@ class EmailSyncWorker:
 
 
 class EmailService:
-    def __init__(self) -> None:
-        self.repository = EmailRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.repository = EmailRepository(access_token=access_token)
         self.classifier = EmailClassifier()
         self.detector = DuplicateDetector()
         self.sync_worker = EmailSyncWorker()
-        self.ai_repo = AIRepository()
-        self.ai_service = AIService()
-        self.study_service = StudyService()
-        self.assignment_repo = AssignmentRepository()
+        self.ai_repo = AIRepository(access_token=access_token)
+        self.ai_service = AIService(access_token=access_token)
+        self.study_service = StudyService(access_token=access_token)
+        self.assignment_repo = AssignmentRepository(access_token=access_token)
 
     # ── Accounts ──────────────────────────────────────────
 

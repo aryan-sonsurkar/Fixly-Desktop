@@ -11,10 +11,11 @@ logger = get_logger(__name__)
 
 
 class InsightService:
-    def __init__(self) -> None:
-        self.context = WorkspaceContext()
-        self.ai_service = AIService()
-        self.ai_repo = AIRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.context = WorkspaceContext(access_token=access_token)
+        self.ai_service = AIService(access_token=access_token)
+        self.ai_repo = AIRepository(access_token=access_token)
 
     async def generate_insights(self, user_id: str) -> dict[str, Any]:
         ctx = await self.context.gather(user_id, budget="copilot", include_heatmap=True)
@@ -50,7 +51,9 @@ class InsightService:
         }
 
         conv = await self.ai_repo.create_conversation(user_id, "AI Insights")
-        prompt = await PromptManager().build(PromptType.INSIGHTS, user_id, **prompt_kwargs)
+        prompt = await PromptManager(access_token=self.access_token).build(
+    PromptType.INSIGHTS, user_id, **prompt_kwargs
+)
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
 
         return {
@@ -94,7 +97,9 @@ class InsightService:
         }
 
         conv = await self.ai_repo.create_conversation(user_id, "Daily Mission")
-        prompt = await PromptManager().build(PromptType.DAILY_MISSION, user_id, **prompt_kwargs)
+        prompt = await PromptManager(access_token=self.access_token).build(
+    PromptType.DAILY_MISSION, user_id, **prompt_kwargs
+)
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
 
         return {
@@ -149,7 +154,9 @@ class InsightService:
         }
 
         conv = await self.ai_repo.create_conversation(user_id, "Weekly Review")
-        prompt = await PromptManager().build(PromptType.WEEKLY_REVIEW, user_id, **prompt_kwargs)
+        prompt = await PromptManager(access_token=self.access_token).build(
+    PromptType.WEEKLY_REVIEW, user_id, **prompt_kwargs
+)
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
 
         return {

@@ -14,8 +14,9 @@ NOTIFICATION_TYPES = [
 
 
 class NotificationService:
-    def __init__(self) -> None:
-        self.repository = NotificationRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.repository = NotificationRepository(access_token=access_token)
 
     async def notify(self, user_id: str, ntype: str, title: str, message: str, data: dict[str, Any] | None = None) -> dict[str, Any]:  # noqa: E501
         if ntype not in NOTIFICATION_TYPES:

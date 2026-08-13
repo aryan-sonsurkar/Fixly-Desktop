@@ -12,13 +12,14 @@ logger = get_logger(__name__)
 
 
 class SearchService:
-    def __init__(self) -> None:
-        self.assignment_repo = AssignmentRepository()
-        self.email_repo = EmailRepository()
-        self.document_repo = DocumentRepository()
-        self.subject_repo = SubjectRepository()
-        self.ai_repo = AIRepository()
-        self.study_repo = StudyRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.assignment_repo = AssignmentRepository(access_token=access_token)
+        self.email_repo = EmailRepository(access_token=access_token)
+        self.document_repo = DocumentRepository(access_token=access_token)
+        self.subject_repo = SubjectRepository(access_token=access_token)
+        self.ai_repo = AIRepository(access_token=access_token)
+        self.study_repo = StudyRepository(access_token=access_token)
 
     async def search_all(self, user_id: str, query: str, limit: int = 5) -> dict[str, Any]:
         q = query.lower().strip()

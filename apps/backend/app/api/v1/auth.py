@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import settings
-from app.dependencies.auth import get_current_user
+from app.dependencies.auth import CurrentUser, get_current_user
 from app.schemas.auth import (
     AuthResponse,
     ForgotPasswordRequest,
@@ -53,12 +53,12 @@ async def refresh(body: RefreshTokenRequest) -> dict[str, Any]:
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: dict[str, Any] = Depends(get_current_user)) -> dict[str, Any]:
+async def get_me(current_user: CurrentUser = Depends(get_current_user)) -> dict[str, Any]:
     return {
-        "id": current_user.get("id", ""),
-        "email": current_user.get("email", ""),
-        "profile": current_user.get("profile"),
-        "user_metadata": current_user.get("user_metadata"),
+        "id": current_user.id,
+        "email": current_user.email,
+        "profile": current_user.profile,
+        "user_metadata": current_user.user_metadata,
     }
 
 

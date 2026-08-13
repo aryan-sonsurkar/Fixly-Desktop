@@ -10,8 +10,9 @@ logger = get_logger(__name__)
 class OCRService:
     """Modular OCR service. The engine is replaceable — swap the _extract method."""
 
-    def __init__(self) -> None:
-        self.repository = DocumentRepository()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.repository = DocumentRepository(access_token=access_token)
 
     async def process_image(
         self, document_id: str, user_id: str, file_path: str, file_type: str

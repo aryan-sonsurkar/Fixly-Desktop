@@ -17,13 +17,14 @@ logger = get_logger(__name__)
 
 
 class PlannerService:
-    def __init__(self) -> None:
-        self.assignment_repo = AssignmentRepository()
-        self.ai_service = AIService()
-        self.ai_repo = AIRepository()
-        self.pomodoro_repo = PomodoroRepository()
-        self.study_repo = StudyRepository()
-        self.context = WorkspaceContext()
+    def __init__(self, access_token: str | None = None) -> None:
+        self.access_token = access_token
+        self.assignment_repo = AssignmentRepository(access_token=access_token)
+        self.ai_service = AIService(access_token=access_token)
+        self.ai_repo = AIRepository(access_token=access_token)
+        self.pomodoro_repo = PomodoroRepository(access_token=access_token)
+        self.study_repo = StudyRepository(access_token=access_token)
+        self.context = WorkspaceContext(access_token=access_token)
 
     def _validate_schedule_items(self, content: str) -> list[dict[str, Any]]:
         try:
@@ -88,7 +89,9 @@ class PlannerService:
             prompt_kwargs["deadlines"] = "No upcoming deadlines."
 
         conv = await self.ai_repo.create_conversation(user_id, "Daily Plan")
-        prompt = await PromptManager().build(PromptType.PLANNER, user_id, **prompt_kwargs)
+        prompt = await PromptManager(access_token=self.access_token).build(
+    PromptType.PLANNER, user_id, **prompt_kwargs
+)
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
 
         content = result["message"]["content"]
@@ -134,7 +137,9 @@ class PlannerService:
             prompt_kwargs["deadlines"] = "No upcoming deadlines."
 
         conv = await self.ai_repo.create_conversation(user_id, "Weekly Plan")
-        prompt = await PromptManager().build(PromptType.PLANNER, user_id, **prompt_kwargs)
+        prompt = await PromptManager(access_token=self.access_token).build(
+    PromptType.PLANNER, user_id, **prompt_kwargs
+)
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
 
         content = result["message"]["content"]
@@ -180,7 +185,9 @@ class PlannerService:
             prompt_kwargs["deadlines"] = "No deadlines."
 
         conv = await self.ai_repo.create_conversation(user_id, "Revision Plan")
-        prompt = await PromptManager().build(PromptType.PLANNER, user_id, **prompt_kwargs)
+        prompt = await PromptManager(access_token=self.access_token).build(
+    PromptType.PLANNER, user_id, **prompt_kwargs
+)
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
 
         content = result["message"]["content"]
