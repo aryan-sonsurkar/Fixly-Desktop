@@ -1,6 +1,6 @@
 from typing import Any
 
-from app.core.exceptions import FixlyError
+from app.core.exceptions import NotFoundError
 from app.core.logging import get_logger
 from app.repositories.profile_repository import ProfileRepository
 
@@ -15,7 +15,7 @@ class ProfileService:
     async def get_profile(self, user_id: str) -> dict[str, Any]:
         profile = await self.repository.get_profile(user_id)
         if not profile:
-            raise FixlyError("Profile not found")
+            raise NotFoundError("Profile not found")
         return profile
 
     async def update_profile(self, user_id: str, updates: dict[str, Any]) -> dict[str, Any]:

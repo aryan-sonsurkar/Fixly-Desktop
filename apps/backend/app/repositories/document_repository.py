@@ -5,6 +5,7 @@ from supabase import Client
 
 from app.core.logging import get_logger
 from app.core.supabase import get_supabase, get_supabase_for_user
+from app.repositories.utils import single_or_none
 
 logger = get_logger(__name__)
 
@@ -39,18 +40,12 @@ class DocumentRepository:
 
     async def get_document(self, document_id: str, user_id: str) -> dict[str, Any] | None:
         client = self._client
-        response = (
+        return single_or_none(
             client.table("documents")
             .select("*")
             .eq("id", document_id)
             .eq("user_id", user_id)
-            .single()
-            .execute()
         )
-        result: dict[str, Any] = {}
-        if response is not None:
-            result = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return result.get("data")
 
     async def update_document(
         self, document_id: str, user_id: str, updates: dict[str, Any]

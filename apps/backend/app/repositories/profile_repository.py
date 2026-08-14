@@ -4,6 +4,7 @@ from supabase import Client
 
 from app.core.logging import get_logger
 from app.core.supabase import get_supabase, get_supabase_for_user
+from app.repositories.utils import single_or_none
 
 logger = get_logger(__name__)
 
@@ -26,9 +27,7 @@ class ProfileRepository:
 
     async def get_profile(self, user_id: str) -> dict[str, Any] | None:
         client = self._client
-        response = client.table("profiles").select("*").eq("id", user_id).single().execute()
-        data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        return single_or_none(client.table("profiles").select("*").eq("id", user_id))
 
     async def update_profile(self, user_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         client = self._client
@@ -39,9 +38,7 @@ class ProfileRepository:
 
     async def get_settings(self, user_id: str) -> dict[str, Any] | None:
         client = self._client
-        response = client.table("settings").select("*").eq("user_id", user_id).single().execute()
-        data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        return single_or_none(client.table("settings").select("*").eq("user_id", user_id))
 
     async def upsert_settings(self, user_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         client = self._client

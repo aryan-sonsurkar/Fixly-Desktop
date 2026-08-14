@@ -4,6 +4,7 @@ from supabase import Client
 
 from app.core.logging import get_logger
 from app.core.supabase import get_supabase, get_supabase_for_user
+from app.repositories.utils import single_or_none
 
 logger = get_logger(__name__)
 
@@ -56,9 +57,7 @@ class AuthRepository:
             return None
 
     async def get_profile(self, user_id: str) -> dict[str, Any] | None:
-        response = self._client.table("profiles").select("*").eq("id", user_id).single().execute()
-        data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return data.get("data") or data
+        return single_or_none(self._client.table("profiles").select("*").eq("id", user_id))
 
     async def reset_password_for_email(self, email: str) -> None:
         self._client.auth.reset_password_email(email)

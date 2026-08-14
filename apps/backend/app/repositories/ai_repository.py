@@ -7,6 +7,7 @@ from supabase import Client
 from app.core.logging import get_logger
 from app.core.supabase import get_supabase, get_supabase_for_user
 from app.core.threads import run_in_thread
+from app.repositories.utils import single_or_none
 
 logger = get_logger(__name__)
 
@@ -81,16 +82,12 @@ class AIRepository:
 
     async def get_conversation(self, conversation_id: str, user_id: str) -> dict[str, Any] | None:
         client = self._client
-        response = (
+        return single_or_none(
             client.table("conversations")
             .select("*")
             .eq("id", conversation_id)
             .eq("user_id", user_id)
-            .single()
-            .execute()
         )
-        raw = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return raw.get("data") or (raw if isinstance(raw, dict) and raw.get("id") else None)
 
     async def update_conversation(self, conversation_id: str, user_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         client = self._client
@@ -198,15 +195,11 @@ class AIRepository:
             "preferred_provider, temperature, max_tokens, streaming_enabled, "
             "system_prompt, academic_context, conversation_memory, fallback_provider, ai_enabled"
         )
-        response = (
+        result = single_or_none(
             client.table("settings")
             .select(columns)
             .eq("user_id", user_id)
-            .single()
-            .execute()
         )
-        data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        result = data.get("data")
         if isinstance(result, dict) and result.get("preferred_provider"):
             result["ollama_available"] = has_ollama
             result["gemini_available"] = has_gemini

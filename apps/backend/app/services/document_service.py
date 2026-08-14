@@ -132,7 +132,7 @@ class DocumentService:
     ) -> dict[str, Any]:
         doc = await self.repository.get_document(document_id, user_id)
         if not doc:
-            raise ValidationError("Document not found")
+            raise NotFoundError("Document not found")
 
         if not conversation_id:
             conv = await self.ai_repo.create_conversation(
@@ -185,7 +185,7 @@ class DocumentService:
     ) -> dict[str, Any]:
         doc = await self.repository.get_document(document_id, user_id)
         if not doc:
-            raise ValidationError("Document not found")
+            raise NotFoundError("Document not found")
 
         all_chunks = await self.repository.get_chunks(document_id, user_id)
         full_text = "\n\n".join(c.get("content", "") for c in all_chunks)
@@ -260,7 +260,7 @@ class DocumentService:
     async def get_document_detail(self, document_id: str, user_id: str) -> dict[str, Any]:
         doc = await self.repository.get_document(document_id, user_id)
         if not doc:
-            raise ValidationError("Document not found")
+            raise NotFoundError("Document not found")
 
         chunks = await self.repository.get_chunks(document_id, user_id)
         conv_ids = await self.repository.get_conversation_ids(document_id, user_id)
@@ -287,13 +287,13 @@ class DocumentService:
     ) -> dict[str, Any]:
         doc = await self.repository.get_document(document_id, user_id)
         if not doc:
-            raise ValidationError("Document not found")
+            raise NotFoundError("Document not found")
         return await self.repository.update_document(document_id, user_id, updates)
 
     async def delete_document(self, document_id: str, user_id: str) -> None:
         doc = await self.repository.get_document(document_id, user_id)
         if not doc:
-            raise ValidationError("Document not found")
+            raise NotFoundError("Document not found")
 
         file_path = doc.get("storage_path")
         if file_path and os.path.exists(file_path):
