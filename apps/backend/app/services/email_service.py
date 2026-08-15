@@ -199,6 +199,9 @@ class EmailService:
             if acct.get("email") == data.get("email"):
                 raise ValueError("Account already connected")
 
+        if data.get("provider") in ("yahoo", "zoho"):
+            data = {**data, "provider": "other"}
+
         account = await self.repository.create_account(user_id, data)
 
         try:

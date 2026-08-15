@@ -69,9 +69,9 @@ class InsightService:
         pomo = ctx.get("pomodoro", {})
         email = ctx.get("email", {})
         assignments = ctx.get("assignments", {})
-        planner_ctx = ctx.get("planner", {})
-
-        today_session = planner_ctx.get("today_sessions", "No sessions")
+        planner_ctx = ctx.get("planner") or {}
+        today_sessions_text = planner_ctx.get("today_sessions", "No sessions scheduled")
+        today_xp = planner_ctx.get("today_points", 0)
         deadlines_text = "\n".join(
             f"- {d['title']} (Due: {d['due']}, Priority: {d['priority']})"
             for d in assignments.get("deadlines", [])[:10]
@@ -84,7 +84,7 @@ class InsightService:
             "active_assignments": str(assignments.get("total", 0)),
             "deadlines": deadlines_text,
             "today_focus": str(pomo.get("today_focus_minutes", 0)),
-            "today_xp": str(today_session.get("today_points", 0)),
+            "today_xp": str(today_xp),
             "streak": str(profile.get("streak", 0)),
             "productivity_score": "50",
             "weekly_hours": str(study.get("total_hours", 0)),
@@ -93,7 +93,7 @@ class InsightService:
             "weekly_cycles": str(pomo.get("weekly_cycles", 0)),
             "unread_emails": str(email.get("unread", 0)),
             "pending_reviews": str(email.get("pending_review", 0)),
-            "planner_context": today_session,
+            "planner_context": today_sessions_text,
         }
 
         conv = await self.ai_repo.create_conversation(user_id, "Daily Mission")

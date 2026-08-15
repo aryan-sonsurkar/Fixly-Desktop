@@ -79,6 +79,8 @@ class StudyRepository:
 
     async def create_session(self, user_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         client = self._client
+        if not payload.get("started_at"):
+            payload = {**payload, "started_at": datetime.now(timezone.utc).isoformat()}
         response = client.table("study_sessions").insert(payload).execute()
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
         _data = data.get("data") or data

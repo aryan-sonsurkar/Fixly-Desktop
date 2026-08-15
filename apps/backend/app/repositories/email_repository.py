@@ -29,7 +29,14 @@ class EmailRepository:
 
     async def create_account(self, user_id: str, data: dict[str, Any]) -> dict[str, Any]:
         client = self._client
-        payload = {"user_id": user_id, **data}
+        allowed = {
+            "email", "provider", "access_token", "refresh_token", "token_expires_at",
+            "sync_enabled", "last_synced_at", "sync_status", "sync_error",
+            "total_emails", "last_message_id", "daily_briefing_enabled",
+            "briefing_time", "auto_create_assignments", "confidence_threshold",
+            "attachment_download",
+        }
+        payload = {"user_id": user_id, **{k: v for k, v in data.items() if k in allowed}}
         response = (
             client.table("email_accounts")
             .insert(payload)
@@ -320,7 +327,7 @@ class EmailRepository:
         client = self._client
         response = (
             client.table("email_messages")
-            .select("*, classification:email_id(*)")
+            .select("*")
             .eq("user_id", user_id)
             .not_.is_("body_text", "null")
             .order("received_at", desc=True)
@@ -328,4 +335,10 @@ class EmailRepository:
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return cast(list[dict[str, Any]], data.get("data", []))
+        messages = cast(list[dict[str, Any]], data.get("data", []))
+        if messages:
+            msg_ids = [m["id"] for m in messages]
+            classifications = await self._get_classifications_bulk(user_id, msg_ids)
+            for m in messages:
+                m["classification"] = classifications.get(m["id"])
+        return messages

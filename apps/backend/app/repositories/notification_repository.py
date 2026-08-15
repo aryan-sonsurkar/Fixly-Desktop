@@ -71,10 +71,9 @@ class NotificationRepository:
 
     async def mark_all_read(self, user_id: str) -> int:
         client = self._client
-        now = datetime.now(timezone.utc).isoformat()
         response = (
             client.table("notifications")
-            .update({"read": True, "read_at": now})
+            .update({"read": True})
             .eq("user_id", user_id)
             .eq("read", False)
             .execute()
