@@ -58,3 +58,6 @@ supabase/.env
 
 # Local scratch DB
 .freebuff/
+
+# Runtime uploads
+apps/backend/uploads/
