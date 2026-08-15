@@ -18,7 +18,7 @@ class NotificationResponse(BaseModel):
     title: str
     message: str
     metadata: dict[str, Any]
-    is_read: bool = False
+    is_read: bool = Field(default=False, validation_alias="read")
     read_at: datetime | None = None
     created_at: datetime
 

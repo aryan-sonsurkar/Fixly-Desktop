@@ -1,6 +1,6 @@
 from typing import Any
 
-from app.core.exceptions import ValidationError
+from app.core.exceptions import NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.repositories.notification_repository import NotificationRepository
 
@@ -38,14 +38,19 @@ class NotificationService:
         return {"notifications": items, "total": total, "page": offset // limit + 1, "page_size": limit}
 
     async def mark_read(self, notification_id: str, user_id: str) -> dict[str, Any]:
-        return await self.repository.mark_read(notification_id, user_id)
+        result = await self.repository.mark_read(notification_id, user_id)
+        if not result:
+            raise NotFoundError("Notification not found")
+        return result
 
     async def mark_all_read(self, user_id: str) -> dict[str, Any]:
         count = await self.repository.mark_all_read(user_id)
         return {"marked_read": count}
 
     async def delete(self, notification_id: str, user_id: str) -> None:
-        await self.repository.delete(notification_id, user_id)
+        deleted = await self.repository.delete(notification_id, user_id)
+        if deleted == 0:
+            raise NotFoundError("Notification not found")
 
     async def unread_count(self, user_id: str) -> int:
         return await self.repository.unread_count(user_id)

@@ -53,20 +53,21 @@ class NotificationRepository:
         total = response.count or 0
         return items, total
 
-    async def mark_read(self, notification_id: str, user_id: str) -> dict[str, Any]:
+    async def mark_read(self, notification_id: str, user_id: str) -> dict[str, Any] | None:
         client = self._client
-        now = datetime.now(timezone.utc).isoformat()
         response = (
             client.table("notifications")
-            .update({"read": True, "read_at": now})
+            .update({"read": True})
             .eq("id", notification_id)
             .eq("user_id", user_id)
 
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        _data = data.get("data") or data
-        return _data[0] if isinstance(_data, list) else _data
+        raw = data.get("data")
+        if isinstance(raw, list):
+            return raw[0] if raw else None
+        return raw if isinstance(raw, dict) else None
 
     async def mark_all_read(self, user_id: str) -> int:
         client = self._client
@@ -82,9 +83,18 @@ class NotificationRepository:
         items = cast(list[dict[str, Any]], data.get("data", []))
         return len(items)
 
-    async def delete(self, notification_id: str, user_id: str) -> None:
+    async def delete(self, notification_id: str, user_id: str) -> int:
         client = self._client
-        client.table("notifications").delete().eq("id", notification_id).eq("user_id", user_id).execute()
+        response = (
+            client.table("notifications")
+            .delete()
+            .eq("id", notification_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
+        items = cast(list[dict[str, Any]], data.get("data", []))
+        return len(items)
 
     async def unread_count(self, user_id: str) -> int:
         client = self._client

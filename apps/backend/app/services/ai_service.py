@@ -261,13 +261,21 @@ class AIService:
                     break
         if not msg:
             raise NotFoundError("Message not found")
-        return await self.repository.update_message(message_id, user_id, {"feedback": feedback})
+        result = await self.repository.update_message(message_id, user_id, {"feedback": feedback})
+        if not result:
+            raise NotFoundError("Message not found")
+        return result
 
     async def edit_message(self, message_id: str, user_id: str, content: str) -> dict[str, Any]:
-        return await self.repository.update_message(message_id, user_id, {"content": content})
+        result = await self.repository.update_message(message_id, user_id, {"content": content})
+        if not result:
+            raise NotFoundError("Message not found")
+        return result
 
     async def delete_message(self, message_id: str, user_id: str) -> None:
-        await self.repository.delete_message(message_id, user_id)
+        deleted = await self.repository.delete_message(message_id, user_id)
+        if deleted == 0:
+            raise NotFoundError("Message not found")
 
     async def get_settings(self, user_id: str) -> dict[str, Any]:
         s = await self.repository.get_ai_settings(user_id)

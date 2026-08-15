@@ -166,7 +166,7 @@ class AIRepository:
 
     async def update_message(
         self, message_id: str, user_id: str, updates: dict[str, Any]
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | None:
         client = self._client
         response = (
             client.table("messages")
@@ -177,12 +177,23 @@ class AIRepository:
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        _data = data.get("data") or data
-        return _data[0] if isinstance(_data, list) else _data
+        raw = data.get("data")
+        if isinstance(raw, list):
+            return raw[0] if raw else None
+        return raw if isinstance(raw, dict) else None
 
-    async def delete_message(self, message_id: str, user_id: str) -> None:
+    async def delete_message(self, message_id: str, user_id: str) -> int:
         client = self._client
-        client.table("messages").delete().eq("id", message_id).eq("user_id", user_id).execute()
+        response = (
+            client.table("messages")
+            .delete()
+            .eq("id", message_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
+        items = cast(list[dict[str, Any]], data.get("data", []))
+        return len(items)
 
     async def get_ai_settings(self, user_id: str) -> dict[str, Any] | None:
         client = self._client
