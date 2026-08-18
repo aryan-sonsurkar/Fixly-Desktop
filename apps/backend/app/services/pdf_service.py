@@ -14,65 +14,40 @@ class PDFService:
 
     async def extract_text(self, file_path: str) -> str:
         try:
-            import PyPDF2
+            from pypdf import PdfReader
 
             with open(file_path, "rb") as f:
-                reader = PyPDF2.PdfReader(f)
+                reader = PdfReader(f)
                 pages = []
                 for page in reader.pages:
                     text = page.extract_text()
-                    if text:
-                        pages.append(text)
-                return "\n\n".join(pages) if pages else "[No text extracted from PDF]"
-        except ImportError:
-            logger.warning("PyPDF2 not installed, trying pypdf...")
+                    if text and text.strip():
+                        pages.append(text.strip())
+                if pages:
+                    return "\n\n".join(pages)
+                return "[No text layer found in PDF — likely a scanned/image PDF]"
         except Exception as e:
-            logger.error("PyPDF2 extraction failed: %s", e)
-
-        try:
-            import pypdf
-
-            with open(file_path, "rb") as f:
-                reader = pypdf.PdfReader(f)
-                pages = []
-                for page in reader.pages:
-                    text = page.extract_text()
-                    if text:
-                        pages.append(text)
-                return "\n\n".join(pages) if pages else "[No text extracted from PDF]"
-        except ImportError:
-            logger.warning("pypdf not installed either, falling back to placeholder")
-        except Exception as e:
-            logger.error("pypdf extraction failed: %s", e)
-
-        return f"[PDF file: {file_path} — install PyPDF2 or pypdf for text extraction]"
+            logger.error("PDF extraction failed: %s", e)
+            return f"[PDF extraction failed: {e}]"
 
     async def get_page_count(self, file_path: str) -> int:
         try:
-            import PyPDF2
+            from pypdf import PdfReader
 
             with open(file_path, "rb") as f:
-                reader = PyPDF2.PdfReader(f)
+                reader = PdfReader(f)
                 return len(reader.pages)
-        except ImportError:
-            pass
-        try:
-            import pypdf
-
-            with open(file_path, "rb") as f:
-                reader = pypdf.PdfReader(f)
-                return len(reader.pages)
-        except ImportError:
-            pass
-        return 0
+        except Exception as e:
+            logger.error("Failed to read PDF page count: %s", e)
+            return 0
 
     async def extract_metadata(self, file_path: str) -> dict[str, Any]:
         meta: dict[str, Any] = {}
         try:
-            import PyPDF2
+            from pypdf import PdfReader
 
             with open(file_path, "rb") as f:
-                reader = PyPDF2.PdfReader(f)
+                reader = PdfReader(f)
                 info = reader.metadata
                 if info:
                     for k, v in info.items():
@@ -85,7 +60,7 @@ class PDFService:
     async def chunk_text(
         self, text: str, chunk_size: int = 2000, overlap: int = 200
     ) -> list[dict[str, Any]]:
-        if not text or text.startswith("[No text") or text.startswith("[PDF file"):
+        if not text or text.startswith("[No text") or text.startswith("[PDF extraction"):
             return [{
                 "chunk_index": 0,
                 "chunk_type": "text",

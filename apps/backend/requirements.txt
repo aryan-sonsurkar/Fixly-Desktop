@@ -8,3 +8,4 @@ python-dotenv>=1.0.0
 email-validator>=2.2.0
 python-multipart
 cryptography>=44.0.0
+pypdf>=5.0.0

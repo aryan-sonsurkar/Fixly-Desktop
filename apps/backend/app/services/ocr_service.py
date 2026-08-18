@@ -1,6 +1,8 @@
+import shutil
 import time
 from typing import Any
 
+from app.core.exceptions import OCRUnavailableError
 from app.core.logging import get_logger
 from app.repositories.document_repository import DocumentRepository
 
@@ -14,9 +16,25 @@ class OCRService:
         self.access_token = access_token
         self.repository = DocumentRepository(access_token=access_token)
 
+    def _ocr_available(self) -> bool:
+        try:
+            import pytesseract  # noqa: F401
+            from PIL import Image  # noqa: F401
+        except ImportError:
+            return False
+        if shutil.which("tesseract"):
+            return True
+        return shutil.which(pytesseract.pytesseract.tesseract_cmd) is not None
+
     async def process_image(
         self, document_id: str, user_id: str, file_path: str, file_type: str
     ) -> dict[str, Any]:
+        if not self._ocr_available():
+            raise OCRUnavailableError(
+                "OCR is unavailable on this device (no Tesseract engine). "
+                "Install Tesseract to process image documents."
+            )
+
         start = time.time()
 
         extracted_text = await self._extract_text(file_path, file_type)

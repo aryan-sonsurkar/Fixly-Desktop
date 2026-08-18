@@ -37,6 +37,12 @@ class AIProviderUnavailableError(FixlyError):
     detail = "AI provider is currently unavailable"
 
 
+class OCRUnavailableError(FixlyError):
+    status_code = 503
+    error_code = "OCR_UNAVAILABLE"
+    detail = "OCR engine is unavailable on this device"
+
+
 async def fixly_exception_handler(request: Request, exc: FixlyError) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
