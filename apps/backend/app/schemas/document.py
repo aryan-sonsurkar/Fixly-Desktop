@@ -1,6 +1,9 @@
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+from app.schemas.common import OptionalUUID
 
 
 class DocumentResponse(BaseModel):
@@ -33,7 +36,7 @@ class DocumentRecentResponse(BaseModel):
 
 
 class DocumentUpdate(BaseModel):
-    subject_id: str | None = None
+    subject_id: OptionalUUID = None
     is_favorite: bool | None = None
 
 
@@ -69,9 +72,9 @@ class OCRResultResponse(BaseModel):
 
 
 class DocumentChatRequest(BaseModel):
-    document_id: str
+    document_id: UUID
     message: str = Field(min_length=1, max_length=10000)
-    conversation_id: str | None = None
+    conversation_id: OptionalUUID = None
 
 
 class DocumentChatResponse(BaseModel):
@@ -98,7 +101,7 @@ class DocumentQuizRequest(BaseModel):
 
 
 class DocumentLibraryFilter(BaseModel):
-    subject_id: str | None = None
+    subject_id: OptionalUUID = None
     status: str | None = None
     file_type: str | None = None
     search: str | None = None

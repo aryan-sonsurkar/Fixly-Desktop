@@ -28,22 +28,22 @@ async def get_calendar(
 
 @router.get("/day/{day_date}", response_model=DayDetail)
 async def get_day(
-    day_date: str,
+    day_date: date,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = StudyService(access_token=current_user.access_token)
-    return await service.get_day_detail(current_user.id, day_date)
+    return await service.get_day_detail(current_user.id, day_date.isoformat())
 
 
 @router.put("/day/{day_date}", response_model=DayDetail)
 async def update_day(
-    day_date: str,
+    day_date: date,
     body: StudyDayUpdate,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = StudyService(access_token=current_user.access_token)
     return await service.update_day(
-        current_user.id, day_date, body.model_dump(exclude_none=True)
+        current_user.id, day_date.isoformat(), body.model_dump(exclude_none=True)
     )
 
 

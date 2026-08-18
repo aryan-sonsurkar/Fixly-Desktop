@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
@@ -29,9 +30,10 @@ ALLOWED_TYPES = {
 @router.post("")
 async def upload_file(
     file: UploadFile = File(...),
-    assignment_id: str = Form(...),
+    assignment_id: UUID = Form(...),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
+    assignment_id_str = str(assignment_id)
     if file.content_type and file.content_type not in ALLOWED_TYPES:
         raise ValidationError(f"File type '{file.content_type}' is not supported")
 
@@ -40,12 +42,12 @@ async def upload_file(
         raise ValidationError("File exceeds maximum size of 50MB")
 
     repo = AssignmentRepository(access_token=current_user.access_token)
-    assignment = await repo.get_assignment(assignment_id, current_user.id)
+    assignment = await repo.get_assignment(assignment_id_str, current_user.id)
     if not assignment:
         raise ValidationError("Assignment not found")
 
     client = get_supabase_for_user(current_user.access_token)
-    storage_path = f"{current_user.id}/{assignment_id}/{file.filename}"
+    storage_path = f"{current_user.id}/{assignment_id_str}/{file.filename}"
 
     try:
         client.storage.from_("attachments").upload(
@@ -56,7 +58,7 @@ async def upload_file(
         raise ValidationError("Failed to upload file to storage")
 
     attachment = await repo.create_attachment({
-        "assignment_id": assignment_id,
+        "assignment_id": assignment_id_str,
         "user_id": current_user.id,
         "file_name": file.filename or "unnamed",
         "file_type": file.content_type,
@@ -69,11 +71,12 @@ async def upload_file(
 
 @router.delete("/{attachment_id}")
 async def delete_upload(
-    attachment_id: str,
+    attachment_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, str]:
     repo = AssignmentRepository(access_token=current_user.access_token)
-    attachment = await repo.get_attachment(attachment_id, current_user.id)
+    attachment_id_str = str(attachment_id)
+    attachment = await repo.get_attachment(attachment_id_str, current_user.id)
     if not attachment:
         raise ValidationError("Attachment not found")
 
@@ -83,5 +86,5 @@ async def delete_upload(
     except Exception as e:
         logger.warning("Storage delete failed", extra={"error": str(e)})
 
-    await repo.delete_attachment(attachment_id, current_user.id)
+    await repo.delete_attachment(attachment_id_str, current_user.id)
     return {"message": "File deleted"}

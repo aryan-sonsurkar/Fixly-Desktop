@@ -197,7 +197,7 @@ class EmailService:
         existing = await self.repository.get_accounts(user_id)
         for acct in existing:
             if acct.get("email") == data.get("email"):
-                raise ValueError("Account already connected")
+                raise ValidationError("Account already connected")
 
         if data.get("provider") in ("yahoo", "zoho"):
             data = {**data, "provider": "other"}
@@ -224,9 +224,16 @@ class EmailService:
         return await self.repository.get_accounts(user_id)
 
     async def update_account(self, account_id: str, user_id: str, data: dict[str, Any]) -> dict[str, Any]:
-        return await self.repository.update_account(account_id, user_id, data)
+        existing = await self.repository.get_account(account_id, user_id)
+        if not existing:
+            raise NotFoundError("Account not found")
+        clean = {k: v for k, v in data.items() if v is not None}
+        return await self.repository.update_account(account_id, user_id, clean)
 
     async def delete_account(self, account_id: str, user_id: str) -> None:
+        existing = await self.repository.get_account(account_id, user_id)
+        if not existing:
+            raise NotFoundError("Account not found")
         await self.repository.delete_account(account_id, user_id)
 
     async def sync_account(self, account_id: str, user_id: str) -> dict[str, Any]:
@@ -320,6 +327,9 @@ class EmailService:
         return msg
 
     async def mark_read(self, message_id: str, user_id: str) -> dict[str, Any]:
+        existing = await self.repository.get_message(message_id, user_id)
+        if not existing:
+            raise NotFoundError("Message not found")
         return await self.repository.update_message(message_id, user_id, {"is_read": True})
 
     # ── Review Queue ──────────────────────────────────────

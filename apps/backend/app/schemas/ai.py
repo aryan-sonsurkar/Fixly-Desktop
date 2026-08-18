@@ -1,10 +1,13 @@
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.common import OptionalUUID
+
 
 class ChatRequest(BaseModel):
-    conversation_id: str | None = None
+    conversation_id: OptionalUUID = None
     message: str = Field(min_length=1, max_length=10000)
     stream: bool = False
 
@@ -85,8 +88,8 @@ class AISettingsResponse(BaseModel):
 
 
 class RegenerateRequest(BaseModel):
-    conversation_id: str
-    message_id: str
+    conversation_id: UUID
+    message_id: UUID
 
 
 class MessageFeedbackUpdate(BaseModel):

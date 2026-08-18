@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
@@ -39,23 +40,23 @@ async def list_accounts(
 
 @router.put("/accounts/{account_id}", response_model=EmailAccountResponse)
 async def update_account(
-    account_id: str,
+    account_id: UUID,
     body: EmailAccountUpdate,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = EmailService(access_token=current_user.access_token)
     return await service.update_account(
-        account_id, current_user.id, body.model_dump(exclude_none=True)
+        str(account_id), current_user.id, body.model_dump(exclude_none=True)
     )
 
 
 @router.delete("/accounts/{account_id}")
 async def delete_account(
-    account_id: str,
+    account_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, str]:
     service = EmailService(access_token=current_user.access_token)
-    await service.delete_account(account_id, current_user.id)
+    await service.delete_account(str(account_id), current_user.id)
     return {"message": "Account disconnected"}
 
 
@@ -63,18 +64,18 @@ async def delete_account(
 
 @router.post("/accounts/{account_id}/sync", response_model=EmailSyncResponse)
 async def sync_account(
-    account_id: str,
+    account_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = EmailService(access_token=current_user.access_token)
-    return await service.sync_account(account_id, current_user.id)
+    return await service.sync_account(str(account_id), current_user.id)
 
 
 # ── Messages ──────────────────────────────────────────────
 
 @router.get("/messages")
 async def list_messages(
-    account_id: str | None = None,
+    account_id: UUID | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
     unread_only: bool = False,
@@ -84,7 +85,7 @@ async def list_messages(
     service = EmailService(access_token=current_user.access_token)
     return await service.get_messages(
         current_user.id,
-        account_id=account_id,
+        account_id=str(account_id) if account_id else None,
         limit=page_size,
         offset=(page - 1) * page_size,
         unread_only=unread_only,
@@ -94,20 +95,20 @@ async def list_messages(
 
 @router.get("/messages/{message_id}", response_model=EmailMessageResponse)
 async def get_message(
-    message_id: str,
+    message_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = EmailService(access_token=current_user.access_token)
-    return await service.get_message(message_id, current_user.id)
+    return await service.get_message(str(message_id), current_user.id)
 
 
 @router.put("/messages/{message_id}/read", response_model=EmailMessageResponse)
 async def mark_read(
-    message_id: str,
+    message_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = EmailService(access_token=current_user.access_token)
-    return await service.mark_read(message_id, current_user.id)
+    return await service.mark_read(str(message_id), current_user.id)
 
 
 # ── Review Queue ──────────────────────────────────────────
@@ -122,13 +123,13 @@ async def get_review_queue(
 
 @router.put("/review-queue/{assignment_id}", response_model=EmailAssignmentResponse)
 async def review_assignment(
-    assignment_id: str,
+    assignment_id: UUID,
     body: EmailReviewAction,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = EmailService(access_token=current_user.access_token)
     return await service.review_assignment(
-        assignment_id, current_user.id, body.status, body.edits
+        str(assignment_id), current_user.id, body.status, body.edits
     )
 
 

@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 
@@ -41,53 +42,53 @@ async def upload_document(
 
 @router.post("/{document_id}/process")
 async def process_document(
-    document_id: str,
+    document_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = DocumentService(access_token=current_user.access_token)
-    return await service.process_document(document_id, current_user.id)
+    return await service.process_document(str(document_id), current_user.id)
 
 
 @router.get("/{document_id}", response_model=DocumentDetailResponse)
 async def get_document(
-    document_id: str,
+    document_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = DocumentService(access_token=current_user.access_token)
-    return await service.get_document_detail(document_id, current_user.id)
+    return await service.get_document_detail(str(document_id), current_user.id)
 
 
 @router.put("/{document_id}", response_model=DocumentResponse)
 async def update_document(
-    document_id: str,
+    document_id: UUID,
     body: DocumentUpdate,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = DocumentService(access_token=current_user.access_token)
     return await service.update_document(
-        document_id, current_user.id, body.model_dump(exclude_none=True)
+        str(document_id), current_user.id, body.model_dump(exclude_none=True)
     )
 
 
 @router.put("/{document_id}/rename", response_model=DocumentResponse)
 async def rename_document(
-    document_id: str,
+    document_id: UUID,
     body: DocumentRename,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = DocumentService(access_token=current_user.access_token)
     return await service.update_document(
-        document_id, current_user.id, {"original_name": body.original_name}
+        str(document_id), current_user.id, {"original_name": body.original_name}
     )
 
 
 @router.delete("/{document_id}")
 async def delete_document(
-    document_id: str,
+    document_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, str]:
     service = DocumentService(access_token=current_user.access_token)
-    await service.delete_document(document_id, current_user.id)
+    await service.delete_document(str(document_id), current_user.id)
     return {"message": "Document deleted"}
 
 
@@ -98,55 +99,58 @@ async def chat_with_document(
 ) -> dict[str, Any]:
     service = DocumentService(access_token=current_user.access_token)
     return await service.chat_with_document(
-        current_user.id, body.document_id, body.message, body.conversation_id
+        current_user.id,
+        str(body.document_id),
+        body.message,
+        str(body.conversation_id) if body.conversation_id else None,
     )
 
 
 @router.post("/{document_id}/summarize")
 async def summarize_document(
-    document_id: str,
+    document_id: UUID,
     body: DocumentSummaryRequest,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = DocumentService(access_token=current_user.access_token)
     return await service.generate_document_content(
-        current_user.id, document_id, "summarize", max_length=body.max_length
+        current_user.id, str(document_id), "summarize", max_length=body.max_length
     )
 
 
 @router.post("/{document_id}/notes")
 async def generate_notes(
-    document_id: str,
+    document_id: UUID,
     body: DocumentNotesRequest,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = DocumentService(access_token=current_user.access_token)
     return await service.generate_document_content(
-        current_user.id, document_id, "notes", style=body.style
+        current_user.id, str(document_id), "notes", style=body.style
     )
 
 
 @router.post("/{document_id}/flashcards")
 async def generate_flashcards(
-    document_id: str,
+    document_id: UUID,
     body: DocumentFlashcardsRequest,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = DocumentService(access_token=current_user.access_token)
     return await service.generate_document_content(
-        current_user.id, document_id, "flashcards", count=body.count
+        current_user.id, str(document_id), "flashcards", count=body.count
     )
 
 
 @router.post("/{document_id}/quiz")
 async def generate_quiz(
-    document_id: str,
+    document_id: UUID,
     body: DocumentQuizRequest,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = DocumentService(access_token=current_user.access_token)
     return await service.generate_document_content(
-        current_user.id, document_id, "quiz",
+        current_user.id, str(document_id), "quiz",
         count=body.count, difficulty=body.difficulty,
     )
 
@@ -155,7 +159,7 @@ async def generate_quiz(
 async def list_documents(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    subject_id: str | None = None,
+    subject_id: UUID | None = None,
     status: str | None = None,
     file_type: str | None = None,
     search: str | None = None,
@@ -166,7 +170,7 @@ async def list_documents(
     return await service.list_documents(current_user.id, {
         "page": page,
         "page_size": page_size,
-        "subject_id": subject_id,
+        "subject_id": str(subject_id) if subject_id else None,
         "status": status,
         "file_type": file_type,
         "search": search,

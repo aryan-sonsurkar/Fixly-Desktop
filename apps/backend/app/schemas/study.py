@@ -2,6 +2,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.schemas.common import OptionalUUID
+
 ACTIVITY_PATTERN = (
     r"^(pomodoro|assignment|ai_study|reading|manual|"
     r"email|ocr|pdf_analysis|quiz|flashcard|revision)$"
@@ -18,7 +20,7 @@ class PointsConfig(BaseModel):
 class StudySessionCreate(BaseModel):
     activity_type: str = Field(pattern=ACTIVITY_PATTERN)
     duration_minutes: int = Field(default=0, ge=0)
-    subject_id: str | None = None
+    subject_id: OptionalUUID = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

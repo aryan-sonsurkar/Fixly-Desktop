@@ -64,6 +64,8 @@ class AssignmentService:
         clean = {k: v for k, v in data.items() if v is not None}
         if clean:
             self._validate(clean, partial=True)
+        else:
+            return existing
         return await self.repository.update_assignment(assignment_id, user_id, clean)
 
     async def delete_assignment(self, assignment_id: str, user_id: str) -> None:

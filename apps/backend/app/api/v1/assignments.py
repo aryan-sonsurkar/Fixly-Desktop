@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
@@ -48,42 +49,42 @@ async def get_assignment_stats(
 
 @router.get("/{assignment_id}", response_model=AssignmentResponse)
 async def get_assignment(
-    assignment_id: str,
+    assignment_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = AssignmentService(access_token=current_user.access_token)
-    return await service.get_assignment(assignment_id, current_user.id)
+    return await service.get_assignment(str(assignment_id), current_user.id)
 
 
 @router.put("/{assignment_id}", response_model=AssignmentResponse)
 async def update_assignment(
-    assignment_id: str,
+    assignment_id: UUID,
     body: AssignmentUpdate,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = AssignmentService(access_token=current_user.access_token)
     return await service.update_assignment(
-        assignment_id, current_user.id, body.model_dump(exclude_none=True)
+        str(assignment_id), current_user.id, body.model_dump(exclude_none=True)
     )
 
 
 @router.delete("/{assignment_id}")
 async def delete_assignment(
-    assignment_id: str,
+    assignment_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, str]:
     service = AssignmentService(access_token=current_user.access_token)
-    await service.delete_assignment(assignment_id, current_user.id)
+    await service.delete_assignment(str(assignment_id), current_user.id)
     return {"message": "Assignment deleted"}
 
 
 @router.post("/{assignment_id}/duplicate", response_model=AssignmentResponse)
 async def duplicate_assignment(
-    assignment_id: str,
+    assignment_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = AssignmentService(access_token=current_user.access_token)
-    return await service.duplicate_assignment(assignment_id, current_user.id)
+    return await service.duplicate_assignment(str(assignment_id), current_user.id)
 
 
 @router.post("/bulk")
@@ -92,14 +93,16 @@ async def bulk_action(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = AssignmentService(access_token=current_user.access_token)
-    result, affected = await service.bulk_action(body.ids, current_user.id, body.action, body.value)
+    result, affected = await service.bulk_action(
+        [str(i) for i in body.ids], current_user.id, body.action, body.value
+    )
     return {"affected": affected, "data": result}
 
 
 @router.get("/{assignment_id}/attachments")
 async def get_assignment_attachments(
-    assignment_id: str,
+    assignment_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     service = AssignmentService(access_token=current_user.access_token)
-    return await service.get_attachments(assignment_id, current_user.id)
+    return await service.get_attachments(str(assignment_id), current_user.id)

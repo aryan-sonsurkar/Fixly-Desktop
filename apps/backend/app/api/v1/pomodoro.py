@@ -43,11 +43,11 @@ async def complete_session(
 
 @router.get("/sessions")
 async def get_sessions(
-    date: str | None = Query(default=None),
+    date: date_func | None = Query(default=None),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     service = PomodoroService(access_token=current_user.access_token)
-    target = date or str(date_func.today())
+    target = date.isoformat() if date else str(date_func.today())
     return await service.get_sessions_for_date(current_user.id, target)
 
 

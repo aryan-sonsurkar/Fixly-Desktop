@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends
 
@@ -30,30 +31,30 @@ async def create_subject(
 
 @router.get("/{subject_id}", response_model=SubjectResponse)
 async def get_subject(
-    subject_id: str,
+    subject_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = SubjectService(access_token=current_user.access_token)
-    return await service.get_subject(subject_id, current_user.id)
+    return await service.get_subject(str(subject_id), current_user.id)
 
 
 @router.put("/{subject_id}", response_model=SubjectResponse)
 async def update_subject(
-    subject_id: str,
+    subject_id: UUID,
     body: SubjectUpdate,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = SubjectService(access_token=current_user.access_token)
     return await service.update_subject(
-        subject_id, current_user.id, body.model_dump(exclude_none=True)
+        str(subject_id), current_user.id, body.model_dump(exclude_none=True)
     )
 
 
 @router.delete("/{subject_id}")
 async def delete_subject(
-    subject_id: str,
+    subject_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, str]:
     service = SubjectService(access_token=current_user.access_token)
-    await service.delete_subject(subject_id, current_user.id)
+    await service.delete_subject(str(subject_id), current_user.id)
     return {"message": "Subject deleted successfully"}

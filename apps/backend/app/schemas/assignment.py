@@ -1,7 +1,10 @@
 from datetime import datetime
 from typing import Any, Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+from app.schemas.common import OptionalUUID
 
 StatusEnum = Literal["pending", "in_progress", "completed", "cancelled", "overdue"]
 PriorityEnum = Literal["low", "medium", "high", "urgent"]
@@ -10,7 +13,7 @@ PriorityEnum = Literal["low", "medium", "high", "urgent"]
 class AssignmentCreate(BaseModel):
     title: str = Field(min_length=1, max_length=500)
     description: str | None = None
-    subject_id: str | None = None
+    subject_id: OptionalUUID = None
     priority: PriorityEnum = "medium"
     status: StatusEnum = "pending"
     due_date: datetime | None = None
@@ -24,7 +27,7 @@ class AssignmentCreate(BaseModel):
 class AssignmentUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=500)
     description: str | None = None
-    subject_id: str | None = None
+    subject_id: OptionalUUID = None
     priority: PriorityEnum | None = None
     status: StatusEnum | None = None
     due_date: datetime | None = None
@@ -60,7 +63,7 @@ class AssignmentResponse(BaseModel):
 
 
 class BulkActionRequest(BaseModel):
-    ids: list[str] = Field(min_length=1, max_length=100)
+    ids: list[UUID] = Field(min_length=1, max_length=100)
     action: str
     value: str | bool | None = None
 
@@ -69,7 +72,7 @@ class AssignmentsQuery(BaseModel):
     search: str | None = Field(default=None, max_length=200)
     status: str | None = None
     priority: str | None = None
-    subject_id: str | None = None
+    subject_id: OptionalUUID = None
     tags: list[str] | None = None
     is_archived: bool | None = False
     is_favorite: bool | None = None

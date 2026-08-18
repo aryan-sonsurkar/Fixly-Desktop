@@ -32,6 +32,8 @@ class SubjectService:
         if not existing:
             raise NotFoundError("Subject not found")
         clean = {k: v for k, v in data.items() if v is not None}
+        if not clean:
+            return existing
         return await self.repository.update_subject(subject_id, user_id, clean)
 
     async def delete_subject(self, subject_id: str, user_id: str) -> None:

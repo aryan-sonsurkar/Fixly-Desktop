@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
@@ -34,7 +35,7 @@ async def chat(
     return await service.chat(
         current_user.id,
         body.message,
-        body.conversation_id,
+        str(body.conversation_id) if body.conversation_id else None,
         body.stream,
     )
 
@@ -47,8 +48,8 @@ async def regenerate(
     service = AIService(access_token=current_user.access_token)
     return await service.regenerate(
         current_user.id,
-        body.conversation_id,
-        body.message_id,
+        str(body.conversation_id),
+        str(body.message_id),
     )
 
 
@@ -82,63 +83,63 @@ async def create_conversation(
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
 async def get_conversation(
-    conversation_id: str,
+    conversation_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = AIService(access_token=current_user.access_token)
-    return await service.get_conversation(conversation_id, current_user.id)
+    return await service.get_conversation(str(conversation_id), current_user.id)
 
 
 @router.put("/conversations/{conversation_id}", response_model=ConversationSummary)
 async def update_conversation(
-    conversation_id: str,
+    conversation_id: UUID,
     body: ConversationUpdate,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = AIService(access_token=current_user.access_token)
     updates = body.model_dump(exclude_none=True)
     return await service.update_conversation_properties(
-        conversation_id, current_user.id, updates
+        str(conversation_id), current_user.id, updates
     )
 
 
 @router.delete("/conversations/{conversation_id}")
 async def delete_conversation(
-    conversation_id: str,
+    conversation_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, str]:
     service = AIService(access_token=current_user.access_token)
-    await service.delete_conversation(conversation_id, current_user.id)
+    await service.delete_conversation(str(conversation_id), current_user.id)
     return {"message": "Conversation deleted"}
 
 
 @router.put("/messages/{message_id}/feedback", response_model=MessageResponse)
 async def set_message_feedback(
-    message_id: str,
+    message_id: UUID,
     body: MessageFeedbackUpdate,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = AIService(access_token=current_user.access_token)
-    return await service.set_message_feedback(message_id, current_user.id, body.feedback)
+    return await service.set_message_feedback(str(message_id), current_user.id, body.feedback)
 
 
 @router.put("/messages/{message_id}", response_model=MessageResponse)
 async def edit_message(
-    message_id: str,
+    message_id: UUID,
     body: MessageEditRequest,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = AIService(access_token=current_user.access_token)
-    return await service.edit_message(message_id, current_user.id, body.content)
+    return await service.edit_message(str(message_id), current_user.id, body.content)
 
 
 @router.delete("/messages/{message_id}")
 async def delete_message(
-    message_id: str,
+    message_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, str]:
     service = AIService(access_token=current_user.access_token)
-    await service.delete_message(message_id, current_user.id)
+    await service.delete_message(str(message_id), current_user.id)
     return {"message": "Message deleted"}
 
 

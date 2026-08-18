@@ -96,7 +96,7 @@ class DocumentService:
                     "processing_time_ms": ocr_result.get("processing_time_ms", 0),
                 }
             else:
-                raise ValueError(f"Unsupported file type for processing: {file_type}")
+                raise ValidationError(f"Unsupported file type for processing: {file_type}")
 
             await self.repository.update_document(document_id, user_id, {
                 "status": "processed",
@@ -223,7 +223,7 @@ class DocumentService:
 
         prompt = prompts.get(prompt_type)
         if not prompt:
-            raise ValueError(f"Unknown content type: {prompt_type}")
+            raise ValidationError(f"Unknown content type: {prompt_type}")
 
         conv = await self.ai_repo.create_conversation(user_id, f"{prompt_type.title()} from {name}")
         await self.repository.link_conversation(document_id, conv["id"], user_id)
@@ -288,6 +288,8 @@ class DocumentService:
         doc = await self.repository.get_document(document_id, user_id)
         if not doc:
             raise NotFoundError("Document not found")
+        if not updates:
+            return doc
         return await self.repository.update_document(document_id, user_id, updates)
 
     async def delete_document(self, document_id: str, user_id: str) -> None:

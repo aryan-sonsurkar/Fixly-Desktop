@@ -1,4 +1,5 @@
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 
@@ -54,11 +55,11 @@ async def create_notification(
 
 @router.put("/{notification_id}/read", response_model=NotificationResponse)
 async def mark_read(
-    notification_id: str,
+    notification_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = NotificationService(access_token=current_user.access_token)
-    return await service.mark_read(notification_id, current_user.id)
+    return await service.mark_read(str(notification_id), current_user.id)
 
 
 @router.put("/read-all", response_model=NotificationMarkReadResponse)
@@ -71,9 +72,9 @@ async def mark_all_read(
 
 @router.delete("/{notification_id}")
 async def delete_notification(
-    notification_id: str,
+    notification_id: UUID,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, str]:
     service = NotificationService(access_token=current_user.access_token)
-    await service.delete(notification_id, current_user.id)
+    await service.delete(str(notification_id), current_user.id)
     return {"message": "Notification deleted"}
