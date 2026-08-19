@@ -142,9 +142,12 @@ class SearchService:
     async def _search_notes(self, user_id: str, q: str, limit: int) -> list[dict[str, Any]]:
         try:
             convs = await self.ai_repo.list_conversations(user_id)
+            if not convs:
+                return []
+            messages_by_conv = await self.ai_repo.get_messages_bulk([c["id"] for c in convs])
             matches = []
             for c in convs:
-                msgs = await self.ai_repo.get_messages(c["id"])
+                msgs = messages_by_conv.get(c["id"], [])
                 for m in msgs:
                     content = (m.get("content", "") or "").lower()
                     if q in content:

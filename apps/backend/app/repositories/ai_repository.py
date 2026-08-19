@@ -120,6 +120,24 @@ class AIRepository:
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
         return cast(list[dict[str, Any]], data.get("data", []))
 
+    async def get_messages_bulk(self, conversation_ids: list[str]) -> dict[str, list[dict[str, Any]]]:
+        if not conversation_ids:
+            return {}
+        client = self._client
+        response = (
+            client.table("messages")
+            .select("*")
+            .in_("conversation_id", conversation_ids)
+            .order("created_at")
+            .execute()
+        )
+        data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
+        msgs = cast(list[dict[str, Any]], data.get("data", []))
+        by_conversation: dict[str, list[dict[str, Any]]] = {}
+        for m in msgs:
+            by_conversation.setdefault(m.get("conversation_id", ""), []).append(m)
+        return by_conversation
+
     async def create_message(
         self,
         conversation_id: str,
