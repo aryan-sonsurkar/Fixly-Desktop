@@ -7,6 +7,7 @@ a = Analysis(
     binaries=[],
     datas=[],
     hiddenimports=[
+        'pypdf',
         'cryptography',
         'cryptography.hazmat',
         'cryptography.hazmat.primitives',
@@ -21,6 +22,7 @@ a = Analysis(
         'app.core.jwt',
         'app.core.logging',
         'app.core.supabase',
+        'app.core.threads',
         'app.dependencies.auth',
         'app.prompts.manager',
         'app.prompts.registry',
