@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.schemas.auth import CurrentUser
+from app.schemas.auth import CurrentUser as CurrentUser
 from app.services.auth_service import AuthService
 
 security_scheme = HTTPBearer()
