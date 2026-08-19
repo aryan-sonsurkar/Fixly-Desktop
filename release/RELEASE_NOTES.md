@@ -88,6 +88,7 @@ In-app AI Settings can also select a provider and model.
 
 ## Known limitations
 
+- AI identity policy: the assistant always self-identifies as **Fixly AI** and is instructed to never volunteer the underlying model/provider. If a user *explicitly* asks which model is in use, current behavior is to decline rather than disclose the runtime provider. Aligning this to answer truthfully on explicit request is tracked for the next build (does not affect normal responses, which consistently identify as Fixly AI).
 - Windows x64 only (no macOS/Linux builds in this release).
 - Google login requires the provider to be enabled in the Supabase dashboard (App Auth → Google) with `fixly://auth/callback` added as a redirect URL.
 - AI features require Gemini or Ollama configuration; without either, AI interactions return a clean "provider unavailable" message.
