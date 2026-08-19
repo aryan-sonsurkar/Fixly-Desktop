@@ -26,12 +26,19 @@ class AIService:
             "gemini": GeminiProvider(),
         }
 
-    async def _resolve_provider(self, preferred: str, user_id: str | None = None) -> AIProvider:
+    async def _resolve_provider(
+        self,
+        preferred: str,
+        user_id: str | None = None,
+        settings_data: dict[str, Any] | None = None,
+    ) -> AIProvider:
         providers = self._get_providers()
         model_override: str | None = None
         if user_id:
-            s = await self.repository.get_ai_settings(user_id)
-            model_override = s.get("provider_model") if isinstance(s, dict) else None
+            if settings_data is None:
+                s = await self.repository.get_ai_settings(user_id)
+                settings_data = s if isinstance(s, dict) else {}
+            model_override = settings_data.get("provider_model") if isinstance(settings_data, dict) else None
 
         if preferred == "auto":
             for name in ("ollama", "gemini"):
@@ -99,7 +106,7 @@ class AIService:
         academic_context_enabled = bool(settings_data.get("academic_context", True))
         conversation_memory = int(settings_data.get("conversation_memory", 50))
 
-        provider = await self._resolve_provider(preferred, user_id)
+        provider = await self._resolve_provider(preferred, user_id, settings_data)
 
         await self.repository.create_message(conversation_id, user_id, "user", message, provider.name)
 
@@ -157,7 +164,7 @@ class AIService:
         academic_context_enabled = bool(settings_data.get("academic_context", True))
         conversation_memory = int(settings_data.get("conversation_memory", 50))
 
-        provider = await self._resolve_provider(preferred, user_id)
+        provider = await self._resolve_provider(preferred, user_id, settings_data)
 
         formatted = await self._format_messages(
             history, user_id, system_prompt_override, academic_context_enabled, conversation_memory

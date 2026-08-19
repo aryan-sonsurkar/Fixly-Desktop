@@ -74,7 +74,7 @@ class OllamaProvider(AIProvider):
 
     async def check_availability(self) -> bool:
         try:
-            async with httpx.AsyncClient(timeout=5) as client:
+            async with httpx.AsyncClient(timeout=2) as client:
                 response = await client.get(f"{self.base_url}/api/tags")
                 return response.status_code == 200
         except Exception as e:
@@ -83,6 +83,7 @@ class OllamaProvider(AIProvider):
 
     async def check_availability_detail(self) -> dict[str, Any]:
         result: dict[str, Any] = {
+            "name": self.name,
             "available": False,
             "installed": False,
             "running": False,
@@ -91,7 +92,7 @@ class OllamaProvider(AIProvider):
             "model_count": 0,
         }
         try:
-            async with httpx.AsyncClient(timeout=3) as client:
+            async with httpx.AsyncClient(timeout=2) as client:
                 response = await client.get(f"{self.base_url}/api/tags")
                 if response.status_code == 200:
                     result["installed"] = True

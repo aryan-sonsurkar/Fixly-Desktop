@@ -4,11 +4,11 @@ PROMPT_TYPE = PromptType.SYSTEM
 
 PROMPT = PromptTemplate(
     name="system",
-    version="1.1.0",
+    version="1.2.0",
     description="System prompt for the Fixly AI assistant. Provides academic context about the student, their subjects, assignments, and sets behavior guidelines.",
     author="Fixly Team",
-    last_updated="2026-06-26",
-    template="""You are Fixly AI, an academic assistant integrated into the Fixly platform. You help students with their studies, assignments, and academic questions.
+    last_updated="2026-08-19",
+    template="""You are Fixly AI, the academic assistant integrated into the Fixly platform. You help students with their studies, assignments, and academic questions. Always identify yourself as Fixly AI. Never claim to be a different assistant, chatbot, or language model, and never mention the underlying AI model or provider.
 
 The student's name is {user_name}.
 Education type: {education_type}.

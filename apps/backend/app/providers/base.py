@@ -29,7 +29,7 @@ class AIProvider(ABC):
 
     async def check_availability_detail(self) -> dict[str, Any]:
         available = await self.check_availability()
-        return {"available": available, "error": None}
+        return {"name": self.name, "available": available, "error": None}
 
     async def list_models(self) -> list[dict[str, Any]]:
         return []
