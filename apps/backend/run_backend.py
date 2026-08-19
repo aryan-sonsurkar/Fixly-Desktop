@@ -3,8 +3,6 @@ import os
 import socket
 import sys
 
-from app.main import app
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("port", nargs="?", type=int, default=8000)
@@ -21,5 +19,6 @@ if __name__ == "__main__":
             port = s.getsockname()[1]
     print(f"FIXLY_PORT:{port}", flush=True)
 
+    from app.main import app
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=port, reload=False)
