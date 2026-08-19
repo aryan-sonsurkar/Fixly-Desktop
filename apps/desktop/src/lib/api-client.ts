@@ -33,6 +33,34 @@ function getBaseUrl(): string {
   return "http://localhost:8000";
 }
 
+let adapterReadyPromise: Promise<void> | null = null;
+
+// Waits until the API client can actually reach the backend: the custom Tauri
+// HTTP adapter must be installed (it resolves the real random port per request)
+// AND the backend port must be known. Auth/session calls that run during the
+// very first React render must await this, otherwise they can fire before the
+// adapter is ready and target the stale default port (8000).
+export function ensureApiReady(timeoutMs = 20000): Promise<void> {
+  if (!isTauriRuntime()) return Promise.resolve();
+
+  if (!adapterReadyPromise) {
+    adapterReadyPromise = (async () => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        if (apiClient.defaults.adapter) {
+          await ensureBackendPort(timeoutMs);
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      throw new Error("API client not ready: Tauri HTTP adapter did not initialize");
+    })().finally(() => {
+      adapterReadyPromise = null;
+    });
+  }
+  return adapterReadyPromise;
+}
+
 let backendPortPromise: Promise<number> | null = null;
 
 // Resolves the real backend port from the Rust side. The desktop backend is
@@ -196,10 +224,22 @@ async function refreshTokens(): Promise<string | null> {
     const { access_token, refresh_token: newRefreshToken } = response.data;
     await setTokens({ accessToken: access_token, refreshToken: newRefreshToken });
     return access_token;
-  } catch {
-    await clearTokens();
+  } catch (error) {
+    // Only destroy the saved session when the server definitively rejected the
+    // refresh token (4xx). Transient failures (backend still starting, network
+    // blip) must NOT wipe valid stored tokens.
+    if (isDefinitiveAuthRejection(error)) {
+      await clearTokens();
+    }
     return null;
   }
+}
+
+// A request that the server actively rejects (4xx) means the credentials are
+// invalid/expired. Network errors and 5xx mean the backend is unreachable,
+// which is transient and must never trigger a session wipe.
+function isDefinitiveAuthRejection(error: unknown): boolean {
+  return error instanceof AxiosError && !!error.response && error.response.status >= 400 && error.response.status < 500;
 }
 
 apiClient.interceptors.request.use(

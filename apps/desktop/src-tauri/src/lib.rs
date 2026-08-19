@@ -204,6 +204,27 @@ fn ensure_env_file(app: &AppHandle) -> Option<std::path::PathBuf> {
     None
 }
 
+/// Keep draining the backend's stdout pipe after the port has been detected.
+///
+/// The backend keeps writing logs (uvicorn access logs, app logs) for the whole
+/// session. If nothing reads them, the pipe buffer (a few KB on Windows) fills up
+/// and the backend blocks on its next write, freezing its event loop so every
+/// request times out. Draining the pipe in the background prevents this.
+fn drain_backend_stdout(mut reader: BufReader<std::process::ChildStdout>) {
+    thread::spawn(move || {
+        let mut buf = String::new();
+        loop {
+            buf.clear();
+            match reader.read_line(&mut buf) {
+                Ok(0) | Err(_) => break,
+                Ok(_) => {
+                    // Read and discard; only draining matters.
+                }
+            }
+        }
+    });
+}
+
 fn start_backend_exe(app: AppHandle, state: Arc<Mutex<BackendState>>, exe_path: std::path::PathBuf) {
     {
         if let Ok(mut s) = state.lock() {
@@ -251,7 +272,7 @@ fn start_backend_exe(app: AppHandle, state: Arc<Mutex<BackendState>>, exe_path: 
         }
     }
 
-    let reader = match stdout {
+    let mut reader = match stdout {
         Some(out) => BufReader::new(out),
         None => {
             if let Ok(mut s) = state.lock() {
@@ -263,10 +284,13 @@ fn start_backend_exe(app: AppHandle, state: Arc<Mutex<BackendState>>, exe_path: 
     };
 
     let mut port: Option<u16> = None;
-    for line in reader.lines() {
-        match line {
-            Ok(line) => {
-                if let Some(port_str) = line.strip_prefix("FIXLY_PORT:") {
+    loop {
+        let mut line = String::new();
+        match reader.read_line(&mut line) {
+            Ok(0) => break,
+            Ok(_) => {
+                let trimmed = line.trim_end();
+                if let Some(port_str) = trimmed.strip_prefix("FIXLY_PORT:") {
                     if let Ok(p) = port_str.trim().parse::<u16>() {
                         port = Some(p);
                         if let Ok(mut s) = state.lock() {
@@ -290,7 +314,11 @@ fn start_backend_exe(app: AppHandle, state: Arc<Mutex<BackendState>>, exe_path: 
     }
 
     let port = match port {
-        Some(p) => p,
+        Some(p) => {
+            // Keep reading so the backend's stdout pipe never fills up.
+            drain_backend_stdout(reader);
+            p
+        }
         None => {
             if let Ok(mut s) = state.lock() {
                 s.stage = "error".to_string();
@@ -396,7 +424,7 @@ fn start_backend(app: AppHandle, state: Arc<Mutex<BackendState>>) {
         }
     }
 
-    let reader = match stdout {
+    let mut reader = match stdout {
         Some(out) => BufReader::new(out),
         None => {
             if let Ok(mut s) = state.lock() {
@@ -408,10 +436,13 @@ fn start_backend(app: AppHandle, state: Arc<Mutex<BackendState>>) {
     };
 
     let mut port: Option<u16> = None;
-    for line in reader.lines() {
-        match line {
-            Ok(line) => {
-                if let Some(port_str) = line.strip_prefix("FIXLY_PORT:") {
+    loop {
+        let mut line = String::new();
+        match reader.read_line(&mut line) {
+            Ok(0) => break,
+            Ok(_) => {
+                let trimmed = line.trim_end();
+                if let Some(port_str) = trimmed.strip_prefix("FIXLY_PORT:") {
                     if let Ok(p) = port_str.trim().parse::<u16>() {
                         port = Some(p);
                         if let Ok(mut s) = state.lock() {
@@ -435,7 +466,11 @@ fn start_backend(app: AppHandle, state: Arc<Mutex<BackendState>>) {
     }
 
     let port = match port {
-        Some(p) => p,
+        Some(p) => {
+            // Keep reading so the backend's stdout pipe never fills up.
+            drain_backend_stdout(reader);
+            p
+        }
         None => {
             if let Ok(mut s) = state.lock() {
                 s.stage = "error".to_string();

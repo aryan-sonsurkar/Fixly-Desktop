@@ -1,10 +1,20 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { AxiosError } from "axios";
 import { useAuthStore, type AuthUser } from "@/stores/auth-store";
 import { setTokens, clearTokens, restoreSession, saveProfile, type AuthTokens } from "@/lib/secure-storage";
-import apiClient from "@/lib/api-client";
+import apiClient, { ensureApiReady } from "@/lib/api-client";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("auth-context");
+
+// A 4xx response means the server actively rejected the credentials (invalid or
+// expired token) — the correct time to wipe a session. Network errors and 5xx
+// are transient (backend still starting, one-off blip) and must never destroy
+// stored tokens, otherwise every launch that races the backend boot force-logs
+// the user out.
+function isDefinitiveAuthRejection(error: unknown): boolean {
+  return error instanceof AxiosError && !!error.response && error.response.status >= 400 && error.response.status < 500;
+}
 
 export interface AuthContextValue {
   user: AuthUser | null;
@@ -77,6 +87,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const tokens = await restoreSession();
       if (!tokens) return false;
 
+      // Wait for the API client to target the real backend port before making
+      // the refresh call. During cold start the auth effect can otherwise fire
+      // before the Tauri adapter is installed, hitting the default port and
+      // failing with a network error.
+      await ensureApiReady();
+
       const response = await apiClient.post("/api/v1/auth/refresh", {
         refresh_token: tokens.refreshToken,
       });
@@ -85,8 +101,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return true;
     } catch (error) {
       logger.error("Session refresh failed", error);
-      clearAuth();
-      await clearTokens();
+      // Only wipe when the server definitively rejected the refresh token.
+      // Keep the tokens on transient failures so a cold-start race doesn't
+      // permanently log the user out.
+      if (isDefinitiveAuthRejection(error)) {
+        clearAuth();
+        await clearTokens();
+      }
       return false;
     }
   }, [handleAuthResponse, clearAuth]);
@@ -176,6 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       try {
+        await ensureApiReady();
         const response = await apiClient.get("/api/v1/auth/me", {
           headers: { Authorization: `Bearer ${tokens.accessToken}` },
         });
@@ -183,10 +205,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAuth(tokens.accessToken, response.data);
           setIsLoading(false);
         }
-      } catch {
-        await clearTokens();
+      } catch (error) {
+        logger.warn("Restore via access token failed", error);
+        // Never wipe the stored refresh token here: an expired access token is
+        // expected, and the refresh token may still be valid for a later
+        // attempt. Wiping on this path could permanently log the user out.
         if (!cancelled) {
-          clearAuth();
           setIsLoading(false);
         }
       }
