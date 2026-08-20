@@ -88,6 +88,7 @@ In-app AI Settings can also select a provider and model.
 
 ## Known limitations
 
+- **Google sign-in is pending external setup** — the app/backend are ready, but the Google provider is not yet enabled because a Google Cloud OAuth client does not exist yet. Until the owner creates one (Google Cloud Console → OAuth client ID, application type **Desktop app**) and enables it in Supabase (Authentication → Providers → Google, redirect URL `fixly://auth/callback`), clicking "Continue with Google" shows "Could not start Google sign-in. Please try again." This is a graceful, non-breaking state; the email signup flow is fully functional. Expected to be configured before/around launch.
 - AI identity policy: the assistant always self-identifies as **Fixly AI** and is instructed to never volunteer the underlying model/provider. If a user *explicitly* asks which model is in use, current behavior is to decline rather than disclose the runtime provider. Aligning this to answer truthfully on explicit request is tracked for the next build (does not affect normal responses, which consistently identify as Fixly AI).
 - Windows x64 only (no macOS/Linux builds in this release).
 - Google login requires the provider to be enabled in the Supabase dashboard (App Auth → Google) with `fixly://auth/callback` added as a redirect URL.
