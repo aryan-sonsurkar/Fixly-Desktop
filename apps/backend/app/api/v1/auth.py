@@ -168,9 +168,8 @@ async def google_oauth_callback(
 
     try:
         result = await service.handle_google_callback(code, redirect_uri)
-        session = result.get("session") or {}
-        access_token = session.get("access_token", "")
-        refresh_token = session.get("refresh_token", "")
+        access_token = result.get("access_token", "")
+        refresh_token = result.get("refresh_token", "")
 
         if settings.environment == "development":
             frontend_url = request.headers.get("origin", "http://localhost:1420")

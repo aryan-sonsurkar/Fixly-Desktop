@@ -28,6 +28,14 @@ export interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+export function isAuthDeepLink(url: URL): boolean {
+  return (
+    url.pathname === "/auth/callback" ||
+    url.pathname === "/auth/verified" ||
+    (url.protocol === "fixly:" && url.host === "auth" && (url.pathname === "/callback" || url.pathname === "/verified"))
+  );
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, setAuth, clearAuth } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
@@ -117,7 +125,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let unlisten: (() => void) | null = null;
 
     const setupDeepLinkListener = async () => {
-      if (typeof window !== "undefined" && (window as { __TAURI__?: unknown }).__TAURI__) {
+      const tauriWindow = typeof window !== "undefined" ? (window as { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown }) : null;
+      if (tauriWindow?.__TAURI__ || tauriWindow?.__TAURI_INTERNALS__) {
         try {
           const { getCurrent, onOpenUrl } = await import("@tauri-apps/plugin-deep-link");
           const { googleCallback } = await import("@/lib/auth-service");
@@ -135,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
               const url = new URL(uri);
 
-              if (url.pathname === "/auth/callback" || url.pathname === "/auth/verified") {
+              if (isAuthDeepLink(url)) {
                 const code = url.searchParams.get("code");
                 const accessToken = url.searchParams.get("access_token") || url.hash.split("access_token=")[1]?.split("&")[0];
                 const refreshToken = url.searchParams.get("refresh_token") || url.hash.split("refresh_token=")[1]?.split("&")[0];
