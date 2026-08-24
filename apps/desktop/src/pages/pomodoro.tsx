@@ -32,11 +32,15 @@ export function PomodoroPage() {
   const { data: settingsData } = useQuery({
     queryKey: ["pomodoro-settings"],
     queryFn: getPomodoroSettings,
+    staleTime: 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const { data: analyticsData } = useQuery({
     queryKey: ["pomodoro-analytics"],
     queryFn: getPomodoroAnalytics,
+    staleTime: 30 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   useEffect(() => {

@@ -1,4 +1,3 @@
-import { motion } from "framer-motion";
 import { Button } from "@fixly/ui";
 import type { Assignment } from "@fixly/shared-types";
 
@@ -48,9 +47,8 @@ export function AssignmentCard({
     new Date(assignment.due_date).getTime() - Date.now() < 86400000 * 2;
 
   return (
-    <motion.div
-      layout
-      className={`group relative rounded-lg border bg-card p-4 transition-all hover:shadow-md ${
+    <div
+      className={`group relative rounded-lg border bg-card p-4 transition-all hover:shadow-md focus-within:shadow-md ${
         isSelected ? "border-primary ring-1 ring-primary" : ""
       } ${isOverdue ? "border-l-4 border-l-red-500" : isDueSoon ? "border-l-4 border-l-orange-400" : ""}`}
     >
@@ -74,7 +72,7 @@ export function AssignmentCard({
                 <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
               </svg>
             )}
-            <p className="truncate text-sm font-medium">{assignment.title}</p>
+            <p className="truncate text-sm font-medium" title={assignment.title}>{assignment.title}</p>
           </div>
           <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
             {subjectName && (
@@ -102,7 +100,7 @@ export function AssignmentCard({
           {assignment.status.replace("_", " ")}
         </span>
 
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity">
           <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>
           <Button variant="ghost" size="sm" onClick={onDuplicate}>Copy</Button>
           <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={onDelete}>
@@ -110,6 +108,6 @@ export function AssignmentCard({
           </Button>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

@@ -47,19 +47,32 @@ class DashboardService:
         upcoming = [d for d in pending if d.get("due", "") <= week_from_now]
 
         productivity_score = self._calc_productivity(study_data)
-        today_session = await self.study_repo.get_day(user_id, today)
-        today_xp = (today_session or {}).get("study_points", 0)
+        # Parallelize tail queries (was 3 sequential ~450ms)
+        import asyncio
 
-        try:
-            recent_docs = await self.document_repo.get_recent_documents(user_id, limit=5)
-        except Exception:
-            recent_docs = []
+        async def _get_today_xp() -> int:
+            try:
+                sess = await self.study_repo.get_day(user_id, today)
+                return (sess or {}).get("study_points", 0)
+            except Exception:
+                return 0
 
-        try:
-            unread_notifs, _ = await self.notification_repo.list_notifications(user_id, unread_only=True, limit=10)
-            unread_notif_count = len(unread_notifs)
-        except Exception:
-            unread_notif_count = 0
+        async def _get_docs() -> list[dict[str, Any]]:
+            try:
+                return await self.document_repo.get_recent_documents(user_id, limit=5)
+            except Exception:
+                return []
+
+        async def _get_unread() -> int:
+            try:
+                unread, _ = await self.notification_repo.list_notifications(user_id, unread_only=True, limit=10)
+                return len(unread)
+            except Exception:
+                return 0
+
+        today_xp, recent_docs, unread_notif_count = await asyncio.gather(
+            _get_today_xp(), _get_docs(), _get_unread()
+        )
 
         overdue = [a for a in assignments_data.get("deadlines", []) if a.get("status") == "overdue"]
         due_today_count = sum(1 for a in assignments_data.get("deadlines", [])

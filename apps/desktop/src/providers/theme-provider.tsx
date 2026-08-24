@@ -18,9 +18,19 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   useEffect(() => {
     const root = document.documentElement;
+    const resolved = theme === "system" ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light") : theme;
     root.classList.remove("light", "dark", "dark-cyberpunk");
-    root.classList.add(theme);
+    root.classList.add(resolved);
     localStorage.setItem(STORAGE_KEYS.THEME, theme);
+    if (theme === "system") {
+      const m = window.matchMedia("(prefers-color-scheme: dark)");
+      const onChange = (e: MediaQueryListEvent) => {
+        root.classList.remove("light", "dark", "dark-cyberpunk");
+        root.classList.add(e.matches ? "dark" : "light");
+      };
+      m.addEventListener("change", onChange);
+      return () => m.removeEventListener("change", onChange);
+    }
   }, [theme]);
 
   return <>{children}</>;

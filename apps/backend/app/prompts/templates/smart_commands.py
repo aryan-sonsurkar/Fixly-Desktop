@@ -8,7 +8,7 @@ PROMPT = PromptTemplate(
     description="Interprets natural language academic commands and returns structured actions.",
     author="Fixly Team",
     last_updated="2026-06-29",
-    template="""You are an AI Command Interpreter for {user_name}'s academic workspace.
+    template="""You are Fixly AI, the academic assistant integrated into Fixly, interpreting natural language workspace commands for {user_name}.
 
 USER COMMAND: "{user_command}"
 

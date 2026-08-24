@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Skeleton } from "@fixly/ui";
 import { getDashboard } from "@/lib/dashboard-service";
-import { getStudyStatistics } from "@/lib/study-service";
 import { generateDailyPlan } from "@/lib/planner-service";
 import { getDailyMission, assessRisk } from "@/lib/copilot-service";
 import { useDashboardStore } from "@/stores/dashboard-store";
@@ -56,12 +55,10 @@ export function DashboardPage() {
     queryKey: ["dashboard"],
     queryFn: getDashboard,
     retry: 1,
-  });
-
-  const { data: studyStats } = useQuery({
-    queryKey: ["study-statistics"],
-    queryFn: getStudyStatistics,
-    retry: 1,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev,
   });
 
   useEffect(() => {
@@ -135,6 +132,15 @@ export function DashboardPage() {
 
   const handleDragEnd = () => {
     dragItem.current = null;
+    // Persist new order to store (fix drag lost on refresh)
+    try {
+      const { reorderWidgets } = useDashboardStore.getState() as unknown as { reorderWidgets?: (ids: string[]) => void };
+      if (reorderWidgets) reorderWidgets(orderedWidgets.map((w) => w.id));
+      else {
+        // fallback: save to localStorage
+        localStorage.setItem("fixly:widget_order", JSON.stringify(orderedWidgets.map((w) => w.id)));
+      }
+    } catch { /* ignore */ }
   };
 
   if (isError && !rawData) {
@@ -153,26 +159,24 @@ export function DashboardPage() {
             onClick={() => window.location.reload()}
             className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
           >
-            Reload
+            Try again
           </button>
+          <p className="mt-2 text-xs text-muted-foreground">If this persists, check your connection or restart Fixly.</p>
         </div>
       </div>
     );
   }
 
-  if (queryLoading || loading) {
+  const showSkeleton = (queryLoading || loading) && !rawData && !data;
+  if (showSkeleton) {
     return (
-      <div className="mx-auto max-w-7xl space-y-6 p-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-4 w-48" />
+      <div className="mx-auto max-w-7xl space-y-6 p-6 animate-in fade-in duration-100">
+        <Skeleton className="h-8 w-64 animate-pulse" />
+        <Skeleton className="h-4 w-48 animate-pulse" />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl animate-pulse" />)}
         </div>
-        <Skeleton className="h-64 rounded-xl" />
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Skeleton className="h-48 rounded-xl" />
-          <Skeleton className="h-48 rounded-xl" />
-        </div>
+        <Skeleton className="h-64 rounded-xl animate-pulse" />
       </div>
     );
   }
@@ -187,6 +191,12 @@ export function DashboardPage() {
 
   const parsedAlerts = (() => {
     if (!risk?.content) return [];
+    try {
+      // First try full JSON parse
+      const parsed = JSON.parse(risk.content);
+      if (Array.isArray(parsed.alerts)) return parsed.alerts;
+      if (Array.isArray(parsed)) return parsed;
+    } catch { /* try regex fallback */ }
     try {
       const jsonMatch = risk.content.match(/\{[\s\S]*"alerts"[\s\S]*\}/);
       if (jsonMatch) {
@@ -232,17 +242,17 @@ export function DashboardPage() {
     momentum: (
       <MomentumWidget
         streak={profile.streak}
-        weeklyHours={studyStats?.total_study_hours ?? 0}
-        weeklyCycles={0}
-        studyDays={studyStats?.total_study_days ?? 0}
+        weeklyHours={data?.study?.total_hours ?? 0}
+        weeklyCycles={data?.study?.total_hours ? Math.round(data.study.total_hours * 2) : 0}
+        studyDays={data?.study?.study_days ?? 0}
         loading={false}
       />
     ),
     focus: (
       <FocusWidget
-        focusMinutes={stats.total || 0}
+        focusMinutes={data?.study?.total_hours ? Math.round(data.study.total_hours * 60) : 0}
         date={new Date().toISOString()}
-        xpEarned={studyStats?.total_study_points || 0}
+        xpEarned={data?.today?.xp_earned ?? 0}
       />
     ),
     tasks: (
@@ -297,16 +307,12 @@ export function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-6">
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex items-center justify-between"
-      >
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">{formatGreeting(profile.display_name)}</h1>
           <p className="text-sm text-muted-foreground">{todayString()}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-1.5">
             <svg className="h-4 w-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
@@ -320,7 +326,7 @@ export function DashboardPage() {
             <span className="text-sm font-semibold">{profile.streak} day streak</span>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -344,11 +350,8 @@ export function DashboardPage() {
         {orderedWidgets
           .filter((w) => topRowTypes.includes(w.type))
           .map((widget) => (
-            <motion.div
+            <div
               key={widget.id}
-              layout
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
               draggable
               onDragStart={() => handleDragStart(orderedWidgets.indexOf(widget))}
               onDragOver={(e) => handleDragOver(e, orderedWidgets.indexOf(widget))}
@@ -356,34 +359,22 @@ export function DashboardPage() {
               className="cursor-grab active:cursor-grabbing"
             >
               {widgetComponents[widget.type]}
-            </motion.div>
+            </div>
           ))}
       </div>
 
       {orderedWidgets
         .filter((w) => midRowTypes.includes(w.type))
         .map((widget) => (
-          <motion.div
-            key={widget.id}
-            layout
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            {widgetComponents[widget.type]}
-          </motion.div>
+          <div key={widget.id}>{widgetComponents[widget.type]}</div>
         ))}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {orderedWidgets
           .filter((w) => bottomRowTypes.includes(w.type))
           .map((widget) => (
-            <motion.div
+            <div
               key={widget.id}
-              layout
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 }}
               draggable
               onDragStart={() => handleDragStart(orderedWidgets.indexOf(widget))}
               onDragOver={(e) => handleDragOver(e, orderedWidgets.indexOf(widget))}
@@ -391,7 +382,7 @@ export function DashboardPage() {
               className="cursor-grab active:cursor-grabbing"
             >
               {widgetComponents[widget.type]}
-            </motion.div>
+            </div>
           ))}
       </div>
     </div>

@@ -30,7 +30,8 @@ export function PlannerPage() {
     }
   };
 
-  useEffect(() => { if (!dailyPlan && !weeklyPlan && !revisionPlan) generate(); }, []);
+  // instant load — no auto AI generation (was ~8s spinner on every open)
+  // user clicks Generate when ready
 
   const currentPlan = activeView === "daily" ? dailyPlan : activeView === "weekly" ? weeklyPlan : revisionPlan;
   const isLoading = activeView === "daily" ? loadingDaily : activeView === "weekly" ? loadingWeekly : loadingRevision;

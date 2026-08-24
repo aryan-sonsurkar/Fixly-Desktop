@@ -163,21 +163,21 @@ async def update_ai_settings(
 
 
 @router.get("/providers")
-async def check_providers() -> dict[str, bool]:
-    service = AIService()
+async def check_providers(current_user: CurrentUser = Depends(get_current_user)) -> dict[str, bool]:
+    service = AIService(access_token=current_user.access_token)
     return await service.check_availability()
 
 
 @router.get("/providers/detail", response_model=ProviderDetailResponse)
-async def check_providers_detail() -> dict[str, dict[str, Any]]:
-    service = AIService()
+async def check_providers_detail(current_user: CurrentUser = Depends(get_current_user)) -> dict[str, dict[str, Any]]:
+    service = AIService(access_token=current_user.access_token)
     providers_data = await service.check_providers_detail()
     return {"providers": providers_data}
 
 
 @router.get("/providers/ollama/models")
-async def list_ollama_models() -> list[dict[str, Any]]:
-    service = AIService()
+async def list_ollama_models(current_user: CurrentUser = Depends(get_current_user)) -> list[dict[str, Any]]:
+    service = AIService(access_token=current_user.access_token)
     return await service.list_ollama_models()
 
 

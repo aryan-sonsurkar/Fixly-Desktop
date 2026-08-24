@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion } from "framer-motion";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Input, Label, Skeleton } from "@fixly/ui";
 import { getMyProfile, updateMyProfile } from "@/lib/profile-service";
 import { createLogger } from "@/lib/logger";
@@ -24,10 +25,7 @@ const profileSchema = z.object({
 type ProfileForm = z.infer<typeof profileSchema>;
 
 export function ProfilePage() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
+  const queryClient = useQueryClient();
   const form = useForm<ProfileForm>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -42,73 +40,47 @@ export function ProfilePage() {
       roll_number: "",
     },
   });
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const profile = await getMyProfile();
-        form.reset({
-          full_name: profile.full_name || "",
-          display_name: profile.display_name || "",
-          education_type: profile.education_type || "",
-          education_year: profile.education_year || "",
-          college_name: profile.college_name || "",
-          university_board: profile.university_board || "",
-          branch_stream: profile.branch_stream || "",
-          division: profile.division || "",
-          roll_number: profile.roll_number || "",
-        });
-      } catch (err) {
-        logger.error("Failed to load profile", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [form]);
-
-  const onSubmit = form.handleSubmit(async (data) => {
-    setSaving(true);
-    setSaved(false);
-    try {
-      await updateMyProfile(data);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      logger.error("Failed to save profile", err);
-    } finally {
-      setSaving(false);
-    }
+  const { data: profile, isLoading: loading } = useQuery({
+    queryKey: ["profile"],
+    queryFn: getMyProfile,
+    staleTime: 60 * 1000,
+    placeholderData: (prev) => prev,
   });
-
-  if (loading) {
+  useEffect(() => {
+    if (profile) {
+      form.reset({
+        full_name: profile.full_name || "",
+        display_name: profile.display_name || "",
+        education_type: profile.education_type || "",
+        education_year: profile.education_year || "",
+        college_name: profile.college_name || "",
+        university_board: profile.university_board || "",
+        branch_stream: profile.branch_stream || "",
+        division: profile.division || "",
+        roll_number: profile.roll_number || "",
+      });
+    }
+  }, [profile, form]);
+  const saveMut = useMutation({
+    mutationFn: (data: ProfileForm) => updateMyProfile(data),
+    onSuccess: (data) => { queryClient.setQueryData(["profile"], data); },
+    onError: (err) => { logger.error("Failed to save profile", err); },
+  });
+  const onSubmit = form.handleSubmit(async (data) => {
+    saveMut.mutate(data);
+  });
+  const saving = saveMut.isPending;
+  const saved = saveMut.isSuccess;
+  if (loading && !profile) {
     return (
-      <div className="mx-auto max-w-2xl space-y-8 p-6">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-4 w-56" />
+      <div className="mx-auto max-w-2xl space-y-8 p-6 animate-in fade-in duration-100">
+        <Skeleton className="h-8 w-32 animate-pulse" />
+        <Skeleton className="h-4 w-56 animate-pulse" />
         <div className="space-y-4 rounded-lg border p-6">
-          <Skeleton className="h-6 w-24" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full animate-pulse" />
+          <Skeleton className="h-10 w-full animate-pulse" />
         </div>
-        <div className="space-y-4 rounded-lg border p-6">
-          <Skeleton className="h-6 w-24" />
-          <div className="grid grid-cols-2 gap-4">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        </div>
-        <div className="space-y-4 rounded-lg border p-6">
-          <Skeleton className="h-6 w-24" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <div className="grid grid-cols-2 gap-4">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        </div>
-        <Skeleton className="h-10 w-32" />
+        <Skeleton className="h-10 w-32 animate-pulse" />
       </div>
     );
   }

@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.core.rate_limiter import auth_limiter
+
 from app.config import settings
 from app.dependencies.auth import CurrentUser, get_current_user
 from app.schemas.auth import (
@@ -23,14 +25,16 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
 @router.post("/signup", response_model=AuthResponse)
-async def sign_up(body: SignUpRequest) -> dict[str, Any]:
+async def sign_up(body: SignUpRequest, request: Request) -> dict[str, Any]:
+    auth_limiter.check(request)
     service = AuthService()
     result = await service.sign_up(body.email, body.password, body.full_name)
     return result
 
 
 @router.post("/signin", response_model=AuthResponse)
-async def sign_in(body: SignInRequest) -> dict[str, Any]:
+async def sign_in(body: SignInRequest, request: Request) -> dict[str, Any]:
+    auth_limiter.check(request)
     service = AuthService()
     result = await service.sign_in(body.email, body.password)
     return result
@@ -46,7 +50,8 @@ async def sign_out(
 
 
 @router.post("/refresh", response_model=AuthResponse)
-async def refresh(body: RefreshTokenRequest) -> dict[str, Any]:
+async def refresh(body: RefreshTokenRequest, request: Request) -> dict[str, Any]:
+    auth_limiter.check(request)
     service = AuthService()
     result = await service.refresh_token(body.refresh_token)
     return result
@@ -63,14 +68,16 @@ async def get_me(current_user: CurrentUser = Depends(get_current_user)) -> dict[
 
 
 @router.post("/forgot-password")
-async def forgot_password(body: ForgotPasswordRequest) -> dict[str, str]:
+async def forgot_password(body: ForgotPasswordRequest, request: Request) -> dict[str, str]:
+    auth_limiter.check(request)
     service = AuthService()
     await service.forgot_password(body.email)
     return {"message": "Password reset email sent"}
 
 
 @router.post("/reset-password")
-async def reset_password(body: ResetPasswordRequest) -> dict[str, str]:
+async def reset_password(body: ResetPasswordRequest, request: Request) -> dict[str, str]:
+    auth_limiter.check(request)
     service = AuthService()
     await service.validate_token(body.access_token)
     await service.reset_password(body.access_token, body.new_password)
@@ -78,7 +85,8 @@ async def reset_password(body: ResetPasswordRequest) -> dict[str, str]:
 
 
 @router.post("/resend-verification")
-async def resend_verification(body: ResendVerificationRequest) -> dict[str, str]:
+async def resend_verification(body: ResendVerificationRequest, request: Request) -> dict[str, str]:
+    auth_limiter.check(request)
     service = AuthService()
     await service.resend_verification(body.email)
     return {"message": "Verification email sent"}
@@ -109,10 +117,31 @@ async def verify_email(
         return RedirectResponse(url="fixly://auth/login?error=verification_failed")
 
 
-@router.get("/google/url")
-async def google_auth_url() -> dict[str, str]:
+@router.get("/google/status")
+async def google_auth_status() -> dict[str, Any]:
+    """Lightweight check so frontend can disable the button when provider not configured."""
+
+    # Probe once – if get_google_auth_url would throw, we report unavailable
     service = AuthService()
-    url = await service.get_google_auth_url()
+    try:
+        # Try to generate URL but do not return it; just test provider
+        # Use a cheap path: check supabase config via env flag
+        import os
+
+        google_secret = os.environ.get("SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET", "")
+        # Also check supabase/config.toml enabled flag could be false in dev
+        if not google_secret and settings.environment == "development":
+            return {"enabled": False, "reason": "Google OAuth not configured in development. Use email sign-in."}
+        url = await service.get_google_auth_url()
+        return {"enabled": bool(url), "url": url}
+    except Exception as e:
+        return {"enabled": False, "reason": str(e)}
+
+
+@router.get("/google/url")
+async def google_auth_url(redirect_to: str | None = None) -> dict[str, str]:
+    service = AuthService()
+    url = await service.get_google_auth_url(redirect_to)
     return {"url": url}
 
 

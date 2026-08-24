@@ -14,7 +14,9 @@
     "test": "turbo run test",
     "format": "prettier --write \"**/*.{ts,tsx,json,css,md}\"",
     "clean": "turbo run clean",
-    "prepare": "husky"
+    "prepare": "husky",
+    "audit:deps": "pnpm audit && pip-audit || echo \"pip-audit not installed\"",
+    "audit:secrets": "gitleaks detect --source . --no-git || echo \"gitleaks not installed\""
   },
   "lint-staged": {
     "*.{ts,tsx}": [

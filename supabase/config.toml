@@ -71,18 +71,13 @@ enabled = true
 sql_paths = ["./seed.sql"]
 
 [db.network_restrictions]
-# Enable management of network restrictions.
-enabled = false
-# List of IPv4 CIDR blocks allowed to connect to the database.
-# Defaults to allow all IPv4 connections. Set empty array to block all IPs.
-allowed_cidrs = ["0.0.0.0/0"]
-# List of IPv6 CIDR blocks allowed to connect to the database.
-# Defaults to allow all IPv6 connections. Set empty array to block all IPs.
-allowed_cidrs_v6 = ["::/0"]
+# Production hardening: restrict to localhost + private range; Supabase Cloud overrides via dashboard
+enabled = true
+allowed_cidrs = ["127.0.0.1/32", "10.0.0.0/8"]
+allowed_cidrs_v6 = ["::1/128"]
 
-# Uncomment to reject non-secure connections to the database.
-# [db.ssl_enforcement]
-# enabled = true
+[db.ssl_enforcement]
+enabled = true
 
 [realtime]
 enabled = true
@@ -160,7 +155,19 @@ site_url = "http://127.0.0.1:3000"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+# Must include desktop deep-link and local web callbacks for Google OAuth to work.
+# Google Cloud Console must whitelist: https://<project>.supabase.co/auth/v1/callback
+# and Supabase dashboard must allow the final redirect_to values below.
+additional_redirect_urls = [
+  "https://127.0.0.1:3000",
+  "http://localhost:1420",
+  "http://127.0.0.1:1420",
+  "http://localhost:1420/auth/callback",
+  "http://127.0.0.1:1420/auth/callback",
+  "http://localhost:3000/auth/callback",
+  "fixly://auth/callback",
+  "fixly://auth/verified"
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -179,10 +186,8 @@ enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
-minimum_password_length = 6
-# Passwords that do not meet the following requirements will be rejected as weak. Supported values
-# are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
-password_requirements = ""
+minimum_password_length = 8
+password_requirements = "lower_upper_letters_digits_symbols"
 
 # Configure passkey sign-ins.
 # [auth.passkey]
@@ -210,11 +215,11 @@ token_verifications = 30
 # Number of Web3 logins that can be made in a 5 minute interval per IP address.
 web3 = 30
 
-# Configure one of the supported captcha providers: `hcaptcha`, `turnstile`.
-# [auth.captcha]
-# enabled = true
-# provider = "hcaptcha"
-# secret = ""
+# Bot protection: Turnstile (Cloudflare) — secret via env, frontend widget added in register.tsx
+[auth.captcha]
+enabled = true
+provider = "turnstile"
+secret = "env(SUPABASE_AUTH_CAPTCHA_SECRET)"
 
 [auth.email]
 # Allow/disallow new user signups via email to your project.

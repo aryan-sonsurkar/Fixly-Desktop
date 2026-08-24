@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDebouncedValue } from "@/hooks/use-debounce";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@fixly/ui";
 import {
@@ -50,19 +51,25 @@ export function AssignmentsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
 
-  const { data: assignmentsData, isLoading, isError: isAssignmentsError, error: assignmentsError } = useQuery({
-    queryKey: ["assignments", query],
-    queryFn: () => getAssignments(query),
+  const debouncedQuery = useDebouncedValue(query, 300);
+  const { data: assignmentsData, isLoading, isFetching, isError: isAssignmentsError, error: assignmentsError } = useQuery({
+    queryKey: ["assignments", debouncedQuery],
+    queryFn: () => getAssignments(debouncedQuery),
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const { data: stats, isError: isStatsError } = useQuery({
     queryKey: ["assignment-stats"],
     queryFn: getAssignmentStats,
+    staleTime: 60 * 1000,
   });
 
   const { data: subjects, isError: isSubjectsError } = useQuery({
     queryKey: ["subjects"],
     queryFn: getSubjects,
+    staleTime: 5 * 60 * 1000,
   });
 
   const deleteMutation = useMutation({
@@ -133,7 +140,9 @@ export function AssignmentsPage() {
     k !== "is_archived" && k !== "sort_by" && k !== "sort_order" && k !== "page" && k !== "page_size" && v
   );
 
-  if (isLoading) return <AssignmentSkeleton />;
+  const showInitialSkeleton = isLoading && !assignmentsData;
+  if (showInitialSkeleton) return <AssignmentSkeleton />;
+  const isRefetching = isFetching && !!assignmentsData;
 
   if (isAssignmentsError && !assignmentsData) {
     return (
@@ -231,6 +240,11 @@ export function AssignmentsPage() {
         onChange={setQuery}
         subjects={subjects || []}
       />
+      {isRefetching && (
+        <div className="h-1 w-full overflow-hidden rounded bg-muted">
+          <div className="h-full w-1/2 animate-pulse bg-primary/50" style={{ animation: 'shimmer 1.2s infinite' }} />
+        </div>
+      )}
 
       {(!assignmentsData?.data || assignmentsData.data.length === 0) && !isAssignmentsError && (
         <AssignmentEmptyState
@@ -306,7 +320,8 @@ export function AssignmentsPage() {
       )}
 
       {viewMode === "board" && assignmentsData && assignmentsData.data.length > 0 && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 overflow-x-auto">
+          <style>{`@media(max-width:640px){.board-scroll{min-width:900px}}`}</style>
           {STATUS_COLUMNS.map((col) => {
             const items = assignmentsByStatus(col.key);
             return (
@@ -316,11 +331,8 @@ export function AssignmentsPage() {
                 </h3>
                 <div className="space-y-2">
                   {items.map((assignment) => (
-                    <motion.div
+                    <div
                       key={assignment.id}
-                      layout
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
                       className={`cursor-pointer rounded-lg border-l-4 bg-card p-3 shadow-sm hover:shadow-md transition-shadow ${
                         assignment.priority === "urgent" ? "border-l-red-500" :
                         assignment.priority === "high" ? "border-l-orange-500" :
@@ -334,7 +346,7 @@ export function AssignmentsPage() {
                           Due: {new Date(assignment.due_date).toLocaleDateString()}
                         </p>
                       )}
-                    </motion.div>
+                    </div>
                   ))}
                 </div>
               </div>

@@ -175,12 +175,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    setupDeepLinkListener();
+    void setupDeepLinkListener();
 
     return () => {
       if (unlisten) unlisten();
     };
   }, [handleAuthResponse, refreshSession]);
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      clearAuth();
+      void clearTokens();
+    };
+    window.addEventListener("fixly:auth-expired", handleAuthExpired);
+    return () => {
+      window.removeEventListener("fixly:auth-expired", handleAuthExpired);
+    };
+  }, [clearAuth]);
 
   useEffect(() => {
     let cancelled = false;

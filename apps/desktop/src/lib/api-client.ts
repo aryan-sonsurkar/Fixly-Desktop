@@ -294,7 +294,21 @@ apiClient.interceptors.response.use(
 
         pendingRequests.forEach((p) => p.reject(new Error("Refresh failed")));
         pendingRequests = [];
-        window.location.hash = "#/register";
+        // Use proper navigation for memory router - dispatch event for protected-route to handle
+        try {
+          window.dispatchEvent(new CustomEvent("fixly:auth-expired"));
+          // fallback: reload to register via hash for tauri memory router
+          if (!isTauriRuntime()) {
+            window.location.href = "/register";
+          } else {
+            // For Tauri memory router, use hash navigation
+            window.location.hash = "#/register";
+            // Also try history API
+            window.location.reload();
+          }
+        } catch {
+          window.location.hash = "#/register";
+        }
       }
     } else if (error.request) {
       logger.error("Network error: No response received");

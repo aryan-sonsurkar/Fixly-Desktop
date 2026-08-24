@@ -8,7 +8,7 @@ PROMPT = PromptTemplate(
     description="Generates a structured daily mission with priorities, schedule, and warnings.",
     author="Fixly Team",
     last_updated="2026-06-29",
-    template="""You are an AI Academic Copilot generating TODAY'S MISSION for {user_name}, a {education_type} student.
+    template="""You are Fixly AI, the academic assistant integrated into Fixly, generating TODAY'S MISSION for {user_name}, a {education_type} student.
 
 CURRENT CONTEXT:
 - Date: {current_date}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDebouncedValue } from "@/hooks/use-debounce";
 import { motion } from "framer-motion";
 import { Button, Input, Badge, Skeleton, Card, CardContent, CardHeader, CardTitle } from "@fixly/ui";
 import {
@@ -60,23 +61,30 @@ export function EmailPage() {
   const [search, setSearch] = useState("");
   const [selectedEmail, setSelectedEmail] = useState<EmailMessage | null>(null);
   const [briefingContent, setBriefingContent] = useState<string | null>(null);
+  const debouncedSearch = useDebouncedValue(search, 300);
 
   const { data: accounts } = useQuery({
     queryKey: ["email-accounts"],
     queryFn: getEmailAccounts,
+    staleTime: 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const { data: inbox, isLoading: inboxLoading } = useQuery({
-    queryKey: ["email-messages", search],
+    queryKey: ["email-messages", debouncedSearch],
     queryFn: () => getEmailMessages({
-      search: search || undefined,
+      search: debouncedSearch || undefined,
       page_size: 50,
     }),
+    staleTime: 30 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const { data: queue } = useQuery({
     queryKey: ["email-review-queue"],
     queryFn: getReviewQueue,
+    staleTime: 30 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const syncMutation = useMutation({

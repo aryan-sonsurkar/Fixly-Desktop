@@ -46,7 +46,8 @@
     "externalBin": [],
     "resources": {
       "../../backend/dist/backend.exe": "backend/backend.exe",
-      "../../backend/.env.default": "backend/.env.default"
+      "../../backend/.env.default": "backend/.env.default",
+      "../../backend/models/qwen2-0.5b-instruct-q4_k_m.gguf": "backend/models/qwen2-0.5b-instruct-q4_k_m.gguf"
     },
     "publisher": "Aryan Sonsurkar",
     "copyright": "Copyright (c) 2026 Aryan Sonsurkar. All rights reserved.",

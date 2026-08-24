@@ -3,6 +3,12 @@ import { useUIStore } from "@/stores/ui-store";
 import { useAuthContext } from "@/contexts/auth-context";
 import { useSearchStore } from "@/stores/search-store";
 import { motion } from "framer-motion";
+import { useQueryClient } from "@tanstack/react-query";
+import { getDashboard } from "@/lib/dashboard-service";
+import { getAssignments } from "@/lib/assignment-service";
+import { getSubjects, getMySettings } from "@/lib/profile-service";
+import { getMyProfile } from "@/lib/profile-service";
+import { getDiagnostics } from "@/lib/diagnostics-service";
 import { Button } from "@fixly/ui";
 import { cn } from "@fixly/shared-utils";
 import { CommandPalette } from "@/components/command-palette";
@@ -29,7 +35,7 @@ const bottomNavItems = [
 ];
 
 const pageVariants = {
-  initial: { opacity: 0, y: 12 },
+  initial: { opacity: 0, y: 4 },
   animate: { opacity: 1, y: 0 },
 };
 
@@ -38,6 +44,15 @@ export function AppLayout() {
   const { sidebarOpen, toggleSidebar } = useUIStore();
   const { user, signOut } = useAuthContext();
   const { setOpen: setSearchOpen } = useSearchStore();
+  const queryClient = useQueryClient();
+  const prefetch = (to: string) => {
+    if (to === "/dashboard") void queryClient.prefetchQuery({ queryKey: ["dashboard"], queryFn: getDashboard, staleTime: 2 * 60 * 1000 });
+    if (to === "/assignments") void queryClient.prefetchQuery({ queryKey: ["assignments", { is_archived: false, sort_by: "created_at", sort_order: "desc", page: 1, page_size: 20 }], queryFn: () => getAssignments({ is_archived: false, sort_by: "created_at", sort_order: "desc", page: 1, page_size: 20 }), staleTime: 30 * 1000 });
+    if (to === "/subjects") void queryClient.prefetchQuery({ queryKey: ["subjects"], queryFn: getSubjects, staleTime: 60 * 1000 });
+    if (to === "/settings") void queryClient.prefetchQuery({ queryKey: ["settings"], queryFn: getMySettings, staleTime: 60 * 1000 });
+    if (to === "/profile") void queryClient.prefetchQuery({ queryKey: ["profile"], queryFn: getMyProfile, staleTime: 60 * 1000 });
+    if (to === "/diagnostics") void queryClient.prefetchQuery({ queryKey: ["diagnostics"], queryFn: getDiagnostics, staleTime: 30 * 1000 });
+  };
 
   return (
     <div className="flex h-screen bg-background">
@@ -67,6 +82,7 @@ export function AppLayout() {
               key={item.to}
               to={item.to}
               aria-label={sidebarOpen ? undefined : item.label}
+              onMouseEnter={() => prefetch(item.to)}
               className={({ isActive }) =>
                 cn(
                   "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
@@ -172,7 +188,7 @@ export function AppLayout() {
             variants={pageVariants}
             initial="initial"
             animate="animate"
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            transition={{ duration: 0.06, ease: "easeOut" }}
           >
             <Outlet />
           </motion.div>

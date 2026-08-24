@@ -221,7 +221,11 @@ class EmailService:
         return account
 
     async def get_accounts(self, user_id: str) -> list[dict[str, Any]]:
-        return await self.repository.get_accounts(user_id)
+        from app.core.security import strip_email_tokens
+
+        accounts = await self.repository.get_accounts(user_id)
+        # Trim sensitive tokens from response (never leak to client)
+        return [strip_email_tokens(a) for a in accounts]
 
     async def update_account(self, account_id: str, user_id: str, data: dict[str, Any]) -> dict[str, Any]:
         existing = await self.repository.get_account(account_id, user_id)

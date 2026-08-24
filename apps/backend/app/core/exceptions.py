@@ -44,7 +44,13 @@ class OCRUnavailableError(FixlyError):
 
 
 async def fixly_exception_handler(request: Request, exc: FixlyError) -> JSONResponse:
+    import os
+
+    # In production, hide internal details for 500 errors (verbose errors protection)
+    detail = exc.detail
+    if os.environ.get("ENVIRONMENT") == "production" and exc.status_code >= 500:
+        detail = "Internal server error"
     return JSONResponse(
         status_code=exc.status_code,
-        content={"error": exc.detail, "code": exc.error_code, "status": exc.status_code},
+        content={"error": detail, "code": exc.error_code, "status": exc.status_code},
     )

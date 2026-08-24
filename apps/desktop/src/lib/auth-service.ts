@@ -33,9 +33,16 @@ export async function getCurrentUser(): Promise<AuthUser> {
   return response.data;
 }
 
-export async function getGoogleAuthUrl(): Promise<string> {
-  const response = await apiClient.get("/api/v1/auth/google/url");
+export async function getGoogleAuthUrl(redirectTo?: string): Promise<string> {
+  const response = redirectTo
+    ? await apiClient.get("/api/v1/auth/google/url", { params: { redirect_to: redirectTo } })
+    : await apiClient.get("/api/v1/auth/google/url");
   return response.data.url;
+}
+
+export async function getGoogleAuthStatus(): Promise<{ enabled: boolean; reason?: string; url?: string }> {
+  const response = await apiClient.get("/api/v1/auth/google/status");
+  return response.data;
 }
 
 export async function googleCallback(code: string, redirectUri: string): Promise<AuthResponse> {

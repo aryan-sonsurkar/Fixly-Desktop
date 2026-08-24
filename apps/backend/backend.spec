@@ -96,6 +96,7 @@ a = Analysis(
         'app.providers.gmail',
         'app.providers.imap',
         'app.providers.ollama',
+        'app.providers.fixly_local',
     ],
     hookspath=[],
     hooksconfig={},

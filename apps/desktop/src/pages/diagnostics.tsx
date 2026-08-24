@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import { Button, Skeleton } from "@fixly/ui";
 import { getDiagnostics, type Diagnostics } from "@/lib/diagnostics-service";
 import { useAnalyticsStore } from "@/stores/analytics-store";
@@ -87,30 +88,21 @@ function formatDiagnosticsText(data: Diagnostics): string {
 }
 
 export function DiagnosticsPage() {
-  const [data, setData] = useState<Diagnostics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const isProd = import.meta.env.PROD;
   const [copied, setCopied] = useState(false);
   const events = useAnalyticsStore((s) => s.events);
   const appLaunches = useAnalyticsStore((s) => s.appLaunches);
   const sessionCount = useAnalyticsStore((s) => s.sessionCount);
-
-  const runDiagnostics = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await getDiagnostics();
-      setData(result);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Diagnostics failed");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    runDiagnostics();
-  }, [runDiagnostics]);
+  const { data, isLoading: loading, isError, error: queryError, refetch, isFetching } = useQuery({
+    queryKey: ["diagnostics"],
+    queryFn: getDiagnostics,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
+    refetchOnWindowFocus: false,
+  });
+  const error = isError ? (queryError instanceof Error ? queryError.message : "Diagnostics failed") : null;
+  const runDiagnostics = useCallback(() => { void refetch(); }, [refetch]);
 
   const handleCopy = useCallback(async () => {
     if (!data) return;

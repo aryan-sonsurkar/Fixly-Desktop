@@ -72,11 +72,12 @@ class AssignmentRepository:
         filters: dict[str, Any] | None = None,
     ) -> tuple[list[dict[str, Any]], int]:
         client = self._client
+        merged_filters = {"user_id": user_id, **(filters or {})}
         query = client.table("assignments").select("*")
-        query = self._apply_filters(query, {"user_id": user_id, **(filters or {})})
+        query = self._apply_filters(query, merged_filters)
 
         total_query = client.table("assignments").select("id", count="exact")  # type: ignore[arg-type]
-        total_query = total_query.eq("user_id", user_id)
+        total_query = self._apply_filters(total_query, merged_filters)
         total_response = total_query.execute()
         total = total_response.count or 0
 
@@ -195,48 +196,35 @@ class AssignmentRepository:
         return len(data.get("data", []))
 
     async def get_stats(self, user_id: str) -> dict[str, Any]:
+        import asyncio
+        from app.core.threads import run_in_thread
+
         client = self._client
         now = datetime.now(timezone.utc)
-
-        tbl = client.table("assignments")
-
-        total_resp = tbl.select("id", count="exact").eq("user_id", user_id).execute()  # type: ignore[arg-type]
-        total = total_resp.count or 0
-
-        completed_resp = tbl.select("id", count="exact").eq("user_id", user_id).eq("status", "completed").execute()  # type: ignore[arg-type]
-        completed = completed_resp.count or 0
-
-        pending_resp = tbl.select("id", count="exact").eq("user_id", user_id).eq("status", "pending").execute()  # type: ignore[arg-type]
-        pending = pending_resp.count or 0
-
-        in_progress_resp = tbl.select("id", count="exact").eq("user_id", user_id).eq("status", "in_progress").execute()  # type: ignore[arg-type]
-        in_progress = in_progress_resp.count or 0
-
-        overdue_resp = tbl.select("id", count="exact").eq("user_id", user_id).eq("status", "overdue").execute()  # type: ignore[arg-type]
-        overdue = overdue_resp.count or 0
-
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         today_end = today_start.replace(hour=23, minute=59, second=59)
-        due_today_resp = (
-            client.table("assignments")
-            .select("id", count="exact")  # type: ignore[arg-type]
-            .eq("user_id", user_id)
-            .gte("due_date", today_start.isoformat())
-            .lte("due_date", today_end.isoformat())
-            .execute()
-        )
-        due_today = due_today_resp.count or 0
-
         week_end = today_start + timedelta(days=7)
-        due_week_resp = (
-            client.table("assignments")
-            .select("id", count="exact")  # type: ignore[arg-type]
-            .eq("user_id", user_id)
-            .gte("due_date", today_start.isoformat())
-            .lte("due_date", week_end.isoformat())
-            .execute()
+
+        def _count(status: str | None = None, due_from: str | None = None, due_to: str | None = None) -> int:
+            q = client.table("assignments").select("id", count="exact").eq("user_id", user_id)  # type: ignore[arg-type]
+            if status:
+                q = q.eq("status", status)
+            if due_from:
+                q = q.gte("due_date", due_from)
+            if due_to:
+                q = q.lte("due_date", due_to)
+            return q.execute().count or 0
+
+        # Run all 7 counts in parallel via thread pool
+        total, completed, pending, in_progress, overdue, due_today, due_week = await asyncio.gather(
+            run_in_thread(lambda: _count()),
+            run_in_thread(lambda: _count(status="completed")),
+            run_in_thread(lambda: _count(status="pending")),
+            run_in_thread(lambda: _count(status="in_progress")),
+            run_in_thread(lambda: _count(status="overdue")),
+            run_in_thread(lambda: _count(due_from=today_start.isoformat(), due_to=today_end.isoformat())),
+            run_in_thread(lambda: _count(due_from=today_start.isoformat(), due_to=week_end.isoformat())),
         )
-        due_week = due_week_resp.count or 0
 
         completion_pct = (completed / total * 100) if total > 0 else 0.0
 

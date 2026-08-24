@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion } from "framer-motion";
-import { Button, Input, Label } from "@fixly/ui";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Button, Input, Label, Skeleton } from "@fixly/ui";
 import { getMySettings, updateMySettings } from "@/lib/profile-service";
 import { createLogger } from "@/lib/logger";
 import { toast } from "@/stores/toast-store";
@@ -25,10 +26,7 @@ const settingsSchema = z.object({
 type SettingsForm = z.infer<typeof settingsSchema>;
 
 export function SettingsPage() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
+  const queryClient = useQueryClient();
   const form = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
     defaultValues: {
@@ -43,51 +41,46 @@ export function SettingsPage() {
       notification_enabled: true,
     },
   });
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const settings = await getMySettings();
-        form.reset({
-          theme: settings.theme as "dark" | "light" | "system",
-          daily_goal_hours: settings.daily_goal_hours,
-          pomodoro_focus: settings.pomodoro_focus,
-          pomodoro_break: settings.pomodoro_break,
-          assignment_reminders: settings.assignment_reminders,
-          daily_briefing: settings.daily_briefing,
-          email_monitoring: settings.email_monitoring,
-          email_sync_enabled: settings.email_sync_enabled,
-          notification_enabled: settings.notification_enabled,
-        });
-      } catch (err) {
-        logger.error("Failed to load settings", err);
-        toast({ type: "error", title: "Failed to load settings" });
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const onSubmit = form.handleSubmit(async (data) => {
-    setSaving(true);
-    setSaved(false);
-    try {
-      await updateMySettings(data);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
-      logger.error("Failed to save settings", err);
-      toast({ type: "error", title: "Failed to save settings" });
-    } finally {
-      setSaving(false);
-    }
+  const { data: settings, isLoading: loading, isFetching } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getMySettings,
+    staleTime: 60 * 1000,
+    placeholderData: (prev) => prev,
   });
-
-  if (loading) {
+  useEffect(() => {
+    if (settings) {
+      form.reset({
+        theme: settings.theme as "dark" | "light" | "system",
+        daily_goal_hours: settings.daily_goal_hours,
+        pomodoro_focus: settings.pomodoro_focus,
+        pomodoro_break: settings.pomodoro_break,
+        assignment_reminders: settings.assignment_reminders,
+        daily_briefing: settings.daily_briefing,
+        email_monitoring: settings.email_monitoring,
+        email_sync_enabled: settings.email_sync_enabled,
+        notification_enabled: settings.notification_enabled,
+      });
+    }
+  }, [settings, form]);
+  const saveMut = useMutation({
+    mutationFn: (data: SettingsForm) => updateMySettings(data),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["settings"], data);
+      toast({ type: "success", title: "Settings saved" });
+    },
+    onError: (err) => { logger.error("Failed to save settings", err); toast({ type: "error", title: "Failed to save settings" }); },
+  });
+  const onSubmit = form.handleSubmit(async (data) => {
+    saveMut.mutate(data);
+  });
+  const saving = saveMut.isPending;
+  const saved = saveMut.isSuccess;
+  if (loading && !settings) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      <div className="mx-auto max-w-2xl space-y-8 p-6 animate-in fade-in duration-100">
+        <Skeleton className="h-8 w-32 animate-pulse" />
+        <Skeleton className="h-20 w-full rounded-lg animate-pulse" />
+        <Skeleton className="h-20 w-full rounded-lg animate-pulse" />
       </div>
     );
   }

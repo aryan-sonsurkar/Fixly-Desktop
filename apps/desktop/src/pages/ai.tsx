@@ -50,11 +50,11 @@ export default function AIPage() {
   }, [smartInput]);
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b bg-card px-4 py-2">
+    <div className="flex h-[calc(100dvh-56px)] min-h-0 flex-col bg-background">
+      <header className="flex shrink-0 items-center justify-between border-b bg-card/80 backdrop-blur px-4 py-2.5">
         <div className="flex items-center gap-3">
-          <h1 className="text-sm font-semibold">AI Workspace</h1>
-          {loading && <span className="text-xs text-muted-foreground">Loading...</span>}
+          <h1 className="text-sm font-semibold tracking-tight">AI Workspace</h1>
+          {loading && <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />}
           <button
             type="button"
             onClick={() => setShowContext(!showContext)}
@@ -162,8 +162,8 @@ export default function AIPage() {
         </div>
       )}
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="w-72 flex-shrink-0">
+      <div className="flex flex-1 overflow-hidden bg-muted/20">
+        <div className="w-72 shrink-0 border-r bg-card">
           <ConversationSidebar />
         </div>
 

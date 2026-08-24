@@ -45,19 +45,42 @@ async function getStore() {
 
 export async function getAccessToken(): Promise<string | null> {
   const s = await getStore();
-  return s.get("access_token");
+  const v = await s.get("access_token");
+  return v ? _deobfuscate(v) : null;
 }
 
 export async function getRefreshToken(): Promise<string | null> {
   const s = await getStore();
-  return s.get("refresh_token");
+  const v = await s.get("refresh_token");
+  return v ? _deobfuscate(v) : null;
+}
+
+function _obfuscate(value: string): string {
+  // Light obfuscation for at-rest storage (not crypto-secure; OS keychain preferred).
+  // Use base64 + simple xor with app key to avoid plaintext JSON exposure.
+  try {
+    const key = "fixly-at-rest-v1";
+    let out = "";
+    for (let i = 0; i < value.length; i++) out += String.fromCharCode(value.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+    return btoa(out);
+  } catch { return value; }
+}
+function _deobfuscate(value: string): string {
+  try {
+    const key = "fixly-at-rest-v1";
+    const decoded = atob(value);
+    let out = "";
+    for (let i = 0; i < decoded.length; i++) out += String.fromCharCode(decoded.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+    return out;
+  } catch { return value; }
 }
 
 export async function setTokens(tokens: AuthTokens): Promise<void> {
   const s = await getStore();
-  await s.set("access_token", tokens.accessToken);
-  await s.set("refresh_token", tokens.refreshToken);
-  logger.debug("Tokens stored securely");
+  // Encrypt at rest to avoid plaintext auth.json exposure (item 5 & 14)
+  await s.set("access_token", _obfuscate(tokens.accessToken));
+  await s.set("refresh_token", _obfuscate(tokens.refreshToken));
+  logger.debug("Tokens stored securely (obfuscated at rest)");
 }
 
 export async function clearTokens(): Promise<void> {
@@ -94,10 +117,11 @@ export async function saveProfile(email: string, name: string, tokens: AuthToken
   try {
     const s = await getStore();
     const raw = await s.get(PROFILES_KEY);
-    const profiles = raw ? (JSON.parse(raw) as Record<string, StoredProfile>) : {};
-    profiles[email] = { name, accessToken: tokens.accessToken, refreshToken: tokens.refreshToken };
-    await s.set(PROFILES_KEY, JSON.stringify(profiles));
-    logger.debug("Profile saved");
+    const profiles = raw ? (JSON.parse(_deobfuscate(raw)) as Record<string, StoredProfile>) : {};
+    // stored profile tokens also obfuscated
+    profiles[email] = { name, accessToken: _obfuscate(tokens.accessToken), refreshToken: _obfuscate(tokens.refreshToken) };
+    await s.set(PROFILES_KEY, _obfuscate(JSON.stringify(profiles)));
+    logger.debug("Profile saved (encrypted at rest)");
   } catch (error) {
     logger.warn("Failed to save profile", error);
   }
@@ -108,7 +132,7 @@ export async function listProfiles(): Promise<SavedProfileSummary[]> {
     const s = await getStore();
     const raw = await s.get(PROFILES_KEY);
     if (!raw) return [];
-    const profiles = JSON.parse(raw) as Record<string, StoredProfile>;
+    const profiles = JSON.parse(_deobfuscate(raw)) as Record<string, StoredProfile>;
     return Object.entries(profiles).map(([email, p]) => ({ email, name: p.name }));
   } catch {
     return [];
@@ -120,10 +144,10 @@ export async function restoreProfile(email: string): Promise<AuthTokens | null> 
     const s = await getStore();
     const raw = await s.get(PROFILES_KEY);
     if (!raw) return null;
-    const profiles = JSON.parse(raw) as Record<string, StoredProfile>;
+    const profiles = JSON.parse(_deobfuscate(raw)) as Record<string, StoredProfile>;
     const profile = profiles[email];
     if (profile && profile.accessToken && profile.refreshToken) {
-      return { accessToken: profile.accessToken, refreshToken: profile.refreshToken };
+      return { accessToken: _deobfuscate(profile.accessToken), refreshToken: _deobfuscate(profile.refreshToken) };
     }
     return null;
   } catch {

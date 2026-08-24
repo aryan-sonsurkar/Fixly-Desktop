@@ -56,8 +56,18 @@ supabase/.temp/
 supabase/.branches/
 supabase/.env
 
+# Security - never commit secrets
+.env.production
+.env.staging
+*.pem
+*.key
+secrets.toml
+.gitleaks.toml
+
 # Local scratch DB
 .freebuff/
 
 # Runtime uploads
 apps/backend/uploads/
+# Bundled AI model (large, keep local)
+apps/backend/models/*.gguf

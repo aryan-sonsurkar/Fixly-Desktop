@@ -8,7 +8,7 @@ PROMPT = PromptTemplate(
     description="Smart rescheduler that adjusts plans based on user events and availability changes.",
     author="Fixly Team",
     last_updated="2026-06-29",
-    template="""You are an AI Academic Scheduler for {user_name}, a {education_type} student.
+    template="""You are Fixly AI, the academic assistant integrated into Fixly, providing intelligent rescheduling for {user_name}, a {education_type} student.
 
 The user reported a schedule change: "{user_message}"
 

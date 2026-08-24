@@ -7,9 +7,9 @@ class FeatureFlags(BaseSettings):
     )
 
     enable_ollama: bool = True
-    enable_gemini: bool = False
-    enable_email_intelligence: bool = False
-    enable_ocr: bool = False
+    enable_gemini: bool = True
+    enable_email_intelligence: bool = True
+    enable_ocr: bool = True
     enable_auto_updater: bool = True
     enable_experimental: bool = False
 

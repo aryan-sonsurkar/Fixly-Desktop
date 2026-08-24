@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useDebouncedValue } from "@/hooks/use-debounce";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button, Input, Badge, Skeleton } from "@fixly/ui";
 import { UploadDialog } from "@/components/documents/upload-dialog";
@@ -80,9 +81,10 @@ function DocumentCard({ doc, onSelect, onDelete, onFavorite }: {
           <button
             type="button"
             onClick={(e) => (e.stopPropagation(), onFavorite())}
-            className={`rounded p-1 transition-colors ${
+            className={`rounded p-1 transition-colors focus:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 ${
               doc.is_favorite ? "text-yellow-500" : "text-muted-foreground opacity-0 group-hover:opacity-100"
             }`}
+            aria-label={doc.is_favorite ? "Unfavorite" : "Favorite"}
           >
             <svg className="h-4 w-4" fill={doc.is_favorite ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
@@ -91,7 +93,8 @@ function DocumentCard({ doc, onSelect, onDelete, onFavorite }: {
           <button
             type="button"
             onClick={(e) => (e.stopPropagation(), onDelete())}
-            className="rounded p-1 text-muted-foreground opacity-0 transition-colors hover:text-destructive group-hover:opacity-100"
+            className="rounded p-1 text-muted-foreground opacity-0 transition-colors hover:text-destructive group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 focus-visible:opacity-100"
+            aria-label="Delete document"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -214,28 +217,49 @@ export function DocumentsPage() {
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string | null>(null);
+  const debouncedSearch = useDebouncedValue(search, 300);
 
-  const { data, isLoading, error: listError } = useQuery({
-    queryKey: ["documents", search, filterType],
-    queryFn: () => listDocuments({ search: search || undefined, file_type: filterType || undefined, page_size: 50 }),
+  const { data, isLoading, error: listError, isFetching } = useQuery({
+    queryKey: ["documents", debouncedSearch, filterType],
+    queryFn: () => listDocuments({ search: debouncedSearch || undefined, file_type: filterType || undefined, page_size: 50 }),
+    staleTime: 30 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const { data: selectedDoc } = useQuery({
     queryKey: ["document", selectedDocId],
     queryFn: () => selectedDocId ? getDocument(selectedDocId) : Promise.resolve(null),
     enabled: !!selectedDocId,
+    staleTime: 60 * 1000,
   });
+
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
 
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
-      for (const file of files) {
-        const doc = await uploadDocument(file);
-        await processDocument(doc.id);
+      setUploadProgress(`Uploading 0/${files.length}...`);
+      const results = await Promise.allSettled(
+        files.map(async (file, idx) => {
+          setUploadProgress(`Uploading ${idx + 1}/${files.length}: ${file.name}`);
+          const doc = await uploadDocument(file);
+          setUploadProgress(`Processing ${idx + 1}/${files.length}: ${file.name}`);
+          await processDocument(doc.id);
+          return doc;
+        }),
+      );
+      setUploadProgress(null);
+      const failures = results.filter((r) => r.status === "rejected");
+      if (failures.length > 0 && failures.length === files.length) {
+        throw new Error(`All ${files.length} uploads failed`);
+      }
+      if (failures.length > 0) {
+        throw new Error(`${failures.length}/${files.length} uploads failed - check retries`);
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
     },
+    onError: () => setUploadProgress(null),
   });
 
   const handleDelete = async (id: string) => {
@@ -300,10 +324,16 @@ export function DocumentsPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isLoading && !data ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-lg" />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-lg animate-pulse" />
+          ))}
+        </div>
+      ) : isFetching && data ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 opacity-60">
+          {data.documents.map((doc) => (
+            <DocumentCard key={doc.id} doc={doc} onSelect={() => setSelectedDocId(doc.id)} onDelete={() => handleDelete(doc.id)} onFavorite={() => handleFavorite(doc)} />
           ))}
         </div>
       ) : listError ? (

@@ -8,7 +8,7 @@ PROMPT = PromptTemplate(
     description="Real-time productivity coaching that analyzes current state and suggests next actions.",
     author="Fixly Team",
     last_updated="2026-06-29",
-    template="""You are an AI Productivity Coach for {user_name}, a {education_type} student.
+    template="""You are Fixly AI, the academic assistant integrated into Fixly, providing productivity coaching for {user_name}, a {education_type} student.
 
 The user just asked: "What should I do now?"
 

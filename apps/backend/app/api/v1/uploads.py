@@ -3,8 +3,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
+import html
+import re
+
+from fastapi import Request
+
 from app.core.exceptions import ValidationError
 from app.core.logging import get_logger
+from app.core.rate_limiter import upload_limiter
 from app.core.supabase import get_supabase_for_user
 from app.dependencies.auth import CurrentUser, get_current_user
 from app.repositories.assignment_repository import AssignmentRepository
@@ -25,21 +31,86 @@ ALLOWED_TYPES = {
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "application/zip", "application/x-zip-compressed",
 }
+ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip"}
+# Magic bytes mapping (first bytes)
+MAGIC_BYTES = {
+    b"%PDF": "application/pdf",
+    b"\x89PNG": "image/png",
+    b"\xFF\xD8\xFF": "image/jpeg",
+    b"GIF8": "image/gif",
+    b"RIFF": "image/webp",  # webp is RIFF....WEBP
+    b"PK\x03\x04": "application/zip",  # zip/docx/xlsx/pptx are zip
+}
+
+
+def _validate_magic_bytes(content: bytes, claimed_type: str) -> bool:
+    if not content:
+        return False
+    for magic, mime in MAGIC_BYTES.items():
+        if content.startswith(magic):
+            # zip-based formats share PK header, allow docx/xlsx/pptx/zip interchangeably
+            if magic == b"PK\x03\x04":
+                return claimed_type in {
+                    "application/zip", "application/x-zip-compressed",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                }
+            return mime == claimed_type
+    # For msword (OLE) starts with D0 CF 11 E0
+    if content.startswith(b"\xD0\xCF\x11\xE0") and claimed_type == "application/msword":
+        return True
+    return False
+
+
+def _sanitize_filename(name: str) -> str:
+    # Block path traversal, trim, escape html, limit length
+    name = name.strip().replace("\\", "/").split("/")[-1]
+    name = html.escape(name)
+    # remove null bytes and control chars
+    name = re.sub(r"[\x00-\x1f\x7f]", "", name)
+    # block double extensions like .pdf.exe
+    if ".." in name or name.count(".") > 2:
+        # allow single dot, but block suspicious double ext
+        parts = name.split(".")
+        if len(parts) > 2 and parts[-1].lower() in {"exe", "sh", "bat", "cmd", "js", "html"}:
+            raise ValidationError("Suspicious file extension")
+    if len(name) > 255:
+        name = name[:255]
+    if not name or name in {".", ".."}:
+        raise ValidationError("Invalid filename")
+    return name
 
 
 @router.post("")
 async def upload_file(
+    request: Request,
     file: UploadFile = File(...),
     assignment_id: UUID = Form(...),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
+    upload_limiter.check(request)
     assignment_id_str = str(assignment_id)
-    if file.content_type and file.content_type not in ALLOWED_TYPES:
-        raise ValidationError(f"File type '{file.content_type}' is not supported")
+    # Validate MIME + extension + magic bytes (defense in depth)
+    claimed = (file.content_type or "").lower()
+    if claimed and claimed not in ALLOWED_TYPES:
+        raise ValidationError(f"File type '{claimed}' is not supported")
+    filename = _sanitize_filename(file.filename or "unnamed")
+    ext = "." + filename.split(".")[-1].lower() if "." in filename else ""
+    if ext and ext not in ALLOWED_EXTENSIONS:
+        raise ValidationError(f"File extension '{ext}' is not allowed")
 
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
         raise ValidationError("File exceeds maximum size of 50MB")
+    if len(content) == 0:
+        raise ValidationError("Empty file not allowed")
+    # Magic byte verification when possible
+    if claimed and not _validate_magic_bytes(content[:12], claimed):
+        # For webp RIFF check needs WEBP at offset 8
+        if not (claimed == "image/webp" and content[:4] == b"RIFF" and content[8:12] == b"WEBP"):
+            logger.warning("Magic byte mismatch", extra={"claimed": claimed, "filename": filename})
+            raise ValidationError("File content does not match its extension")
 
     repo = AssignmentRepository(access_token=current_user.access_token)
     assignment = await repo.get_assignment(assignment_id_str, current_user.id)
@@ -47,7 +118,7 @@ async def upload_file(
         raise ValidationError("Assignment not found")
 
     client = get_supabase_for_user(current_user.access_token)
-    storage_path = f"{current_user.id}/{assignment_id_str}/{file.filename}"
+    storage_path = f"{current_user.id}/{assignment_id_str}/{filename}"
 
     try:
         client.storage.from_("attachments").upload(
@@ -60,13 +131,20 @@ async def upload_file(
     attachment = await repo.create_attachment({
         "assignment_id": assignment_id_str,
         "user_id": current_user.id,
-        "file_name": file.filename or "unnamed",
-        "file_type": file.content_type,
+        "file_name": filename,
+        "file_type": claimed or file.content_type,
         "file_size": len(content),
         "storage_path": storage_path,
     })
 
-    return attachment
+    # Trim response: only return safe fields
+    return {
+        "id": attachment.get("id"),
+        "file_name": attachment.get("file_name"),
+        "file_type": attachment.get("file_type"),
+        "file_size": attachment.get("file_size"),
+        "created_at": attachment.get("created_at"),
+    }
 
 
 @router.delete("/{attachment_id}")

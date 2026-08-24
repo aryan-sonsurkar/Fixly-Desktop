@@ -146,14 +146,39 @@ class AuthService:
             logger.error("Resend verification failed", extra={"error": str(e), "email": email})
             raise AuthenticationError("Could not resend verification email.")
 
-    async def get_google_auth_url(self) -> str:
+    async def get_google_auth_url(self, redirect_to: str | None = None) -> str:
+        # Default deep-link for desktop; allow caller to override for web flows
+        target = redirect_to or "fixly://auth/callback"
+        # Allow-list to avoid open-redirect and to surface clear errors for mis-config
+        allowed = {
+            "fixly://auth/callback",
+            "fixly://auth/verified",
+            "http://localhost:1420/auth/callback",
+            "http://127.0.0.1:1420/auth/callback",
+            "http://localhost:3000/auth/callback",
+            "http://127.0.0.1:3000/auth/callback",
+        }
+        if target not in allowed and not target.startswith("http://localhost:") and not target.startswith("http://127.0.0.1:"):
+            logger.warning("Blocked non-allowlisted OAuth redirect_to: %s", target)
+            target = "fixly://auth/callback"
         try:
-            return self.repository.get_google_auth_url("fixly://auth/callback")
+            url = self.repository.get_google_auth_url(target)
+            # If Supabase returns a URL that still contains an error hint, surface it early
+            if not url or "error" in url.lower():
+                raise AuthenticationError("Google sign-in is not configured. Please use email to sign in.")
+            return url
         except AuthenticationError:
             raise
         except Exception as e:
+            msg = str(e).lower()
+            # Supabase returns 400/422 when google provider disabled – translate to user-friendly
+            if "provider" in msg and ("disabled" in msg or "not enabled" in msg or "not configured" in msg):
+                raise AuthenticationError("Google sign-in is not enabled. Please use email or contact the administrator.")
+            if "redirect_uri" in msg or "redirect" in msg:
+                logger.error("Google OAuth redirect_uri mismatch – check Supabase additional_redirect_urls and Google Cloud authorized redirect URIs: %s", e)
+                raise AuthenticationError("Google sign-in misconfigured (redirect_uri). Add fixly://auth/callback and http://localhost:1420/auth/callback to Supabase Auth allowed redirects and to Google Cloud Console authorized redirect URIs.")
             logger.error("Failed to get Google auth URL: %s", e)
-            raise AuthenticationError("Google authentication is currently unavailable. Please try again later.")
+            raise AuthenticationError("Google authentication is currently unavailable. Please try email sign-in.")
 
     async def handle_google_callback(self, code: str, redirect_uri: str) -> dict[str, Any]:
         try:

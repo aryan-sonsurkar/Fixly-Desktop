@@ -95,7 +95,15 @@ class PlannerService:
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
 
         content = result["message"]["content"]
-        schedule_items = self._validate_schedule_items(content)
+        try:
+            schedule_items = self._validate_schedule_items(content)
+        except Exception:
+            # orphan cleanup: remove conversation created for failed validation
+            try:
+                await self.ai_repo.delete_conversation(conv["id"], user_id)
+            except Exception:
+                pass
+            raise
 
         plan = {
             "plan_type": "daily",

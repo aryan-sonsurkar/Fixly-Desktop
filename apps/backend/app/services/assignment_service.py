@@ -52,16 +52,24 @@ class AssignmentService:
         return assignment
 
     async def create_assignment(self, user_id: str, data: dict[str, Any]) -> dict[str, Any]:
-        self._validate(data)
-        return await self.repository.create_assignment(user_id, data)
+        from app.core.security import sanitize_dict, strip_blocked_fields, ALLOWED_ASSIGNMENT_FIELDS
+
+        safe = strip_blocked_fields(data, ALLOWED_ASSIGNMENT_FIELDS)
+        safe = sanitize_dict(safe, max_str=5000)
+        self._validate(safe)
+        return await self.repository.create_assignment(user_id, safe)
 
     async def update_assignment(
         self, assignment_id: str, user_id: str, data: dict[str, Any]
     ) -> dict[str, Any]:
+        from app.core.security import sanitize_dict, strip_blocked_fields, ALLOWED_ASSIGNMENT_FIELDS
+
         existing = await self.repository.get_assignment(assignment_id, user_id)
         if not existing:
             raise NotFoundError("Assignment not found")
         clean = {k: v for k, v in data.items() if v is not None}
+        clean = strip_blocked_fields(clean, ALLOWED_ASSIGNMENT_FIELDS)
+        clean = sanitize_dict(clean, max_str=5000)
         if clean:
             self._validate(clean, partial=True)
         else:

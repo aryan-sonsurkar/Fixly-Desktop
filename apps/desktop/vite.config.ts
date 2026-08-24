@@ -18,6 +18,11 @@ export default defineConfig({
     },
   },
   build: {
+    sourcemap: false,
+    minify: "esbuild",
+    cssMinify: true,
+    reportCompressedSize: true,
+    chunkSizeWarningLimit: 300,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -28,7 +33,15 @@ export default defineConfig({
           ui: ["@fixly/ui", "@fixly/shared-types", "@fixly/shared-utils"],
         },
       },
+      treeshake: true,
     },
-    chunkSizeWarningLimit: 300,
+  },
+  optimizeDeps: {
+    include: ["react", "react-dom", "react-router-dom", "@tanstack/react-query", "axios", "zustand"],
+    exclude: ["@tauri-apps/api", "@tauri-apps/plugin-http", "@tauri-apps/plugin-store"],
+  },
+  esbuild: {
+    drop: process.env.NODE_ENV === "production" ? ["console", "debugger"] : [],
+    legalComments: "none",
   },
 });

@@ -8,7 +8,7 @@ PROMPT = PromptTemplate(
     description="Generates a comprehensive weekly academic review with insights and recommendations.",
     author="Fixly Team",
     last_updated="2026-06-29",
-    template="""You are an AI Academic Coach generating a WEEKLY REVIEW for {user_name}, a {education_type} student.
+    template="""You are Fixly AI, the academic assistant integrated into Fixly, generating a WEEKLY REVIEW for {user_name}, a {education_type} student.
 
 REVIEW PERIOD: {review_period}
 

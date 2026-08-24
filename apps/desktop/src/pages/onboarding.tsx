@@ -37,7 +37,7 @@ const SUBJECT_COLORS = [
   "#06b6d4", "#d946ef", "#e11d48", "#0ea5e9", "#65a30d",
 ];
 
-const STEPS = ["Personal", "Academic", "Institution", "Preferences", "Subjects"];
+const STEPS = ["Personal", "Academic", "Institution", "Subjects"];
 
 const personalSchema = z.object({
   full_name: z.string().min(2, "Name must be at least 2 characters"),
@@ -168,22 +168,6 @@ export function OnboardingPage() {
       },
     }));
     goTo(3);
-  });
-
-  const handlePreferencesNext = preferencesForm.handleSubmit((data) => {
-    setFormData((prev) => ({
-      ...prev,
-      preferences: {
-        theme: data.theme,
-        daily_goal_hours: data.daily_goal_hours,
-        pomodoro_focus: data.pomodoro_focus,
-        pomodoro_break: data.pomodoro_break,
-        assignment_reminders: data.assignment_reminders,
-        daily_briefing: data.daily_briefing,
-        email_monitoring: data.email_monitoring,
-      },
-    }));
-    goTo(4);
   });
 
   const addSubject = () => {
@@ -404,54 +388,6 @@ export function OnboardingPage() {
               )}
 
               {step === 3 && (
-                <form onSubmit={handlePreferencesNext} className="space-y-5">
-                  <h2 className="text-lg font-semibold">Preferences</h2>
-                  <div className="space-y-2">
-                    <Label>Theme</Label>
-                    <div className="flex gap-3">
-                      {(["dark", "light", "system"] as const).map((t) => (
-                        <label key={t} className="flex cursor-pointer items-center gap-2 rounded-lg border p-3 has-[:checked]:border-primary has-[:checked]:bg-primary/5">
-                          <input type="radio" value={t} {...preferencesForm.register("theme")} className="accent-primary" />
-                          <span className="text-sm capitalize">{t}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="daily_goal_hours">Daily Goal (hours)</Label>
-                      <Input id="daily_goal_hours" type="number" min={0} max={24} {...preferencesForm.register("daily_goal_hours")} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="pomodoro_focus">Focus (min)</Label>
-                      <Input id="pomodoro_focus" type="number" min={1} max={120} {...preferencesForm.register("pomodoro_focus")} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="pomodoro_break">Break (min)</Label>
-                      <Input id="pomodoro_break" type="number" min={1} max={60} {...preferencesForm.register("pomodoro_break")} />
-                    </div>
-                  </div>
-                  <div className="space-y-3 rounded-lg border p-4">
-                    <h3 className="text-sm font-medium">Notifications</h3>
-                    {[
-                      { key: "assignment_reminders" as const, label: "Assignment reminders" },
-                      { key: "daily_briefing" as const, label: "Daily briefing" },
-                      { key: "email_monitoring" as const, label: "Email monitoring" },
-                    ].map(({ key, label }) => (
-                      <label key={key} className="flex cursor-pointer items-center gap-3">
-                        <input type="checkbox" {...preferencesForm.register(key)} className="h-4 w-4 accent-primary" />
-                        <span className="text-sm">{label}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <div className="flex justify-between pt-4">
-                    <Button type="button" variant="outline" onClick={() => goTo(2)}>Back</Button>
-                    <Button type="submit">Next</Button>
-                  </div>
-                </form>
-              )}
-
-              {step === 4 && (
                 <div className="space-y-5">
                   <h2 className="text-lg font-semibold">Your Subjects</h2>
                   <p className="text-sm text-muted-foreground">
@@ -500,7 +436,7 @@ export function OnboardingPage() {
                   )}
 
                   <div className="flex justify-between pt-4">
-                    <Button type="button" variant="outline" onClick={() => goTo(3)}>Back</Button>
+                    <Button type="button" variant="outline" onClick={() => goTo(2)}>Back</Button>
                     <Button onClick={handleSubmitAll} disabled={isSubmitting}>
                       {isSubmitting ? (
                         <span className="flex items-center gap-2">

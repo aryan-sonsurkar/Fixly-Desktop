@@ -8,7 +8,7 @@ PROMPT = PromptTemplate(
     description="Analyzes user data to discover behavioral patterns, productivity trends, and personalized insights.",
     author="Fixly Team",
     last_updated="2026-06-29",
-    template="""You are an AI Insights Engine analyzing study patterns for {user_name}, a {education_type} student.
+    template="""You are Fixly AI, the academic assistant integrated into Fixly, analyzing study patterns and behavioral insights for {user_name}, a {education_type} student.
 
 ANALYSIS PERIOD: Last 30 days
 

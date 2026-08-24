@@ -35,17 +35,22 @@ export function StudyPage() {
   const { data: calendarData, isLoading: calLoading } = useQuery({
     queryKey: ["study-calendar", calendarYear],
     queryFn: () => getCalendar(calendarYear),
+    staleTime: 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const { data: statsData, isLoading: statsLoading } = useQuery({
     queryKey: ["study-statistics"],
     queryFn: getStudyStatistics,
+    staleTime: 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   const { data: dayData, isLoading: dayLoading } = useQuery({
     queryKey: ["study-day", selectedDate],
     queryFn: () => selectedDate ? getDayDetail(selectedDate) : Promise.resolve(null),
     enabled: !!selectedDate,
+    staleTime: 30 * 1000,
   });
 
   useEffect(() => {

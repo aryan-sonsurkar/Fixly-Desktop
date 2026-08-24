@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Input, Label, Skeleton } from "@fixly/ui";
 import { getSubjects, createSubject, updateSubject, deleteSubject } from "@/lib/profile-service";
 import { toast } from "@/stores/toast-store";
@@ -25,12 +26,9 @@ const subjectFormSchema = z.object({
 type SubjectForm = z.infer<typeof subjectFormSchema>;
 
 export function SubjectsPage() {
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState(SUBJECT_COLORS[0]);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const mountedRef = useRef(true);
 
@@ -44,26 +42,46 @@ export function SubjectsPage() {
     return () => { mountedRef.current = false; };
   }, []);
 
-  const loadSubjects = useCallback(async () => {
-    setLoadError(null);
-    try {
-      const data = await getSubjects();
-      if (mountedRef.current) {
-        setSubjects(data);
-        setLoading(false);
-      }
-    } catch (err) {
-      logger.error("Failed to load subjects", err);
-      if (mountedRef.current) {
-        setLoadError("Failed to load subjects. Please try again.");
-        setLoading(false);
-      }
-    }
-  }, []);
+  const { data: subjects = [], isLoading: loading, isFetching, isError: loadError, error: queryError, refetch } = useQuery({
+    queryKey: ["subjects"],
+    queryFn: getSubjects,
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
+  const loadErrorMsg = loadError ? (queryError instanceof Error ? queryError.message : "Failed to load subjects. Please try again.") : null;
 
-  useEffect(() => {
-    loadSubjects();
-  }, [loadSubjects]);
+  const createMut = useMutation({
+    mutationFn: (vars: { name: string; color: string; credits?: number }) => createSubject(vars),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["subjects"] });
+      form.reset({ name: "", credits: undefined });
+      setSelectedColor(SUBJECT_COLORS[0]);
+      toast({ type: "success", title: "Subject created", message: vars.name });
+    },
+    onError: (err) => { logger.error("Failed to create subject", err); setError("Failed to create subject. Please try again."); },
+  });
+  const updateMut = useMutation({
+    mutationFn: ({ id, vars }: { id: string; vars: { name: string; color: string; credits?: number } }) => updateSubject(id, vars),
+    onSuccess: (_data, { vars }) => {
+      queryClient.invalidateQueries({ queryKey: ["subjects"] });
+      setEditingId(null);
+      form.reset({ name: "", credits: undefined });
+      setSelectedColor(SUBJECT_COLORS[0]);
+      toast({ type: "success", title: "Subject updated", message: vars.name });
+    },
+    onError: (err) => { logger.error("Failed to update subject", err); setError("Failed to update subject. Please try again."); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteSubject(id),
+    onSuccess: (_data, id) => {
+      const del = subjects.find((s) => s.id === id);
+      queryClient.invalidateQueries({ queryKey: ["subjects"] });
+      if (del) toast({ type: "info", title: "Subject deleted", message: del.name });
+    },
+    onError: (err) => { logger.error("Failed to delete subject", err); setError("Failed to delete subject. Please try again."); },
+  });
+  const submitting = createMut.isPending || updateMut.isPending || deleteMut.isPending;
 
   useEffect(() => {
     if (error) {
@@ -71,65 +89,20 @@ export function SubjectsPage() {
       return () => clearTimeout(timer);
     }
   }, [error]);
+  const loadSubjects = () => refetch();
 
   const handleCreate = form.handleSubmit(async (data) => {
-    setSubmitting(true);
     setError(null);
-    try {
-      await createSubject({
-        name: data.name,
-        color: selectedColor,
-        credits: data.credits ?? undefined,
-      });
-      form.reset({ name: "", credits: undefined });
-      setSelectedColor(SUBJECT_COLORS[0]);
-      await loadSubjects();
-      toast({ type: "success", title: "Subject created", message: data.name });
-    } catch (err) {
-      logger.error("Failed to create subject", err);
-      if (mountedRef.current) setError("Failed to create subject. Please try again.");
-    } finally {
-      if (mountedRef.current) setSubmitting(false);
-    }
+    createMut.mutate({ name: data.name, color: selectedColor, credits: data.credits ?? undefined });
   });
-
   const handleUpdate = form.handleSubmit(async (data) => {
     if (!editingId) return;
-    setSubmitting(true);
     setError(null);
-    try {
-      await updateSubject(editingId, {
-        name: data.name.trim(),
-        color: selectedColor,
-        credits: data.credits ?? undefined,
-      });
-      setEditingId(null);
-      form.reset({ name: "", credits: undefined });
-      setSelectedColor(SUBJECT_COLORS[0]);
-      await loadSubjects();
-      toast({ type: "success", title: "Subject updated", message: data.name });
-    } catch (err) {
-      logger.error("Failed to update subject", err);
-      if (mountedRef.current) setError("Failed to update subject. Please try again.");
-    } finally {
-      if (mountedRef.current) setSubmitting(false);
-    }
+    updateMut.mutate({ id: editingId, vars: { name: data.name.trim(), color: selectedColor, credits: data.credits ?? undefined } });
   });
-
   const handleDelete = async (id: string) => {
-    setSubmitting(true);
     setError(null);
-    try {
-      const deleted = subjects.find((s) => s.id === id);
-      await deleteSubject(id);
-      await loadSubjects();
-      if (deleted) toast({ type: "info", title: "Subject deleted", message: deleted.name });
-    } catch (err) {
-      logger.error("Failed to delete subject", err);
-      if (mountedRef.current) setError("Failed to delete subject. Please try again.");
-    } finally {
-      if (mountedRef.current) setSubmitting(false);
-    }
+    deleteMut.mutate(id);
   };
 
   const startEdit = (subject: Subject) => {
@@ -147,32 +120,29 @@ export function SubjectsPage() {
     setSelectedColor(SUBJECT_COLORS[0]);
   };
 
-  if (loading) {
+  if (loading && subjects.length === 0) {
     return (
-      <div className="mx-auto max-w-2xl space-y-8 p-6">
-        <Skeleton className="h-8 w-32" />
-        <Skeleton className="h-4 w-56" />
+      <div className="mx-auto max-w-2xl space-y-8 p-6 animate-in fade-in duration-100">
+        <Skeleton className="h-8 w-32 animate-pulse" />
+        <Skeleton className="h-4 w-56 animate-pulse" />
         <div className="space-y-4 rounded-lg border p-6">
-          <Skeleton className="h-6 w-24" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-3/4" />
-          <Skeleton className="h-10 w-24" />
+          <Skeleton className="h-10 w-full animate-pulse" />
+          <Skeleton className="h-10 w-24 animate-pulse" />
         </div>
         <div className="space-y-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 rounded-lg" />
+          {Array.from({ length: 2 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 rounded-lg animate-pulse" />
           ))}
         </div>
       </div>
     );
   }
-
-  if (loadError) {
+  if (loadErrorMsg) {
     return (
       <div className="mx-auto max-w-2xl p-6">
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
-          <p className="text-sm text-destructive mb-4">{loadError}</p>
-          <Button onClick={loadSubjects} variant="outline" size="sm">Retry</Button>
+          <p className="text-sm text-destructive mb-4">{loadErrorMsg}</p>
+          <Button onClick={() => refetch()} variant="outline" size="sm">Retry</Button>
         </div>
       </div>
     );

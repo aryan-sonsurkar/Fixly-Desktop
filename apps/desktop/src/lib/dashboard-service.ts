@@ -46,6 +46,8 @@ export interface DashboardData {
   recent_assignments: import("@fixly/shared-types").Assignment[];
   subjects: DashboardSubject[];
   email: DashboardEmail;
+  study?: { total_hours: number; study_days: number; avg_daily_minutes: number };
+  today?: { focus_minutes: number; xp_earned: number; date: string };
 }
 
 export async function getDashboard(): Promise<DashboardData> {

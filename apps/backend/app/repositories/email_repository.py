@@ -28,6 +28,8 @@ class EmailRepository:
     # ── Accounts ──────────────────────────────────────────
 
     async def create_account(self, user_id: str, data: dict[str, Any]) -> dict[str, Any]:
+        from app.core.security import encrypt_value, strip_blocked_fields
+
         client = self._client
         allowed = {
             "email", "provider", "access_token", "refresh_token", "token_expires_at",
@@ -36,7 +38,14 @@ class EmailRepository:
             "briefing_time", "auto_create_assignments", "confidence_threshold",
             "attachment_download",
         }
-        payload = {"user_id": user_id, **{k: v for k, v in data.items() if k in allowed}}
+        # Strip blocked fields and only allow listed keys (field tampering protection)
+        safe = strip_blocked_fields(data, allowed)
+        # Encrypt sensitive tokens at rest
+        if safe.get("access_token"):
+            safe["access_token"] = encrypt_value(str(safe["access_token"]))
+        if safe.get("refresh_token"):
+            safe["refresh_token"] = encrypt_value(str(safe["refresh_token"]))
+        payload = {"user_id": user_id, **safe}
         response = (
             client.table("email_accounts")
             .insert(payload)
@@ -57,7 +66,24 @@ class EmailRepository:
             .execute()
         )
         data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        return cast(list[dict[str, Any]], data.get("data", []))
+        rows = cast(list[dict[str, Any]], data.get("data", []))
+        # Decrypt tokens if encrypted (migration compatibility: try decrypt, fallback plain)
+        from app.core.security import decrypt_value
+
+        for r in rows:
+            if r.get("access_token"):
+                try:
+                    # only decrypt if looks like fernet token (starts with gAAAA)
+                    if str(r["access_token"]).startswith("gAAAA"):
+                        r["access_token"] = decrypt_value(r["access_token"])
+                except Exception:
+                    pass
+            if r.get("refresh_token") and str(r["refresh_token"]).startswith("gAAAA"):
+                try:
+                    r["refresh_token"] = decrypt_value(r["refresh_token"])
+                except Exception:
+                    pass
+        return rows
 
     async def get_account(self, account_id: str, user_id: str) -> dict[str, Any] | None:
         client = self._client
