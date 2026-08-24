@@ -1,6 +1,6 @@
 import os
 import sys
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterator
 from typing import Any
 
 import httpx  # noqa: F401 (kept for parity)
@@ -30,7 +30,12 @@ def _find_model() -> str | None:
             return p
     # Also check TAURI resource path for bundled model
     # Tauri extracts resources to <exe_dir>/../resources or next to backend.exe
-    for base in [os.path.dirname(sys.executable), os.getcwd(), os.path.join(os.path.dirname(__file__), "..", "..", "..", "resources")]:
+    bases = [
+        os.path.dirname(sys.executable),
+        os.getcwd(),
+        os.path.join(os.path.dirname(__file__), "..", "..", "..", "resources"),
+    ]
+    for base in bases:
         p = os.path.join(base, "models", MODEL_FILENAME)
         if os.path.exists(p):
             return p
@@ -47,15 +52,15 @@ class FixlyLocalProvider(AIProvider):
     def __init__(self) -> None:
         self.model_path = _find_model()
         self.timeout = 90
-        self._llama = None  # lazy load
+        self._llama: Any | None = None  # lazy load
 
-    def _load_llama(self):  # type: ignore[no-untyped-def]
+    def _load_llama(self) -> Any | None:
         if self._llama is not None:
             return self._llama
         if not self.model_path or not os.path.exists(self.model_path):
             return None
         try:
-            from llama_cpp import Llama  # type: ignore[import-not-found]
+            from llama_cpp import Llama
 
             # low-end friendly: n_ctx 4096, n_threads 4, n_batch 128
             self._llama = Llama(
@@ -88,7 +93,7 @@ class FixlyLocalProvider(AIProvider):
             # llama_cpp expects list of {"role": "...", "content": "..."}
             try:
                 out = llama.create_chat_completion(
-                    messages=messages,  # type: ignore[arg-type]
+                    messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
                 )
@@ -109,9 +114,76 @@ class FixlyLocalProvider(AIProvider):
         temperature: float = 0.7,
         max_tokens: int = 1024,
     ) -> AsyncGenerator[str, None]:
-        # Simple non-streaming fallback – yields once
-        text = await self.generate(messages, temperature, max_tokens)
-        yield text
+        import asyncio
+
+        def _sync_gen() -> Iterator[str]:
+            llama = self._load_llama()
+            if llama is None:
+                raise RuntimeError(f"Fixly Local model not found: {MODEL_FILENAME}")
+            # Try streaming, fallback to single yield if not supported
+            try:
+                stream = llama.create_chat_completion(
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    stream=True,
+                )
+                for chunk in stream:
+                    # chunk: {"choices": [{"delta": {"content": "..."}}]}
+                    choices = chunk.get("choices", [])
+                    if choices:
+                        delta = choices[0].get("delta", {})
+                        content = delta.get("content")
+                        if content:
+                            yield content
+                return
+            except TypeError:
+                # older llama_cpp without stream support
+                pass
+            # fallback
+            out = llama.create_chat_completion(
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            choices = out.get("choices", [])
+            if choices:
+                yield str(choices[0].get("message", {}).get("content", ""))
+
+        # Bridge sync generator to async via thread queue
+        # Use asyncio.to_thread to produce chunks incrementally via queue
+        import queue
+        import threading
+
+        q: queue.Queue[str | None] = queue.Queue()
+        done = threading.Event()
+
+        def _thread() -> None:
+            try:
+                gen = _sync_gen()
+                # _sync_gen is a generator, iterate
+                for tok in gen:
+                    q.put(tok)
+            except Exception as e:
+                logger.error("Fixly Local stream failed: %s", e)
+                q.put(None)
+            finally:
+                q.put(None)
+                done.set()
+
+        thread = threading.Thread(target=_thread, daemon=True)
+        thread.start()
+        while not done.is_set() or not q.empty():
+            try:
+                tok = await asyncio.to_thread(q.get, True, 0.05)
+            except Exception:
+                await asyncio.sleep(0.02)
+                continue
+            if tok is None:
+                if done.is_set() and q.empty():
+                    break
+                continue
+            yield tok
 
     async def check_availability(self) -> bool:
         # Fast check – file exists and llama_cpp importable

@@ -1,8 +1,13 @@
+import json
+from collections.abc import AsyncGenerator
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
+from fastapi.responses import StreamingResponse
 
+from app.core.exceptions import AIProviderUnavailableError
+from app.core.rate_limiter import ai_limiter
 from app.dependencies.auth import CurrentUser, get_current_user
 from app.schemas.ai import (
     AISettingsResponse,
@@ -29,8 +34,10 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
     body: ChatRequest,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
+    ai_limiter.check(request)
     service = AIService(access_token=current_user.access_token)
     return await service.chat(
         current_user.id,
@@ -40,11 +47,47 @@ async def chat(
     )
 
 
+@router.post("/chat/stream")
+async def chat_stream(
+    body: ChatRequest,
+    request: Request,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> StreamingResponse:
+    ai_limiter.check(request)
+    service = AIService(access_token=current_user.access_token)
+
+    async def gen() -> AsyncGenerator[str, None]:
+        convo_id = str(body.conversation_id) if body.conversation_id else None
+        try:
+            if not convo_id:
+                conversation = await service.repository.create_conversation(current_user.id, body.message[:80])
+                convo_id = str(conversation["id"])
+            async for token in service.chat_stream(current_user.id, body.message, convo_id):
+                yield f"data: {json.dumps({'token': token})}\n\n"
+            conversation = await service.get_conversation(convo_id, current_user.id)
+            message = next((item for item in reversed(conversation["messages"]) if item["role"] == "assistant"), None)
+            if message is None:
+                raise AIProviderUnavailableError("Fixly AI did not return a response. Please retry.")
+            yield f"data: {json.dumps({'done': True, 'message': message, 'conversation': conversation})}\n\n"
+        except AIProviderUnavailableError as exc:
+            yield f"data: {json.dumps({'error': exc.detail})}\n\n"
+        except Exception:
+            yield f"data: {json.dumps({'error': 'Fixly AI is currently unavailable. Please retry.'})}\n\n"
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @router.post("/regenerate", response_model=ChatResponse)
 async def regenerate(
     body: RegenerateRequest,
+    request: Request,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
+    ai_limiter.check(request)
     service = AIService(access_token=current_user.access_token)
     return await service.regenerate(
         current_user.id,

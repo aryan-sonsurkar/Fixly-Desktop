@@ -40,3 +40,4 @@ class RateLimiter:
 auth_limiter = RateLimiter(max_requests=10, window_seconds=60)  # 10/min per IP for login/signup
 strict_limiter = RateLimiter(max_requests=5, window_seconds=60)  # 5/min for sensitive
 upload_limiter = RateLimiter(max_requests=20, window_seconds=60)
+ai_limiter = RateLimiter(max_requests=20, window_seconds=60)  # 20/min per IP for chat – reuses same sliding window impl

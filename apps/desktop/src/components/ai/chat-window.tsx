@@ -68,24 +68,44 @@ export function ChatWindow() {
       setStreamingContent("");
 
       abortRef.current = new AbortController();
+      const settings = useAIStore.getState().settings;
+      const useStream = !!settings?.streaming_enabled;
 
-      const response = await aiService.sendChat({
-        conversation_id: convId,
-        message: text,
-      });
+      let response: aiService.ChatResponse;
+      if (useStream) {
+        response = await aiService.sendChatStream(
+          { conversation_id: convId, message: text },
+          (tok) => appendStreamingContent(tok),
+          abortRef.current.signal,
+        );
+        // Clear streaming buffer and add final message
+        setStreamingContent("");
+      } else {
+        response = await aiService.sendChat({
+          conversation_id: convId,
+          message: text,
+        });
+      }
 
       setShowStop(false);
       setIsStreaming(false);
 
       if (response.message) {
-        addMessage(response.message);
+        // Avoid duplicate if streaming already added via buffer
+        const exists = useAIStore.getState().messages.some((m) => m.id === response.message.id);
+        if (!exists) addMessage(response.message);
       }
 
       if (response.conversation) {
         useAIStore.getState().updateConversation(convId, response.conversation);
       }
     } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setShowStop(false);
+        setIsStreaming(false);
+        setStreamingContent("");
+        return;
+      }
       const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
       const msg = axiosErr?.response?.data?.error || (err instanceof Error ? err.message : "");
       if (msg.toLowerCase().includes("not available") || msg.toLowerCase().includes("ai provider")) {

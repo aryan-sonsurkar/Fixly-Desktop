@@ -35,7 +35,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Fixly backend shutting down")
 
 
-ALLOWED_ORIGINS = {"http://127.0.0.1", "http://localhost", "tauri://localhost", "https://tauri.localhost"}
+ALLOWED_ORIGINS = {
+    "http://127.0.0.1",
+    "http://localhost",
+    "tauri://localhost",
+    "http://tauri.localhost",
+    "https://tauri.localhost",
+}
 
 CORS_HEADERS: dict[str, str] = {
     "Access-Control-Allow-Origin": "http://127.0.0.1",
