@@ -294,20 +294,13 @@ apiClient.interceptors.response.use(
 
         pendingRequests.forEach((p) => p.reject(new Error("Refresh failed")));
         pendingRequests = [];
-        // Use proper navigation for memory router - dispatch event for protected-route to handle
+        // AuthContext clears local state; ProtectedRoute then redirects through
+        // the memory router. Reloading here remounts AuthProvider before async
+        // token deletion completes and can restart the same expiry cycle.
         try {
           window.dispatchEvent(new CustomEvent("fixly:auth-expired"));
-          // fallback: reload to register via hash for tauri memory router
-          if (!isTauriRuntime()) {
-            window.location.href = "/register";
-          } else {
-            // For Tauri memory router, use hash navigation
-            window.location.hash = "#/register";
-            // Also try history API
-            window.location.reload();
-          }
         } catch {
-          window.location.hash = "#/register";
+          // Ignore environments without DOM event support (for example tests).
         }
       }
     } else if (error.request) {

@@ -19,6 +19,33 @@ type ResponseInterceptor = {
 };
 
 describe("refresh storm regression", () => {
+  it("emits auth expiry without reloading the Tauri window", async () => {
+    const refresh = vi.spyOn(apiClient, "post").mockRejectedValue(new Error("refresh rejected"));
+    const originalHash = window.location.hash;
+    Object.defineProperty(window, "__TAURI_INTERNALS__", { configurable: true, value: {} });
+    const expiredEvent = vi.fn();
+    window.addEventListener("fixly:auth-expired", expiredEvent);
+
+    const handlers = (apiClient.interceptors.response as unknown as { handlers: ResponseInterceptor[] }).handlers;
+    const reject = handlers.at(-1)?.rejected;
+    const error = {
+      response: {
+        status: 401,
+        config: { url: "/api/v1/dashboard", headers: {} } as InternalAxiosRequestConfig,
+        data: {},
+      },
+    };
+
+    await expect(reject!(error)).rejects.toBe(error);
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(expiredEvent).toHaveBeenCalledTimes(1);
+    expect(window.location.hash).toBe(originalHash);
+
+    window.removeEventListener("fixly:auth-expired", expiredEvent);
+    delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+  });
+
   it("coalesces concurrent 401 responses into one refresh and retries every request", async () => {
     const refresh = vi.spyOn(apiClient, "post").mockResolvedValue({
       data: { access_token: "fresh-access-token", refresh_token: "fresh-refresh-token" },
