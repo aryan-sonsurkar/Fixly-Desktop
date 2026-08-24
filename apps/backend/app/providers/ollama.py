@@ -92,23 +92,8 @@ class OllamaProvider(AIProvider):
     _cache_ts: float = 0.0
 
     async def check_availability(self) -> bool:
-        # cached 10s
-        import time
-
-        if time.time() - self._cache_ts < 10 and "available" in self._cache:
-            return bool(self._cache["available"])
-        try:
-            async with httpx.AsyncClient(timeout=1.5) as client:
-                response = await client.get(f"{self.base_url}/api/tags")
-                ok = response.status_code == 200
-                self._cache["available"] = ok
-                self._cache_ts = time.time()
-                return ok
-        except Exception as e:
-            logger.warning("Ollama not available: %s", e)
-            self._cache["available"] = False
-            self._cache_ts = time.time()
-            return False
+        detail = await self.check_availability_detail()
+        return bool(detail.get("available"))
 
     async def check_availability_detail(self) -> dict[str, Any]:
         result: dict[str, Any] = {
