@@ -113,6 +113,26 @@ class TestCountPlaceholders:
 
 class TestPromptManagerBuild:
     @pytest.mark.asyncio
+    async def test_planner_prompt_matches_service_variables_and_json_contract(self) -> None:
+        registry = get_registry()
+        planner = registry.get(PromptType.PLANNER)
+        manager = PromptManager()
+        manager.register_prompt(PromptType.PLANNER, planner)
+
+        result = await manager.build(
+            PromptType.PLANNER,
+            None,
+            plan_type="daily",
+            subjects="Mathematics",
+            active_assignments="2",
+            deadlines="- Math (Due: 2026-08-25, Priority: high)",
+        )
+
+        assert "{assignment_load}" not in result
+        assert '"schedule_items"' in result
+        assert "2026-08-25" in result
+
+    @pytest.mark.asyncio
     async def test_build_with_context(self) -> None:
         registry = get_registry()
         previous = registry.get(PromptType.SYSTEM)
