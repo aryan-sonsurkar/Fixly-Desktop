@@ -56,6 +56,7 @@ export interface ProviderDetail {
   model_count: number;
   models: string[];
   error: string | null;
+  selected_model?: string | null;
 }
 
 export interface ProviderDetailResponse {
@@ -199,7 +200,9 @@ export async function checkProviderDetail(): Promise<ProviderDetailResponse> {
   return response.data;
 }
 
-export async function listOllamaModels(): Promise<OllamaModel[]> {
-  const response = await apiClient.get("/api/v1/ai/providers/ollama/models");
+export async function listOllamaModels(forceRefresh = false): Promise<OllamaModel[]> {
+  const response = await apiClient.get("/api/v1/ai/providers/ollama/models", {
+    params: forceRefresh ? { refresh: true } : undefined,
+  });
   return response.data;
 }

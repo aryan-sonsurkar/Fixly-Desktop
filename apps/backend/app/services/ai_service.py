@@ -47,8 +47,6 @@ class AIService:
         self.token_counter = TokenCounter()
 
     def _get_providers(self) -> dict[str, AIProvider]:
-        # Bundled Qwen2-0.5B is primary default for all pages (AI Workspace, Planner, Documents)
-        # Ollama/Gemini remain as selectable alternatives in Settings
         return {
             "fixly-local": FixlyLocalProvider(),
             "ollama": OllamaProvider(),
@@ -70,26 +68,29 @@ class AIService:
             model_override = settings_data.get("provider_model") if isinstance(settings_data, dict) else None
 
         if preferred == "auto":
+            if model_override and isinstance(providers["ollama"], OllamaProvider):
+                await providers["ollama"].select_model(model_override)
+            provider_order = ("ollama",) if model_override else ("fixly-local", "ollama", "gemini")
+
             async def _check(name: str) -> tuple[str, bool]:
                 p = providers[name]
-                if model_override and hasattr(p, "set_model"):
-                    p.set_model(model_override)
+                if isinstance(p, OllamaProvider):
+                    await p.select_model(model_override)
                 try:
                     ok = await asyncio.wait_for(p.check_availability(), timeout=4.0)
                 except Exception:
                     ok = False
                 return name, ok
 
-            # fixly-local (bundled Qwen2-0.5B) first for offline low-end demo
-            results = await asyncio.gather(*[_check(n) for n in ("fixly-local", "ollama", "gemini")])
+            results = await asyncio.gather(*[_check(n) for n in provider_order])
             for name, ok in results:
                 if ok:
                     logger.info("Auto-routing to provider: %s", name)
                     return providers[name]
         elif preferred in providers:
             provider = providers[preferred]
-            if model_override and hasattr(provider, "set_model"):
-                provider.set_model(model_override)
+            if isinstance(provider, OllamaProvider):
+                await provider.select_model(model_override)
             import asyncio as _asyncio
 
             try:
@@ -102,13 +103,16 @@ class AIService:
             fb = (settings_data or {}).get("fallback_provider") if isinstance(settings_data, dict) else None
             for cand in [fb, "fixly-local", "ollama"]:
                 if cand and cand != preferred and cand in providers:
+                    candidate_provider = providers[cand]
                     try:
-                        ok2 = await _asyncio.wait_for(providers[cand].check_availability(), timeout=3.0)
+                        if isinstance(candidate_provider, OllamaProvider):
+                            await candidate_provider.select_model(model_override)
+                        ok2 = await _asyncio.wait_for(candidate_provider.check_availability(), timeout=3.0)
                     except Exception:
                         ok2 = False
                     if ok2:
                         logger.info("Fallback %s -> %s", preferred, cand)
-                        return providers[cand]
+                        return candidate_provider
             raise AIProviderUnavailableError(f"Provider '{preferred}' is not available")
 
         raise AIProviderUnavailableError("No AI provider is currently available")
@@ -440,7 +444,8 @@ class AIService:
         clean = {k: v for k, v in updates.items() if v is not None}
         if not clean:
             return await self.get_settings(user_id)
-        return await self.repository.update_ai_settings(user_id, clean)
+        await self.repository.update_ai_settings(user_id, clean)
+        return await self.get_settings(user_id)
 
     async def check_availability(self) -> dict[str, bool]:
         import asyncio
@@ -458,10 +463,21 @@ class AIService:
         pairs = await asyncio.gather(*[_chk(i) for i in providers.items()])
         return dict(pairs)
 
-    async def check_providers_detail(self) -> dict[str, dict[str, Any]]:
+    async def check_providers_detail(self, user_id: str | None = None) -> dict[str, dict[str, Any]]:
         import asyncio
 
         providers = self._get_providers()
+        if user_id:
+            settings_data = await self._get_settings(user_id)
+            model_override = settings_data.get("provider_model")
+            if isinstance(providers["ollama"], OllamaProvider):
+                if model_override:
+                    providers["ollama"].set_model(model_override)
+                else:
+                    try:
+                        await providers["ollama"].select_model()
+                    except Exception:
+                        pass
 
         async def _detail(item: tuple[str, Any]) -> tuple[str, dict[str, Any]]:
             name, provider = item
@@ -474,11 +490,11 @@ class AIService:
         pairs = await asyncio.gather(*[_detail(i) for i in providers.items()])
         return dict(pairs)
 
-    async def list_ollama_models(self) -> list[dict[str, Any]]:
+    async def list_ollama_models(self, force_refresh: bool = False) -> list[dict[str, Any]]:
         import asyncio
 
         provider = OllamaProvider()
         try:
-            return await asyncio.wait_for(provider.list_models(), timeout=5.0)
+            return await asyncio.wait_for(provider.list_models(force_refresh=force_refresh), timeout=5.0)
         except Exception:
             return []

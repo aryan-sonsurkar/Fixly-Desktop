@@ -20,6 +20,8 @@ export function AISettingsDialog() {
   const [testing, setTesting] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [modelError, setModelError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (settings) {
@@ -35,8 +37,11 @@ export function AISettingsDialog() {
   }, [settings]);
 
   useEffect(() => {
-    fetchOllamaStatus();
-  }, []);
+    if (settingsOpen) {
+      void fetchOllamaStatus();
+      void loadModels();
+    }
+  }, [settingsOpen]);
 
   const fetchOllamaStatus = async () => {
     try {
@@ -45,6 +50,9 @@ export function AISettingsDialog() {
       setOllamaStatus(ollama);
       if (ollama?.models?.length) {
         setAvailableModels(ollama.models);
+        if (!settings?.provider_model) {
+          setProviderModel(ollama.selected_model && ollama.models.includes(ollama.selected_model) ? ollama.selected_model : ollama.models[0]);
+        }
       }
     } catch {
       setOllamaStatus({
@@ -56,6 +64,7 @@ export function AISettingsDialog() {
         models: [],
         error: "Could not reach backend",
       });
+      setAvailableModels([]);
     }
   };
 
@@ -70,11 +79,24 @@ export function AISettingsDialog() {
 
   const loadModels = async () => {
     setLoadingModels(true);
+    setModelError(null);
     try {
-      const models = await aiService.listOllamaModels();
-      setAvailableModels(models.map((m) => m.name));
-    } catch {
+      const models = await aiService.listOllamaModels(true);
+      const names = models.map((m) => m.name);
+      setAvailableModels(names);
+      setOllamaStatus((current) => current ? {
+        ...current,
+        models: names,
+        model_count: names.length,
+        available: current.running && names.length > 0,
+        error: current.running && names.length === 0 ? "No models installed. Install an Ollama model to use Fixly AI." : current.error,
+      } : current);
+      if (!providerModel && names.length > 0) {
+        setProviderModel(names[0]);
+      }
+    } catch (error) {
       setAvailableModels([]);
+      setModelError(error instanceof Error ? error.message : "Could not load Ollama models.");
     } finally {
       setLoadingModels(false);
     }
@@ -82,6 +104,7 @@ export function AISettingsDialog() {
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       const updated = await aiService.updateAISettings({
         temperature,
@@ -95,8 +118,8 @@ export function AISettingsDialog() {
       });
       setSettings(updated);
       setSettingsOpen(false);
-    } catch {
-      // silently fail
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Could not save AI settings.");
     } finally {
       setSaving(false);
     }
@@ -140,17 +163,17 @@ export function AISettingsDialog() {
                   {ollamaStatus ? (
                     <span
                       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                        ollamaStatus.available
+                        ollamaStatus.running
                           ? "bg-green-500/10 text-green-600"
                           : "bg-red-500/10 text-red-600"
                       }`}
                     >
                       <span
                         className={`h-1.5 w-1.5 rounded-full ${
-                          ollamaStatus.available ? "bg-green-500" : "bg-red-500"
+                          ollamaStatus.running ? "bg-green-500" : "bg-red-500"
                         }`}
                       />
-                      {ollamaStatus.available ? "Connected" : "Disconnected"}
+                      {ollamaStatus.running ? "Running" : "Not running"}
                     </span>
                   ) : (
                     <span className="text-[10px] text-muted-foreground">Checking...</span>
@@ -165,10 +188,10 @@ export function AISettingsDialog() {
                   {testing ? "Testing..." : "Test Connection"}
                 </button>
               </div>
-              {ollamaStatus && !ollamaStatus.available && ollamaStatus.error && (
+              {ollamaStatus && ollamaStatus.error && (
                 <p className="mt-1.5 text-[11px] text-red-500">{ollamaStatus.error}</p>
               )}
-              {ollamaStatus && ollamaStatus.available && (
+              {ollamaStatus && ollamaStatus.running && availableModels.length > 0 && (
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {ollamaStatus.model_count} model{ollamaStatus.model_count !== 1 ? "s" : ""} available
                 </p>
@@ -204,15 +227,20 @@ export function AISettingsDialog() {
                 <select
                   value={providerModel}
                   onChange={(e) => setProviderModel(e.target.value)}
+                  disabled={loadingModels || availableModels.length === 0}
                   className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
                 >
-                  <option value="">Default ({ollamaStatus?.models?.[0] || "llama3.2"})</option>
+                  {availableModels.length === 0 && <option value="">Install an Ollama model to use Fixly AI.</option>}
+                  {providerModel && !availableModels.includes(providerModel) && (
+                    <option value={providerModel}>Selected model is no longer installed.</option>
+                  )}
                   {availableModels.map((m) => (
                     <option key={m} value={m}>
                       {m}
                     </option>
                   ))}
                 </select>
+                {modelError && <p className="mt-1 text-[11px] text-red-500">{modelError}</p>}
               </div>
 
               <div>
@@ -319,6 +347,7 @@ export function AISettingsDialog() {
             </div>
 
             <div className="mt-6 flex justify-end gap-3">
+              {saveError && <p className="mr-auto self-center text-xs text-red-500">{saveError}</p>}
               <button
                 type="button"
                 onClick={() => setSettingsOpen(false)}

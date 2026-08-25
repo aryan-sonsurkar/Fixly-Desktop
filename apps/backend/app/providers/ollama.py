@@ -17,15 +17,28 @@ class OllamaProvider(AIProvider):
     # Demo-optimized: smallest reliable model for 8GB Windows laptop
     # If team laptop has 16GB+, they can use llama3.2:3b via provider_model setting
     DEFAULT_MODEL = "gemma2:2b"
-    FALLBACK_MODEL = "llama3.2:1b"
 
     def __init__(self) -> None:
         self.base_url = settings.ollama_host.rstrip("/")
         self.model = self.DEFAULT_MODEL
         self.timeout = 90
 
+    _models_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+    MODEL_CACHE_TTL = 10.0
+
     def set_model(self, model: str) -> None:
         self.model = model
+
+    async def select_model(self, requested: str | None = None) -> str:
+        models = await self.list_models()
+        names = [str(model.get("name", "")) for model in models]
+        if requested:
+            if requested not in names:
+                raise AIProviderUnavailableError("Selected Ollama model is no longer installed")
+            self.model = requested
+        elif names:
+            self.model = self.DEFAULT_MODEL if self.DEFAULT_MODEL in names else names[0]
+        return self.model
 
     async def generate(
         self,
@@ -87,15 +100,37 @@ class OllamaProvider(AIProvider):
                     except json.JSONDecodeError:
                         continue
 
-    # short TTL cache to reduce cold-start on repeated checks (demo: rapid AI calls)
-    _cache: dict[str, Any] = {}
-    _cache_ts: float = 0.0
-
     async def check_availability(self) -> bool:
-        detail = await self.check_availability_detail()
-        return bool(detail.get("available"))
+        return bool(await self.list_models())
 
-    async def check_availability_detail(self) -> dict[str, Any]:
+    async def _discover_models(self, force_refresh: bool = False) -> tuple[bool, list[dict[str, Any]]]:
+        import time
+
+        cached = self._models_cache.get(self.base_url)
+        if not force_refresh and cached and time.time() - cached[0] < self.MODEL_CACHE_TTL:
+            return True, cached[1]
+        try:
+            async with httpx.AsyncClient(timeout=1.5) as client:
+                response = await client.get(f"{self.base_url}/api/tags")
+                if response.status_code != 200:
+                    return False, []
+                data = response.json()
+                models = [
+                    {
+                        "name": str(model.get("name", "")),
+                        "size": model.get("size", 0),
+                        "modified_at": str(model.get("modified_at", "")),
+                    }
+                    for model in data.get("models", [])
+                    if model.get("name")
+                ]
+                self._models_cache[self.base_url] = (time.time(), models)
+                return True, models
+        except Exception as e:
+            logger.warning("Ollama model discovery failed: %s", e)
+            return False, []
+
+    async def check_availability_detail(self, force_refresh: bool = False) -> dict[str, Any]:
         result: dict[str, Any] = {
             "name": self.name,
             "available": False,
@@ -104,50 +139,23 @@ class OllamaProvider(AIProvider):
             "models": [],
             "error": None,
             "model_count": 0,
-            "required_model": self.model,
+            "selected_model": self.model,
         }
-        try:
-            async with httpx.AsyncClient(timeout=1.5) as client:
-                response = await client.get(f"{self.base_url}/api/tags")
-                if response.status_code == 200:
-                    result["installed"] = True
-                    result["running"] = True
-                    data = response.json()
-                    models = data.get("models", [])
-                    result["models"] = [m.get("name", "") for m in models]
-                    result["model_count"] = len(models)
-                    has_required = any(self.model in m or self.FALLBACK_MODEL in m for m in result["models"])
-                    result["available"] = len(models) > 0 and has_required
-                    if len(models) > 0 and not has_required:
-                        result["error"] = f"Fixly AI model is not installed. Required: {self.model}. Run: ollama pull {self.model}"
-                    elif len(models) == 0:
-                        result["error"] = f"Ollama installed but no models. Run: ollama pull {self.model}"
-                else:
-                    result["running"] = True
-                    result["error"] = f"Ollama responded with status {response.status_code}"
-        except httpx.ConnectError:
-            result["error"] = "Ollama is required for local Fixly AI. Not installed or daemon not running. Install: https://ollama.com → then: ollama pull gemma2:2b"
-        except httpx.TimeoutException:
+        reachable, models = await self._discover_models(force_refresh)
+        result["models"] = [str(model["name"]) for model in models]
+        result["model_count"] = len(models)
+        if reachable:
+            result["installed"] = True
             result["running"] = True
-            result["error"] = "Ollama daemon is running but not responding (timeout) – try: ollama serve"
-        except Exception as e:
-            result["error"] = str(e)
+            result["available"] = len(models) > 0
+            if not models:
+                result["error"] = "No models installed. Install an Ollama model to use Fixly AI."
+            elif self.model not in result["models"]:
+                result["error"] = "Selected model is no longer installed."
+        else:
+            result["error"] = "Ollama is not running or cannot be reached. Start Ollama to use Fixly AI."
         return result
 
-    async def list_models(self) -> list[dict[str, Any]]:
-        try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                response = await client.get(f"{self.base_url}/api/tags")
-                response.raise_for_status()
-                data = response.json()
-                return [
-                    {
-                        "name": m.get("name", ""),
-                        "size": m.get("size", 0),
-                        "modified_at": str(m.get("modified_at", "")),
-                    }
-                    for m in data.get("models", [])
-                ]
-        except Exception as e:
-            logger.warning("Failed to list Ollama models: %s", e)
-            return []
+    async def list_models(self, force_refresh: bool = False) -> list[dict[str, Any]]:
+        _reachable, models = await self._discover_models(force_refresh)
+        return models

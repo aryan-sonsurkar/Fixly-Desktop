@@ -214,14 +214,17 @@ async def check_providers(current_user: CurrentUser = Depends(get_current_user))
 @router.get("/providers/detail", response_model=ProviderDetailResponse)
 async def check_providers_detail(current_user: CurrentUser = Depends(get_current_user)) -> dict[str, dict[str, Any]]:
     service = AIService(access_token=current_user.access_token)
-    providers_data = await service.check_providers_detail()
+    providers_data = await service.check_providers_detail(current_user.id)
     return {"providers": providers_data}
 
 
 @router.get("/providers/ollama/models")
-async def list_ollama_models(current_user: CurrentUser = Depends(get_current_user)) -> list[dict[str, Any]]:
+async def list_ollama_models(
+    refresh: bool = Query(False),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[dict[str, Any]]:
     service = AIService(access_token=current_user.access_token)
-    return await service.list_ollama_models()
+    return await service.list_ollama_models(force_refresh=refresh)
 
 
 @router.post("/plan/daily", response_model=PlanResponse)

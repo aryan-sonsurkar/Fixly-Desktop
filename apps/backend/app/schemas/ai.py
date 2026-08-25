@@ -108,6 +108,7 @@ class ProviderDetail(BaseModel):
     model_count: int = 0
     models: list[str] = []
     error: str | None = None
+    selected_model: str | None = None
 
 
 class ProviderDetailResponse(BaseModel):

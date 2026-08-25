@@ -221,7 +221,7 @@ class AIRepository:
         has_ollama = bool(settings.ollama_host)
 
         columns = (
-            "preferred_provider, temperature, max_tokens, streaming_enabled, "
+            "preferred_provider, provider_model, temperature, max_tokens, streaming_enabled, "
             "system_prompt, academic_context, conversation_memory, fallback_provider, ai_enabled"
         )
         result = single_or_none(
@@ -235,6 +235,7 @@ class AIRepository:
             return result
         return {
             "preferred_provider": "auto",
+            "provider_model": None,
             "temperature": 0.7,
             "max_tokens": 2048,
             "streaming_enabled": True,
