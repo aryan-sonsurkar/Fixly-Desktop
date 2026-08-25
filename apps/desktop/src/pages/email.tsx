@@ -12,6 +12,7 @@ import {
   markEmailRead,
   generateBriefing,
   reviewAssignment,
+  connectEmailAccount,
   type EmailMessage,
   type EmailAssignment,
 } from "@/lib/email-service";
@@ -409,8 +410,29 @@ function CategoriesView({ messages }: { messages: EmailMessage[] }) {
 }
 
 function AccountsView({ accounts, onSync, onDelete }: { accounts: any[]; onSync: (id: string) => void; onDelete: (id: string) => void }) {
+  const [email, setEmail] = useState("");
+  const [appPassword, setAppPassword] = useState("");
+  const queryClient = useQueryClient();
+  const connectMut = useMutation({
+    mutationFn: () => connectEmailAccount({ email, provider: "other", access_token: appPassword }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["email-accounts"] });
+      setEmail(""); setAppPassword("");
+      toast({ type: "success", title: "Account connected via App Password" });
+    },
+    onError: () => toast({ type: "error", title: "Failed to connect — check App Password" }),
+  });
   return (
     <div className="h-full overflow-y-auto">
+      <div className="mb-6 rounded-lg border p-4">
+        <h3 className="text-sm font-semibold">Connect with App Password</h3>
+        <p className="text-xs text-muted-foreground mb-3">Use your Gmail App Password for assignment reminders & email monitoring. Create at myaccount.google.com → Security → App Passwords.</p>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Input placeholder="you@gmail.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <Input placeholder="16-char App Password" type="password" value={appPassword} onChange={(e) => setAppPassword(e.target.value)} />
+        </div>
+        <Button size="sm" className="mt-3" onClick={() => connectMut.mutate()} disabled={!email || !appPassword || connectMut.isPending}>{connectMut.isPending ? "Connecting..." : "Connect"}</Button>
+      </div>
       <h2 className="mb-3 text-base font-semibold">Connected Accounts</h2>
       {!accounts || accounts.length === 0 ? (
         <div className="flex flex-col items-center gap-4 py-16 text-center">

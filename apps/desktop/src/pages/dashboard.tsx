@@ -224,30 +224,6 @@ export function DashboardPage() {
         onGenerate={handleGenerateMission}
       />
     ),
-    health: (
-      <HealthWidget
-        score={risk?.academic_health_score ?? 50}
-        riskLevel={risk?.risk_level ?? "Low"}
-        loading={riskLoading}
-        onRefresh={handleRefreshRisk}
-      />
-    ),
-    risk_alerts: (
-      <RiskAlertsWidget
-        alerts={parsedAlerts}
-        loading={riskLoading}
-        onRefresh={handleRefreshRisk}
-      />
-    ),
-    momentum: (
-      <MomentumWidget
-        streak={profile.streak}
-        weeklyHours={data?.study?.total_hours ?? 0}
-        weeklyCycles={data?.study?.total_hours ? Math.round(data.study.total_hours * 2) : 0}
-        studyDays={data?.study?.study_days ?? 0}
-        loading={false}
-      />
-    ),
     focus: (
       <FocusWidget
         focusMinutes={data?.study?.total_hours ? Math.round(data.study.total_hours * 60) : 0}
@@ -301,7 +277,7 @@ export function DashboardPage() {
     ),
   };
 
-  const topRowTypes = ["health", "momentum", "risk_alerts", "focus", "xp", "score", "pomodoro"];
+  const topRowTypes = ["momentum", "focus", "xp", "score"];
   const midRowTypes = ["mission", "briefing"];
   const bottomRowTypes = ["assignments", "tasks", "actions", "emails"];
 

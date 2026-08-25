@@ -212,7 +212,7 @@ export function AssignmentFormDialog({
             </div>
             <div className="space-y-2">
               <Label htmlFor="due_date">Due Date</Label>
-              <Input id="due_date" type="datetime-local" {...form.register("due_date")} />
+              <Input id="due_date" type="datetime-local" className="[color-scheme:dark] dark:[&::-webkit-calendar-picker-indicator]:invert dark:[&::-webkit-calendar-picker-indicator]:brightness-200 [&::-webkit-calendar-picker-indicator]:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer" {...form.register("due_date")} />
             </div>
           </div>
 

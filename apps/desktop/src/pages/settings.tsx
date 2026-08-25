@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Input, Label, Skeleton } from "@fixly/ui";
 import { getMySettings, updateMySettings } from "@/lib/profile-service";
+import { getDiagnostics } from "@/lib/diagnostics-service";
 import { createLogger } from "@/lib/logger";
 import { toast } from "@/stores/toast-store";
 
@@ -159,6 +160,40 @@ export function SettingsPage() {
           )}
         </div>
       </form>
+
+      <AppHealthSection />
     </div>
+  );
+}
+
+function AppHealthSection() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["diagnostics"],
+    queryFn: getDiagnostics,
+    staleTime: 30 * 1000,
+    placeholderData: (prev) => prev,
+  });
+  if (isLoading && !data) return <div className="rounded-lg border p-6"><p className="text-sm text-muted-foreground">Checking app health...</p></div>;
+  const s = (v?: string) => v === "healthy" ? "text-success" : v === "unhealthy" ? "text-destructive" : "text-muted-foreground";
+  return (
+    <section className="space-y-4 rounded-lg border p-6">
+      <h2 className="text-lg font-semibold">App Health</h2>
+      <p className="text-sm text-muted-foreground">System status and diagnostics — friendly view</p>
+      <div className="space-y-2">
+        <div className="flex justify-between rounded-lg bg-muted/30 px-4 py-2.5">
+          <span className="text-sm text-muted-foreground">Backend API</span>
+          <span className={`text-sm font-medium ${s(data?.backend.status)}`}>{data?.backend.status || "checking"} {data?.backend.port ? `:${data.backend.port}` : ""}</span>
+        </div>
+        <div className="flex justify-between rounded-lg bg-muted/30 px-4 py-2.5">
+          <span className="text-sm text-muted-foreground">Database</span>
+          <span className={`text-sm font-medium ${s(data?.database.status)}`}>{data?.database.status || "checking"}</span>
+        </div>
+        <div className="flex justify-between rounded-lg bg-muted/30 px-4 py-2.5">
+          <span className="text-sm text-muted-foreground">AI Provider</span>
+          <span className={`text-sm font-medium ${s(data?.ai.status)}`}>{data?.ai.provider || "fixly-local"} {data?.ai.model ? `(${data.ai.model})` : ""}</span>
+        </div>
+        {data?.ai.error && <p className="text-xs text-destructive px-2">{data.ai.error}</p>}
+      </div>
+    </section>
   );
 }

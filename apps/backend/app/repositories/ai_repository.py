@@ -250,14 +250,26 @@ class AIRepository:
 
     async def update_ai_settings(self, user_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         client = self._client
-        payload = {"user_id": user_id, **updates}
-        response = (
-            client.table("settings")
-            .upsert(payload, on_conflict="user_id")
-
-            .execute()
-        )
-        data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
-        _result = data.get("data") or data
-        result = _result[0] if isinstance(_result, list) else _result
-        return result
+        # Filter to known columns to avoid 500 if migration 00013 not yet applied on remote
+        allowed = {"preferred_provider", "provider_model", "temperature", "max_tokens", "streaming_enabled", "system_prompt", "academic_context", "conversation_memory", "fallback_provider", "ai_enabled"}
+        clean = {k: v for k, v in updates.items() if k in allowed}
+        # If provider_model column missing on remote, retry without it
+        for attempt in (clean, {k: v for k, v in clean.items() if k != "provider_model"}):
+            try:
+                payload = {"user_id": user_id, **attempt}
+                response = (
+                    client.table("settings")
+                    .upsert(payload, on_conflict="user_id")
+                    .execute()
+                )
+                data = response.model_dump() if hasattr(response, "model_dump") else dict(response)
+                _result = data.get("data") or data
+                result = _result[0] if isinstance(_result, list) else _result
+                return result
+            except Exception as e:
+                msg = str(e).lower()
+                if "provider_model" in msg and "provider_model" in attempt:
+                    logger.warning("provider_model column missing, retrying without it: %s", e)
+                    continue
+                raise
+        return clean

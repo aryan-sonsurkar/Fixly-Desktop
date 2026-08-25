@@ -17,6 +17,7 @@ CANDIDATE_DIRS = [
     os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "models"),
     os.path.join(os.path.dirname(sys.executable), "models") if getattr(sys, "frozen", False) else "",
     os.path.join(os.path.dirname(sys.executable), "_internal", "models") if getattr(sys, "frozen", False) else "",
+    os.path.join(os.path.dirname(sys.executable), "..", "models") if getattr(sys, "frozen", False) else "",
     os.path.join(os.path.expanduser("~"), "AppData", "Local", "Fixly", "models"),
     os.path.join(os.path.expanduser("~"), ".cache", "fixly", "models"),
 ]

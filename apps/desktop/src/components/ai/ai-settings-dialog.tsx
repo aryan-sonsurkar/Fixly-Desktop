@@ -17,6 +17,7 @@ export function AISettingsDialog() {
   const [saving, setSaving] = useState(false);
 
   const [ollamaStatus, setOllamaStatus] = useState<aiService.ProviderDetail | null>(null);
+  const [fixlyStatus, setFixlyStatus] = useState<aiService.ProviderDetail | null>(null);
   const [testing, setTesting] = useState(false);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -47,11 +48,16 @@ export function AISettingsDialog() {
     try {
       const detail = await aiService.checkProviderDetail();
       const ollama = detail.providers.ollama;
+      const fixly = detail.providers["fixly-local"];
       setOllamaStatus(ollama);
-      if (ollama?.models?.length) {
-        setAvailableModels(ollama.models);
+      if (fixly) setFixlyStatus(fixly);
+      // Prefer Fixly Local models if available, else Ollama
+      const models = fixly?.models?.length ? fixly.models : ollama?.models || [];
+      if (models.length) {
+        setAvailableModels(models);
         if (!settings?.provider_model) {
-          setProviderModel(ollama.selected_model && ollama.models.includes(ollama.selected_model) ? ollama.selected_model : ollama.models[0]);
+          const sel = fixly?.models?.[0] || ollama?.models?.[0];
+          if (sel) setProviderModel(sel);
         }
       }
     } catch {
@@ -64,6 +70,7 @@ export function AISettingsDialog() {
         models: [],
         error: "Could not reach backend",
       });
+      setFixlyStatus(null);
       setAvailableModels([]);
     }
   };
@@ -106,13 +113,14 @@ export function AISettingsDialog() {
     setSaving(true);
     setSaveError(null);
     try {
+      const modelToSave = preferredProvider === "fixly-local" ? "qwen2-0.5b-instruct-q4_k_m.gguf" : providerModel || null;
       const updated = await aiService.updateAISettings({
         temperature,
         max_tokens: maxTokens,
         streaming_enabled: streaming,
         system_prompt: systemPrompt || null,
         preferred_provider: preferredProvider,
-        provider_model: providerModel || null,
+        provider_model: modelToSave,
         academic_context: academicContext,
         conversation_memory: conversationMemory,
       });
@@ -155,7 +163,26 @@ export function AISettingsDialog() {
               </button>
             </div>
 
-            {/* Connection Status */}
+            {/* Fixly Local - Bundled */}
+            <div className="mb-3 rounded-lg border bg-primary/5 p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Fixly AI (Local)</span>
+                  {fixlyStatus ? (
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${fixlyStatus.available ? "bg-green-500/10 text-green-600" : "bg-amber-500/10 text-amber-600"}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${fixlyStatus.available ? "bg-green-500" : "bg-amber-500"}`} />
+                      {fixlyStatus.available ? "Ready" : "Not ready"}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground">Checking...</span>
+                  )}
+                </div>
+                <span className="text-[11px] text-muted-foreground">Qwen2 0.5B • Bundled • Offline</span>
+              </div>
+              {fixlyStatus?.error && <p className="mt-1.5 text-[11px] text-amber-600">{fixlyStatus.error}</p>}
+              {fixlyStatus?.available && <p className="mt-1 text-[11px] text-muted-foreground">1 model bundled • No download needed</p>}
+            </div>
+            {/* Ollama */}
             <div className="mb-5 rounded-lg border bg-card p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -206,7 +233,8 @@ export function AISettingsDialog() {
                   onChange={(e) => setPreferredProvider(e.target.value)}
                   className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
                 >
-                  <option value="auto">Auto (Ollama first)</option>
+                  <option value="auto">Auto (Fixly Local first)</option>
+                  <option value="fixly-local">Fixly AI (Local - Bundled Qwen2 0.5B)</option>
                   <option value="ollama">Ollama (Local)</option>
                   <option value="gemini">Gemini (Google AI)</option>
                 </select>
@@ -214,7 +242,7 @@ export function AISettingsDialog() {
 
               <div>
                 <div className="mb-1.5 flex items-center justify-between">
-                  <label className="text-sm font-medium">Model</label>
+                  <label className="text-sm font-medium">Model {preferredProvider === "fixly-local" && <span className="text-xs text-muted-foreground font-normal">(bundled)</span>}</label>
                   <button
                     type="button"
                     onClick={loadModels}
@@ -224,22 +252,26 @@ export function AISettingsDialog() {
                     {loadingModels ? "Loading..." : "Refresh models"}
                   </button>
                 </div>
-                <select
-                  value={providerModel}
-                  onChange={(e) => setProviderModel(e.target.value)}
-                  disabled={loadingModels || availableModels.length === 0}
-                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
-                >
-                  {availableModels.length === 0 && <option value="">Install an Ollama model to use Fixly AI.</option>}
-                  {providerModel && !availableModels.includes(providerModel) && (
-                    <option value={providerModel}>Selected model is no longer installed.</option>
-                  )}
-                  {availableModels.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                {preferredProvider === "fixly-local" ? (
+                  <div className="w-full rounded-lg border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">qwen2-0.5b-instruct-q4_k_m.gguf � bundled, no download</div>
+                ) : (
+                  <select
+                    value={providerModel}
+                    onChange={(e) => setProviderModel(e.target.value)}
+                    disabled={loadingModels || availableModels.length === 0}
+                    className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    {availableModels.length === 0 && <option value="">Install an Ollama model to use Fixly AI.</option>}
+                    {providerModel && !availableModels.includes(providerModel) && (
+                      <option value={providerModel}>Selected model is no longer installed.</option>
+                    )}
+                    {availableModels.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 {modelError && <p className="mt-1 text-[11px] text-red-500">{modelError}</p>}
               </div>
 
@@ -262,88 +294,15 @@ export function AISettingsDialog() {
                 </div>
               </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">Max Tokens</label>
-                <input
-                  type="number"
-                  value={maxTokens}
-                  onChange={(e) => setMaxTokens(parseInt(e.target.value) || 2048)}
-                  min={128}
-                  max={8192}
-                  step={128}
-                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
 
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Streaming Responses</label>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={streaming}
-                  onClick={() => setStreaming(!streaming)}
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                    streaming ? "bg-primary" : "bg-muted"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                      streaming ? "translate-x-4.5" : "translate-x-1"
-                    }`}
-                  />
-                </button>
-              </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="text-sm font-medium">Academic Context</label>
-                  <p className="text-xs text-muted-foreground">Inject assignments & deadlines into prompts</p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={academicContext}
-                  onClick={() => setAcademicContext(!academicContext)}
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                    academicContext ? "bg-primary" : "bg-muted"
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                      academicContext ? "translate-x-4.5" : "translate-x-1"
-                    }`}
-                  />
-                </button>
-              </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">
-                  Conversation Memory: {conversationMemory} messages
-                </label>
-                <input
-                  type="range"
-                  min={1}
-                  max={50}
-                  value={conversationMemory}
-                  onChange={(e) => setConversationMemory(parseInt(e.target.value))}
-                  className="w-full accent-primary"
-                />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>1</span>
-                  <span>50</span>
-                </div>
-              </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium">System Prompt</label>
-                <textarea
-                  value={systemPrompt}
-                  onChange={(e) => setSystemPrompt(e.target.value)}
-                  rows={4}
-                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="Custom system prompt..."
-                />
-              </div>
+
+
+
+
+
             </div>
 
             <div className="mt-6 flex justify-end gap-3">
