@@ -60,7 +60,8 @@ class ConversationDetail(BaseModel):
 
 
 class AISettingsUpdate(BaseModel):
-    preferred_provider: str | None = Field(default=None, pattern=r"^(ollama|gemini|auto)$")
+    # Only Fixly AI is supported; legacy ollama/gemini values map to auto
+    preferred_provider: str | None = Field(default=None, pattern=r"^(fixly-local|auto|ollama|gemini)$")
     provider_model: str | None = Field(default=None, max_length=100)
     temperature: float | None = Field(default=None, ge=0, le=2)
     max_tokens: int | None = Field(default=None, ge=1, le=8192)
@@ -68,7 +69,7 @@ class AISettingsUpdate(BaseModel):
     system_prompt: str | None = Field(default=None, max_length=2000)
     academic_context: bool | None = None
     conversation_memory: int | None = Field(default=None, ge=1, le=500)
-    fallback_provider: str | None = Field(default=None, pattern=r"^(ollama|gemini|auto)$")
+    fallback_provider: str | None = Field(default=None, pattern=r"^(fixly-local|auto|ollama|gemini)$")
     ai_enabled: bool | None = None
 
 

@@ -14,6 +14,7 @@ import {
   getPomodoroAnalytics,
   completePomodoroSession,
 } from "@/lib/pomodoro-service";
+import apiClient from "@/lib/api-client";
 import { createLogger } from "@/lib/logger";
 
 const logger = createLogger("pomodoro-page");
@@ -40,6 +41,16 @@ export function PomodoroPage() {
     queryKey: ["pomodoro-analytics"],
     queryFn: getPomodoroAnalytics,
     staleTime: 30 * 1000,
+    placeholderData: (prev) => prev,
+  });
+
+  const { data: subjectsData } = useQuery({
+    queryKey: ["subjects"],
+    queryFn: async () => {
+      const res = await apiClient.get("/api/v1/subjects");
+      return res.data;
+    },
+    staleTime: 60 * 1000,
     placeholderData: (prev) => prev,
   });
 
@@ -75,6 +86,7 @@ export function PomodoroPage() {
     notes: string;
     mood_after: string;
     tags: string[];
+    subject_id: string | null;
   }) => {
     try {
       const fd = settings?.focus_duration || 25;
@@ -88,7 +100,7 @@ export function PomodoroPage() {
         tags: data.tags,
         notes: data.notes || null,
         mood_after: data.mood_after,
-        subject_id: null,
+        subject_id: data.subject_id,
       });
     } catch (err) {
       logger.error("Failed to save session", err);
@@ -137,6 +149,7 @@ export function PomodoroPage() {
       <SessionDialog
         open={sessionDialogOpen}
         cyclesCompleted={cyclesCompleted}
+        subjects={subjectsData ?? []}
         onSubmit={handleSessionSubmit}
         onClose={() => setSessionDialogOpen(false)}
       />

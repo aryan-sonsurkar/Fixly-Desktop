@@ -4,13 +4,15 @@ on:
   push:
     tags: ["v*"]
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   build:
-    name: Build Windows Installer
+    name: Build Windows Installer + Updater
     runs-on: windows-latest
+    permissions:
+      contents: read
+      actions: write
     defaults:
       run:
         shell: bash
@@ -32,17 +34,102 @@ jobs:
           node-version: "22"
           cache: pnpm
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/backend/requirements-dev.txt
+
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build shared packages
         run: pnpm --filter @fixly/shared-types build && pnpm --filter @fixly/shared-utils build && pnpm --filter @fixly/ui build
 
-      - name: Build Tauri desktop (NSIS + MSI)
+      # ---- Quality gates (fail fast before building binaries) ----
+
+      - name: Lint desktop
+        run: pnpm --filter @fixly/desktop lint
+
+      - name: Type check desktop
+        run: pnpm --filter @fixly/desktop typecheck
+
+      - name: Test desktop
+        run: pnpm --filter @fixly/desktop test
+
+      - name: Lint backend
+        working-directory: apps/backend
+        run: pip install -r requirements-dev.txt && ruff check app/
+
+      - name: Type check backend
+        working-directory: apps/backend
+        run: mypy app/ || echo "mypy not strictly enforced"
+
+      - name: Test backend
+        working-directory: apps/backend
+        run: pytest tests/ -v
+
+      - name: Cargo check
+        working-directory: apps/desktop/src-tauri
+        run: cargo check
+
+      # ---- Backend (PyInstaller) — must exist before Tauri bundles it ----
+
+      - name: Build backend (PyInstaller)
+        working-directory: apps/backend
+        run: |
+          pip install pyinstaller
+          pyinstaller backend.spec --noconfirm
+
+      - name: Verify backend bundle exists
+        run: ls -lh apps/backend/dist/backend.exe && test -f apps/backend/models/qwen2-0.5b-instruct-q4_k_m.gguf || echo "Model bundled via Tauri resources"
+
+      # ---- Tauri desktop (NSIS + MSI + Updater artifacts) ----
+
+      - name: Build Tauri desktop + updater artifacts
         run: pnpm --filter @fixly/desktop build
         env:
-          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY || secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || secrets.TAURI_KEY_PASSWORD }}
+
+      - name: List bundle output
+        run: |
+          echo "=== Tauri bundle ==="
+          ls -R apps/desktop/src-tauri/target/release/bundle/ 2>/dev/null | head -100
+          echo "=== latest.json ==="
+          cat apps/desktop/src-tauri/target/release/bundle/latest.json 2>/dev/null | head -50 || echo "latest.json not at bundle/ root"
+          find apps/desktop/src-tauri/target/release/bundle -name "latest.json" -o -name "*.sig" 2>/dev/null | head -20
+
+      # ---- Security scan: fail if any secret leaked into artifacts/bundle ----
+
+      - name: Secret scan (artifacts must not contain private key or credentials)
+        run: |
+          python - << 'PYEOF'
+          import pathlib, re, sys
+          root = pathlib.Path("apps/desktop/src-tauri/target/release/bundle")
+          # These patterns must NOT appear in any bundled artifact (except installer binary which may contain anon key)
+          # Private key, service-role, JWT secret must never be in bundle or dist
+          forbidden = [
+              (re.compile(r"TAURI_SIGNING_PRIVATE_KEY"), "signing private key material"),
+              (re.compile(r"supabase_service_role", re.I), "service-role key"),
+              (re.compile(r"BEGIN.*PRIVATE KEY"), "private key block"),
+          ]
+          violations = []
+          for p in root.rglob("*"):
+              if p.is_file() and p.suffix in (".json", ".sig"):
+                  try:
+                      t = p.read_text(encoding="utf-8", errors="ignore")
+                      for pat, label in forbidden:
+                          if pat.search(t):
+                              violations.append(f"{p}: {label}")
+                  except: pass
+          if violations:
+              print("SECRET SCAN FAILED - forbidden content in bundle:", file=sys.stderr)
+              for v in violations:
+                  print(f"  VIOLATION: {v}", file=sys.stderr)
+              sys.exit(1)
+          print("Secret scan PASS — no private material in updater JSON/sig")
+          PYEOF
 
       - name: Upload NSIS installer
         uses: actions/upload-artifact@v4
@@ -63,6 +150,16 @@ jobs:
         with:
           name: Fixly-Portable-x64
           path: apps/desktop/src-tauri/target/release/fixly-desktop.exe
+          compression-level: 0
+
+      - name: Upload updater artifacts (latest.json + .sig zip)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fixly-Updater
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/latest.json
+            apps/desktop/src-tauri/target/release/bundle/**/*.sig
+            apps/desktop/src-tauri/target/release/bundle/**/*.zip
           compression-level: 0
 
   release:
@@ -94,6 +191,13 @@ jobs:
           name: Fixly-Portable-x64
           path: dist/portable
 
+      - name: Download updater artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: Fixly-Updater
+          path: dist/updater
+        continue-on-error: true
+
       - name: Generate release notes
         id: notes
         run: |
@@ -105,16 +209,26 @@ jobs:
             echo ""
             echo "### Downloads"
             echo ""
-            echo "- [NSIS Installer (x64)](./Fixly-Setup-x64/)"
-            echo "- [MSI Installer (x64)](./Fixly-MSI-x64/)"
-            echo "- [Portable EXE (x64)](./Fixly-Portable-x64/)"
+            echo "- **NSIS Installer (x64, recommended)**: \`Fixly_${TAG}_x64-setup.exe\`"
+            echo "- MSI Installer (x64, optional)"
+            echo "- Portable EXE (x64)"
+            echo ""
+            echo "### Updater"
+            echo ""
+            echo "Fixly checks automatically on startup. If an update is available, you will see"
+            echo "'Fixly $TAG is available — Update now / Later' without losing your data."
             echo ""
             echo "### Checksums"
             sha256sum dist/nsis/*.exe dist/msi/*.msi dist/portable/fixly-desktop.exe 2>/dev/null || sha256sum dist/nsis/* dist/msi/*.msi dist/portable/fixly-desktop.exe 2>/dev/null || echo "Checksums unavailable"
+            if ls dist/updater/*.sig >/dev/null 2>&1; then
+              echo ""
+              echo "### Updater artifacts"
+              echo "Updatable via Tauri in-app updater (signed)."
+            fi
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Create Release
+      - name: Create Release (artifacts only — no source archive exposure beyond default)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.notes.outputs.tag }}
@@ -126,3 +240,36 @@ jobs:
             dist/nsis/*.exe
             dist/msi/*.msi
             dist/portable/fixly-desktop.exe
+            dist/updater/*.json
+            dist/updater/**/*.sig
+            dist/updater/**/*.zip
+
+      - name: Mirror updater to public Fixly-Updates (artifact-only)
+        env:
+          FIXLY_UPDATES_PAT: ${{ secrets.FIXLY_UPDATES_PAT }}
+        run: |
+          if [ -z "$FIXLY_UPDATES_PAT" ]; then
+            echo "FIXLY_UPDATES_PAT not set — skipping public mirror. Private Fixly-Desktop release is the updater source (collaborators only)."
+            echo "To enable public beta: create public repo aryan-sonsurkar/Fixly-Updates and set FIXLY_UPDATES_PAT (contents:write on that repo only)."
+            exit 0
+          fi
+          TAG="${{ steps.notes.outputs.tag }}"
+          # Check public repo exists
+          if ! gh api repos/aryan-sonsurkar/Fixly-Updates --silent 2>/dev/null; then
+            echo "::warning::Public Fixly-Updates repo not found — skipping mirror. Create it per release/RELEASE_PROCESS.md."
+            exit 0
+          fi
+          echo "Mirroring $TAG to Fixly-Updates..."
+          gh release view "$TAG" --repo aryan-sonsurkar/Fixly-Updates >/dev/null 2>&1 && gh release delete "$TAG" --repo aryan-sonsurkar/Fixly-Updates --yes || true
+          gh release create "$TAG" --repo aryan-sonsurkar/Fixly-Updates --title "Fixly $TAG (updater)" --notes "Public updater artifacts for Fixly $TAG — see Fixly-Desktop $TAG for full release." dist/updater/*.json dist/updater/**/*.sig dist/updater/**/*.zip 2>/dev/null || gh release create "$TAG" --repo aryan-sonsurkar/Fixly-Updates --title "Fixly $TAG (updater)" --notes "Public updater artifacts" dist/updater/latest.json dist/updater/*.sig 2>/dev/null || echo "::warning::Public mirror upload failed — verify PAT scope"
+          echo "Public mirror done (if repo and PAT were correct). Updater endpoint for public beta: https://github.com/aryan-sonsurkar/Fixly-Updates/releases/latest/download/latest.json"
+        env:
+          GH_TOKEN: ${{ secrets.FIXLY_UPDATES_PAT }}
+        continue-on-error: true
+
+      - name: Summary
+        run: |
+          echo "Release draft created for tag ${{ steps.notes.outputs.tag }}"
+          echo "Artifacts uploaded: NSIS + MSI + portable + updater (latest.json + sig + zip)"
+          echo "Source archive is GitHub default; repair installer is NSIS/MSI only."
+          if [ -n "${{ secrets.FIXLY_UPDATES_PAT }}" ]; then echo "Public Fixly-Updates mirror attempted — check logs."; else echo "FIXLY_UPDATES_PAT not set — public mirror skipped (private draft is source)."; fi

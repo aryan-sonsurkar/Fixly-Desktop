@@ -1,14 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Button, Input, Label } from "@fixly/ui";
+
+interface Subject {
+  id: string;
+  name: string;
+}
 
 interface SessionDialogProps {
   open: boolean;
   cyclesCompleted: number;
+  subjects?: Subject[];
   onSubmit: (data: {
     interruptions: number;
     notes: string;
     mood_after: string;
     tags: string[];
+    subject_id: string | null;
   }) => void;
   onClose: () => void;
 }
@@ -21,12 +28,25 @@ const moods = [
   { value: "terrible", label: "Terrible", emoji: "\u{1F622}" },
 ];
 
-export function SessionDialog({ open, cyclesCompleted, onSubmit, onClose }: SessionDialogProps) {
+export function SessionDialog({ open, cyclesCompleted, subjects = [], onSubmit, onClose }: SessionDialogProps) {
   const [interruptions, setInterruptions] = useState(0);
   const [notes, setNotes] = useState("");
   const [mood, setMood] = useState("good");
   const [tagInput, setTagInput] = useState("");
   const [tags, setTags] = useState<string[]>([]);
+  const [subjectId, setSubjectId] = useState<string | null>(null);
+
+  // Reset form when dialog reopens so previous session data doesn't leak
+  useEffect(() => {
+    if (open) {
+      setInterruptions(0);
+      setNotes("");
+      setMood("good");
+      setTagInput("");
+      setTags([]);
+      setSubjectId(null);
+    }
+  }, [open]);
 
   const handleAddTag = () => {
     const t = tagInput.trim();
@@ -37,7 +57,7 @@ export function SessionDialog({ open, cyclesCompleted, onSubmit, onClose }: Sess
   };
 
   const handleSubmit = () => {
-    onSubmit({ interruptions, notes, mood_after: mood, tags });
+    onSubmit({ interruptions, notes, mood_after: mood, tags, subject_id: subjectId });
     onClose();
   };
 
@@ -71,6 +91,20 @@ export function SessionDialog({ open, cyclesCompleted, onSubmit, onClose }: Sess
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Subject (optional)</Label>
+            <select
+              value={subjectId ?? ""}
+              onChange={(e) => setSubjectId(e.target.value || null)}
+              className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            >
+              <option value="">No subject</option>
+              {subjects.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-1.5">

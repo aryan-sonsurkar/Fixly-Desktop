@@ -49,6 +49,9 @@ class AssignmentRepository:
                 query = query.gte("due_date", value.isoformat() if hasattr(value, "isoformat") else value)
             elif key == "due_date_to":
                 query = query.lte("due_date", value.isoformat() if hasattr(value, "isoformat") else value)
+            elif isinstance(value, list):
+                if value:
+                    query = query.in_(key, value)
             else:
                 query = query.eq(key, value)
         return query

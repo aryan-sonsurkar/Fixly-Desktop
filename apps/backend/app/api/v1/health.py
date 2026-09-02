@@ -22,29 +22,20 @@ async def check_supabase() -> tuple[str, str | None]:
         return "disconnected", str(e)
 
 
-async def check_ollama() -> dict[str, Any]:
+async def check_ai() -> dict[str, Any]:
+    """Check Fixly AI (bundled local model) availability."""
     try:
-        import httpx
+        from app.providers.fixly_local import FixlyLocalProvider
 
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(f"{settings.ollama_host}/api/tags")
-            if resp.status_code == 200:
-                data = resp.json()
-                models = [m["name"] for m in data.get("models", [])]
-                return {
-                    "installed": True,
-                    "running": True,
-                    "model_count": len(models),
-                    "models": models,
-                    "error": None,
-                }
-            return {
-                "installed": True,
-                "running": False,
-                "model_count": 0,
-                "models": [],
-                "error": "Ollama is not running",
-            }
+        provider = FixlyLocalProvider()
+        detail = await provider.check_availability_detail()
+        return {
+            "installed": detail.get("installed", False),
+            "running": detail.get("running", False),
+            "model_count": detail.get("model_count", 0),
+            "models": detail.get("models", []),
+            "error": detail.get("error"),
+        }
     except Exception as e:
         return {
             "installed": False,
@@ -58,7 +49,7 @@ async def check_ollama() -> dict[str, Any]:
 @router.get("/health")
 async def health(request: Request) -> dict[str, Any]:
     supabase_status, supabase_error = await check_supabase()
-    ollama = await check_ollama()
+    fixly_ai = await check_ai()
 
     db_status = "connected"
     db_error = None
@@ -66,8 +57,8 @@ async def health(request: Request) -> dict[str, Any]:
         db_status = "disconnected"
         db_error = supabase_error
 
-    ai_status = "available" if (ollama["running"] or settings.gemini_api_key) else "unconfigured"
-    ai_provider = "ollama" if ollama["running"] else "gemini" if settings.gemini_api_key else None
+    ai_status = "available" if fixly_ai["running"] else "unconfigured"
+    ai_provider = "fixly-local" if fixly_ai["running"] else None
 
     return {
         "status": "ok",
@@ -80,12 +71,12 @@ async def health(request: Request) -> dict[str, Any]:
         "database_error": db_error,
         "ai": ai_status,
         "ai_provider": ai_provider,
-        "ai_model": None,
-        "ai_error": None,
-        "ollama_installed": ollama["installed"],
-        "ollama_running": ollama["running"],
-        "ollama_model_count": ollama["model_count"],
-        "ollama_models": ollama["models"],
+        "ai_model": "qwen2-0.5b-instruct-q4_k_m.gguf" if fixly_ai["running"] else None,
+        "ai_error": fixly_ai.get("error"),
+        "ollama_installed": False,
+        "ollama_running": False,
+        "ollama_model_count": 0,
+        "ollama_models": [],
         "sync": "healthy",
         "last_sync": None,
         "sync_error": None,

@@ -10,6 +10,7 @@ from app.providers import get_provider
 from app.repositories.ai_repository import AIRepository
 from app.repositories.assignment_repository import AssignmentRepository
 from app.repositories.email_repository import EmailRepository
+from app.repositories.subject_repository import SubjectRepository
 from app.services.ai_service import AIService
 from app.services.study_service import StudyService
 
@@ -183,13 +184,14 @@ class EmailService:
     def __init__(self, access_token: str | None = None) -> None:
         self.access_token = access_token
         self.repository = EmailRepository(access_token=access_token)
-        self.classifier = EmailClassifier()
-        self.detector = DuplicateDetector()
+        self.classifier = EmailClassifier(access_token=access_token)
+        self.detector = DuplicateDetector(access_token=access_token)
         self.sync_worker = EmailSyncWorker()
         self.ai_repo = AIRepository(access_token=access_token)
         self.ai_service = AIService(access_token=access_token)
         self.study_service = StudyService(access_token=access_token)
         self.assignment_repo = AssignmentRepository(access_token=access_token)
+        self.subject_repo = SubjectRepository(access_token=access_token)
 
     # ── Accounts ──────────────────────────────────────────
 
@@ -290,12 +292,24 @@ class EmailService:
 
             if confidence >= HIGH_CONFIDENCE:
                 asgn_data["status"] = "approved"
+                # Resolve subject name → UUID (AI extracts name, DB needs UUID)
+                subject_id = None
+                subject_name = asgn_data.get("subject")
+                if subject_name:
+                    try:
+                        subjects = await self.subject_repo.list_subjects(user_id)
+                        for s in subjects:
+                            if s.get("name", "").lower() == subject_name.lower():
+                                subject_id = s.get("id")
+                                break
+                    except Exception as e:
+                        logger.warning("Failed to resolve subject '%s': %s", subject_name, e)
                 try:
                     created = await self.assignment_repo.create_assignment(
                         user_id, {
                             "title": asgn_data.get("title") or msg.get("subject", "Untitled Assignment"),
                             "description": asgn_data.get("description"),
-                            "subject_id": asgn_data.get("subject"),
+                            "subject_id": subject_id,
                             "due_date": asgn_data.get("due_date"),
                             "priority": asgn_data.get("priority", "medium"),
                             "source": "email",
@@ -353,10 +367,27 @@ class EmailService:
 
         if action == "approved" or action == "edited":
             try:
+                # Resolve subject name → UUID (same as auto-create path)
+                subject_name = (edits or {}).get("subject") or existing.get("subject")
+                subject_id = None
+                if subject_name:
+                    try:
+                        subjects = await self.subject_repo.list_subjects(user_id)
+                        for s in subjects:
+                            if s.get("name", "").lower() == str(subject_name).lower():
+                                subject_id = s.get("id")
+                                break
+                        # If no match and subject_name already looks like UUID, keep it
+                        if not subject_id:
+                            import re as _re
+                            if _re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", str(subject_name), re.I):
+                                subject_id = str(subject_name)
+                    except Exception as e:
+                        logger.warning("Failed to resolve review subject '%s': %s", subject_name, e)
                 create_data = {
                     "title": (edits or {}).get("title") or existing.get("title") or "Untitled",
                     "description": (edits or {}).get("description") or existing.get("description"),
-                    "subject_id": (edits or {}).get("subject") or existing.get("subject"),
+                    "subject_id": subject_id,
                     "due_date": (edits or {}).get("due_date") or existing.get("due_date"),
                     "priority": (edits or {}).get("priority") or existing.get("priority", "medium"),
                     "source": "email",

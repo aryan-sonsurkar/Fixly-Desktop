@@ -6,19 +6,37 @@ from app.providers.ollama import OllamaProvider
 
 
 @pytest.mark.asyncio
-async def test_ollama_is_available_when_default_model_is_missing() -> None:
+async def test_ollama_is_unavailable_when_model_not_installed() -> None:
     provider = OllamaProvider()
+    provider.list_models = AsyncMock(return_value=[{"name": "llama3.2:3b"}])
+
+    assert await provider.check_availability() is False
+
+
+@pytest.mark.asyncio
+async def test_ollama_is_available_when_model_matches() -> None:
+    provider = OllamaProvider()
+    provider.list_models = AsyncMock(return_value=[{"name": provider.model}])
+
+    assert await provider.check_availability() is True
+
+
+@pytest.mark.asyncio
+async def test_ollama_is_available_when_model_set_and_matches() -> None:
+    provider = OllamaProvider()
+    provider.set_model("llama3.2:3b")
     provider.list_models = AsyncMock(return_value=[{"name": "llama3.2:3b"}])
 
     assert await provider.check_availability() is True
 
 
 @pytest.mark.asyncio
-async def test_ollama_is_available_when_configured_model_is_installed() -> None:
+async def test_ollama_is_unavailable_when_model_set_but_not_installed() -> None:
     provider = OllamaProvider()
-    provider.list_models = AsyncMock(return_value=[{"name": provider.model}])
+    provider.set_model("nonexistent:latest")
+    provider.list_models = AsyncMock(return_value=[{"name": "llama3.2:3b"}])
 
-    assert await provider.check_availability() is True
+    assert await provider.check_availability() is False
 
 
 @pytest.mark.asyncio

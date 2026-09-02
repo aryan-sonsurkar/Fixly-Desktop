@@ -101,7 +101,13 @@ class OllamaProvider(AIProvider):
                         continue
 
     async def check_availability(self) -> bool:
-        return bool(await self.list_models())
+        models = await self.list_models()
+        if not models:
+            return False
+        if self.model:
+            names = [m.get("name", "") for m in models]
+            return self.model in names
+        return True
 
     async def _discover_models(self, force_refresh: bool = False) -> tuple[bool, list[dict[str, Any]]]:
         import time

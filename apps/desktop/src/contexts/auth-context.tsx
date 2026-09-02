@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useMemo, type ReactNode } from "react";
 import { AxiosError } from "axios";
 import { useAuthStore, type AuthUser } from "@/stores/auth-store";
 import { setTokens, clearTokens, restoreSession, saveProfile, type AuthTokens } from "@/lib/secure-storage";
@@ -239,18 +239,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { cancelled = true; };
   }, [refreshSession, setAuth, clearAuth]);
 
+  const authValue = useMemo(
+    () => ({
+      user,
+      isLoading,
+      isAuthenticated,
+      signIn,
+      signUp,
+      signOut,
+      refreshSession,
+    }),
+    [user, isLoading, isAuthenticated, signIn, signUp, signOut, refreshSession],
+  );
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoading,
-        isAuthenticated,
-        signIn,
-        signUp,
-        signOut,
-        refreshSession,
-      }}
-    >
+    <AuthContext.Provider value={authValue}>
       {children}
     </AuthContext.Provider>
   );

@@ -223,8 +223,8 @@ async def list_ollama_models(
     refresh: bool = Query(False),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
-    service = AIService(access_token=current_user.access_token)
-    return await service.list_ollama_models(force_refresh=refresh)
+    # Deprecated: only Fixly AI (bundled) is supported
+    return []
 
 
 @router.post("/plan/daily", response_model=PlanResponse)
@@ -250,3 +250,30 @@ async def revision_plan(
 ) -> dict[str, Any]:
     service = PlannerService(access_token=current_user.access_token)
     return await service.generate_revision_plan(current_user.id, body.subject_ids)
+
+
+@router.get("/plans")
+async def list_plans(
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[dict[str, Any]]:
+    service = AIService(access_token=current_user.access_token)
+    convs = await service.list_conversations(current_user.id)
+    plans = []
+    for conv in convs:
+        title = conv.get("title", "")
+        if title in ("Daily Plan", "Weekly Plan", "Revision Plan"):
+            try:
+                detail = await service.get_conversation(conv["id"], current_user.id)
+                msgs = detail.get("messages", [])
+                assistant_msg = next((m for m in reversed(msgs) if m.get("role") == "assistant"), None)
+                if assistant_msg:
+                    plan_type = "daily" if title == "Daily Plan" else "weekly" if title == "Weekly Plan" else "revision"
+                    plans.append({
+                        "plan_type": plan_type,
+                        "content": assistant_msg.get("content", ""),
+                        "conversation_id": conv["id"],
+                        "generated_at": str(conv.get("updated_at", "")),
+                    })
+            except Exception:
+                continue
+    return plans

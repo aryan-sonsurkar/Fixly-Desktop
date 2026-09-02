@@ -215,10 +215,6 @@ class AIRepository:
 
     async def get_ai_settings(self, user_id: str) -> dict[str, Any] | None:
         client = self._client
-        from app.config import settings
-
-        has_gemini = bool(settings.gemini_api_key)
-        has_ollama = bool(settings.ollama_host)
 
         columns = (
             "preferred_provider, provider_model, temperature, max_tokens, streaming_enabled, "
@@ -230,8 +226,8 @@ class AIRepository:
             .eq("user_id", user_id)
         )
         if isinstance(result, dict) and result.get("preferred_provider"):
-            result["ollama_available"] = has_ollama
-            result["gemini_available"] = has_gemini
+            result["ollama_available"] = False
+            result["gemini_available"] = False
             return result
         return {
             "preferred_provider": "auto",
@@ -244,8 +240,8 @@ class AIRepository:
             "conversation_memory": 50,
             "fallback_provider": "auto",
             "ai_enabled": True,
-            "ollama_available": has_ollama,
-            "gemini_available": has_gemini,
+            "ollama_available": False,
+            "gemini_available": False,
         }
 
     async def update_ai_settings(self, user_id: str, updates: dict[str, Any]) -> dict[str, Any]:

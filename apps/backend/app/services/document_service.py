@@ -1,4 +1,6 @@
+import html as _html
 import os
+import re as _re
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -44,6 +46,18 @@ class DocumentService:
             raise ValidationError(f"Unsupported file type: {ext}. Allowed: {', '.join(sorted(ALLOWED_TYPES))}")
 
         content = await file.read()
+        max_size = 50 * 1024 * 1024
+        if len(content) > max_size:
+            raise ValidationError("File exceeds maximum size of 50MB")
+        if len(content) == 0:
+            raise ValidationError("Empty file not allowed")
+        # Magic-byte check: pdf/png/jpg must match expected header
+        if ext == "pdf" and not content.startswith(b"%PDF"):
+            raise ValidationError("File content does not match its extension")
+        if ext == "png" and not content.startswith(b"\x89PNG"):
+            raise ValidationError("File content does not match its extension")
+        if ext in ("jpg", "jpeg") and not content.startswith(b"\xFF\xD8\xFF"):
+            raise ValidationError("File content does not match its extension")
         file_id = str(uuid.uuid4())
         storage_name = f"{file_id}.{ext}"
         file_path = os.path.join(UPLOAD_DIR, storage_name)
@@ -51,10 +65,11 @@ class DocumentService:
         with open(file_path, "wb") as f:
             f.write(content)
 
+        safe_name = _html.escape(_re.sub(r"[\x00-\x1f\x7f]", "", (file.filename or "unnamed").strip().split("/")[-1].split("\\")[-1]))  # noqa: E501
         doc = await self.repository.create_document(user_id, {
             "user_id": user_id,
             "filename": storage_name,
-            "original_name": file.filename,
+            "original_name": safe_name[:255],
             "file_type": ext,
             "file_size": len(content),
             "status": "pending",

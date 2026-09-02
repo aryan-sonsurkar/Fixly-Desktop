@@ -10,7 +10,7 @@ export function AISettingsDialog() {
   const [maxTokens, setMaxTokens] = useState(settings?.max_tokens ?? 2048);
   const [streaming, setStreaming] = useState(settings?.streaming_enabled ?? true);
   const [systemPrompt, setSystemPrompt] = useState(settings?.system_prompt ?? "");
-  const [preferredProvider, setPreferredProvider] = useState(settings?.preferred_provider ?? "ollama");
+  const [preferredProvider, setPreferredProvider] = useState(settings?.preferred_provider ?? "auto");
   const [providerModel, setProviderModel] = useState(settings?.provider_model ?? "");
   const [academicContext, setAcademicContext] = useState(settings?.academic_context ?? true);
   const [conversationMemory, setConversationMemory] = useState(settings?.conversation_memory ?? 10);
@@ -113,7 +113,7 @@ export function AISettingsDialog() {
     setSaving(true);
     setSaveError(null);
     try {
-      const modelToSave = preferredProvider === "fixly-local" ? "qwen2-0.5b-instruct-q4_k_m.gguf" : providerModel || null;
+      const modelToSave = preferredProvider === "fixly-local" ? "qwen2-0.5b-instruct-q4_k_m.gguf" : (preferredProvider === "ollama" ? (providerModel || null) : null);
       const updated = await aiService.updateAISettings({
         temperature,
         max_tokens: maxTokens,

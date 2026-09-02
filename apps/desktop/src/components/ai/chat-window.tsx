@@ -139,7 +139,7 @@ export function ChatWindow() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
@@ -234,7 +234,7 @@ export function ChatWindow() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type a message... (Ctrl+Enter to send)"
+              placeholder="Ask Fixly anything..."
               rows={1}
               className="w-full resize-none rounded-xl border bg-background px-4 py-3 pr-12 text-sm outline-none focus:ring-2 focus:ring-primary"
               disabled={isSending}

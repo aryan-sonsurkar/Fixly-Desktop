@@ -5,8 +5,6 @@ interface AssignmentCardProps {
   assignment: Assignment;
   subjectName?: string;
   subjectColor?: string | null;
-  isSelected: boolean;
-  onToggleSelect: () => void;
   onClick: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -32,8 +30,6 @@ export function AssignmentCard({
   assignment,
   subjectName,
   subjectColor,
-  isSelected,
-  onToggleSelect,
   onClick,
   onEdit,
   onDelete,
@@ -48,18 +44,11 @@ export function AssignmentCard({
 
   return (
     <div
-      className={`group relative rounded-lg border bg-card p-4 transition-all hover:shadow-md focus-within:shadow-md ${
-        isSelected ? "border-primary ring-1 ring-primary" : ""
-      } ${isOverdue ? "border-l-4 border-l-red-500" : isDueSoon ? "border-l-4 border-l-orange-400" : ""}`}
+      className={`group relative rounded-lg border bg-card p-4 transition-all hover:shadow-md ${
+        isOverdue ? "border-l-4 border-l-red-500" : isDueSoon ? "border-l-4 border-l-orange-400" : ""
+      }`}
     >
       <div className="flex items-center gap-4">
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={onToggleSelect}
-          className="h-4 w-4 accent-primary"
-        />
-
         <div className="flex-1 min-w-0 cursor-pointer" onClick={onClick}>
           <div className="flex items-center gap-2">
             {assignment.is_pinned && (
@@ -82,12 +71,7 @@ export function AssignmentCard({
               </span>
             )}
             {assignment.due_date && (
-              <span>
-                Due: {new Date(assignment.due_date).toLocaleDateString()}
-              </span>
-            )}
-            {assignment.tags && assignment.tags.length > 0 && (
-              <span className="hidden md:inline">{assignment.tags.slice(0, 2).join(", ")}</span>
+              <span>Due: {new Date(assignment.due_date).toLocaleDateString()}</span>
             )}
           </div>
         </div>
@@ -100,7 +84,7 @@ export function AssignmentCard({
           {assignment.status.replace("_", " ")}
         </span>
 
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-within:opacity-100 transition-opacity">
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <Button variant="ghost" size="sm" onClick={onEdit}>Edit</Button>
           <Button variant="ghost" size="sm" onClick={onDuplicate}>Copy</Button>
           <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={onDelete}>

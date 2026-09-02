@@ -15,6 +15,7 @@ import { CommandPalette } from "@/components/command-palette";
 import { ToastContainer } from "@/components/toast-container";
 import { FeedbackDialog } from "@/components/feedback-dialog";
 import { KeyboardShortcutsDialog } from "@/components/keyboard-shortcuts-dialog";
+import { UpdaterBanner } from "@/components/updater-banner";
 
 const navItems = [
   { to: "/dashboard", label: "Dashboard", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
@@ -136,6 +137,7 @@ export function AppLayout() {
       </aside>
 
       <main id="main-content" className="flex flex-1 flex-col overflow-hidden">
+        <UpdaterBanner />
         <header className="flex h-14 items-center justify-end gap-2 border-b bg-card px-4">
           <button
             type="button"

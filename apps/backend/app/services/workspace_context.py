@@ -127,7 +127,7 @@ class WorkspaceContext:
         now = datetime.now(timezone.utc)
         pending, total = await self.assignment_repo.list_assignments(
             user_id, page=1, page_size=50,
-            filters={"status": "pending,in_progress"},
+            filters={"status": ["pending", "in_progress"]},
         )
         tokens = 0
         deadlines = []

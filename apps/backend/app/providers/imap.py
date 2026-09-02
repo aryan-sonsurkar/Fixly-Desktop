@@ -12,6 +12,7 @@ from app.providers.base import EmailProvider, SyncMessage, SyncResult
 logger = get_logger(__name__)
 
 IMAP_DEFAULTS: dict[str, dict[str, Any]] = {
+    "gmail": {"host": "imap.gmail.com", "port": 993, "use_ssl": True},
     "outlook": {"host": "outlook.office365.com", "port": 993, "use_ssl": True},
     "yahoo": {"host": "imap.mail.yahoo.com", "port": 993, "use_ssl": True},
     "zoho": {"host": "imap.zoho.com", "port": 993, "use_ssl": True},

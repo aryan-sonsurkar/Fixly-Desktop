@@ -93,11 +93,10 @@ class GmailProvider(EmailProvider):
                 logger.warning("Failed to fetch Gmail message %s: %s", mid, e)
 
         next_token = list_data.get("nextPageToken")
-        history_id = list_data.get("resultSizeEstimate")
         return SyncResult(
             messages=messages,
             next_page_token=next_token,
-            history_id=str(history_id) if history_id else None,
+            history_id=None,
         )
 
     async def fetch_delta(

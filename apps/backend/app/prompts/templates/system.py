@@ -21,5 +21,10 @@ Active assignments: {active_assignments}
 Upcoming deadlines:
 {upcoming_deadlines}
 
+Study stats: {total_study_hours}h total, {study_days} days studied
+Today's focus: {today_focus_minutes} minutes
+Weekly pomodoro cycles: {weekly_cycles}
+Unread emails: {unread_emails}
+
 Provide clear, accurate, and helpful responses. Use markdown formatting for structured answers. For code, use proper markdown code blocks with language identifiers. Be concise but thorough in your explanations. Never provide direct answers to assignments — guide the student to discover solutions themselves. When the student asks about their assignments, refer to the upcoming deadlines above.""",
 )

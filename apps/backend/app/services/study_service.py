@@ -81,7 +81,13 @@ class StudyService:
 
     async def log_session(self, user_id: str, data: dict[str, Any]) -> dict[str, Any]:
         activity_type = data["activity_type"]
-        points = get_points(activity_type)
+        metadata = data.get("metadata", {})
+        # Only honor points_override for pomodoro (server-calculated cycles*10), clamp to sane range
+        raw_override = metadata.get("points_override")
+        if activity_type == "pomodoro" and isinstance(raw_override, (int, float)) and 0 < raw_override <= 200:
+            points = int(raw_override)
+        else:
+            points = get_points(activity_type)
         duration = data.get("duration_minutes", 0)
         session_date = date.today().isoformat()
 
@@ -117,9 +123,12 @@ class StudyService:
                 existing_subjects = list(existing_subjects) + [data["subject_id"]]
             day_updates["subjects_studied"] = existing_subjects
 
-        daily_goal_bonus = calculate_daily_goal_bonus(day_updates["study_points"])
-        if daily_goal_bonus > 0:
-            day_updates["study_points"] += daily_goal_bonus
+        # Only award daily goal bonus once per day - check if already crossed threshold
+        already_had_bonus = base.get("study_points", 0) >= 50
+        if not already_had_bonus:
+            daily_goal_bonus = calculate_daily_goal_bonus(day_updates["study_points"])
+            if daily_goal_bonus > 0:
+                day_updates["study_points"] += daily_goal_bonus
 
         await self.repository.upsert_day(user_id, session_date, day_updates)
         return session
@@ -140,15 +149,10 @@ class StudyService:
             return {"current_streak": 0, "longest_streak": 0}
 
         most_recent = active_dates[0]
-        current_streak = 0
-        check_date = most_recent
+        today_str = date.today().isoformat()
+        yesterday_str = (date.today() - timedelta(days=1)).isoformat()
 
-        while check_date in active_dates:
-            current_streak += 1
-            parsed = date.fromisoformat(check_date)
-            parsed -= timedelta(days=1)
-            check_date = parsed.isoformat()
-
+        # longest_streak is independent of current gap
         longest_streak = 0
         temp_streak = 1
         sorted_dates = sorted(active_dates)
@@ -161,5 +165,17 @@ class StudyService:
                 longest_streak = max(longest_streak, temp_streak)
                 temp_streak = 1
         longest_streak = max(longest_streak, temp_streak)
+
+        # current_streak only counts if most recent activity is today or yesterday
+        if most_recent not in (today_str, yesterday_str):
+            return {"current_streak": 0, "longest_streak": longest_streak}
+
+        current_streak = 0
+        check_date = most_recent
+        while check_date in active_dates:
+            current_streak += 1
+            parsed = date.fromisoformat(check_date)
+            parsed -= timedelta(days=1)
+            check_date = parsed.isoformat()
 
         return {"current_streak": current_streak, "longest_streak": longest_streak}

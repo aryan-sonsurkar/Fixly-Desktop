@@ -1,25 +1,14 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { motion } from "framer-motion";
 import { Skeleton } from "@fixly/ui";
 import { getDashboard } from "@/lib/dashboard-service";
 import { generateDailyPlan } from "@/lib/planner-service";
-import { getDailyMission, assessRisk } from "@/lib/copilot-service";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useSearchStore } from "@/stores/search-store";
-import { createLogger } from "@/lib/logger";
 import { BriefingWidget } from "@/components/dashboard/briefing-widget";
 import { FocusWidget } from "@/components/dashboard/focus-widget";
 import { DeadlinesWidget } from "@/components/dashboard/deadlines-widget";
 import { QuickActionsWidget } from "@/components/dashboard/quick-actions-widget";
-import { XPStreakWidget, ProductivityScoreWidget } from "@/components/dashboard/xp-streak-widget";
-import { EmailWidget } from "@/components/dashboard/email-widget";
-import { MissionWidget } from "@/components/dashboard/mission-widget";
-import { HealthWidget } from "@/components/dashboard/health-widget";
-import { MomentumWidget } from "@/components/dashboard/momentum-widget";
-import { RiskAlertsWidget } from "@/components/dashboard/risk-alerts-widget";
-
-const logger = createLogger("dashboard");
 
 function formatGreeting(name: string): string {
   const h = new Date().getHours();
@@ -34,16 +23,9 @@ export function DashboardPage() {
   const {
     data, setData, loading, setLoading,
     briefing, setBriefing, briefingLoading, setBriefingLoading,
-    widgets,
-    mission, missionLoading, setMission, setMissionLoading,
-    risk, riskLoading, setRisk, setRiskLoading,
   } = useDashboardStore();
   const { setOpen: setSearchOpen } = useSearchStore();
-  const dragItem = useRef<number | null>(null);
   const mountedRef = useRef(true);
-  const [orderedWidgets, setOrderedWidgets] = useState(
-    widgets.filter((w) => w.visible).sort((a, b) => a.order - b.order),
-  );
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -51,7 +33,7 @@ export function DashboardPage() {
     return () => { mountedRef.current = false; };
   }, []);
 
-  const { data: rawData, isLoading: queryLoading, isError, error: queryError } = useQuery({
+  const { data: rawData, isLoading: queryLoading, isError, error: queryError, refetch } = useQuery({
     queryKey: ["dashboard"],
     queryFn: getDashboard,
     retry: 1,
@@ -66,7 +48,6 @@ export function DashboardPage() {
       const msg = queryError instanceof Error ? queryError.message : "Failed to load dashboard";
       setError(msg);
       setLoading(false);
-      logger.error("Dashboard query failed", queryError);
       return;
     }
     if (rawData) {
@@ -76,92 +57,31 @@ export function DashboardPage() {
     }
   }, [rawData, isError, queryError, setData, setLoading]);
 
-  useEffect(() => {
-    setOrderedWidgets(widgets.filter((w) => w.visible).sort((a, b) => a.order - b.order));
-  }, [widgets]);
-
   const handleGenerateBriefing = useCallback(async () => {
     setBriefingLoading(true);
     try {
       const plan = await generateDailyPlan();
       if (mountedRef.current) setBriefing(plan);
-    } catch (err) {
-      logger.error("Failed to generate briefing", err);
+    } catch {
+      // silent
     } finally {
       if (mountedRef.current) setBriefingLoading(false);
     }
   }, [setBriefing, setBriefingLoading]);
 
-  const handleGenerateMission = useCallback(async () => {
-    setMissionLoading(true);
-    try {
-      const result = await getDailyMission();
-      if (mountedRef.current) setMission(result);
-    } catch (err) {
-      logger.error("Failed to generate mission", err);
-    } finally {
-      if (mountedRef.current) setMissionLoading(false);
-    }
-  }, [setMission, setMissionLoading]);
-
-  const handleRefreshRisk = useCallback(async () => {
-    setRiskLoading(true);
-    try {
-      const result = await assessRisk();
-      if (mountedRef.current) setRisk(result);
-    } catch (err) {
-      logger.error("Failed to assess risk", err);
-    } finally {
-      if (mountedRef.current) setRiskLoading(false);
-    }
-  }, [setRisk, setRiskLoading]);
-
-  const handleDragStart = (index: number) => {
-    dragItem.current = index;
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (dragItem.current === null || dragItem.current === index) return;
-    const items = [...orderedWidgets];
-    const [moved] = items.splice(dragItem.current, 1);
-    items.splice(index, 0, moved);
-    dragItem.current = index;
-    setOrderedWidgets(items);
-  };
-
-  const handleDragEnd = () => {
-    dragItem.current = null;
-    // Persist new order to store (fix drag lost on refresh)
-    try {
-      const { reorderWidgets } = useDashboardStore.getState() as unknown as { reorderWidgets?: (ids: string[]) => void };
-      if (reorderWidgets) reorderWidgets(orderedWidgets.map((w) => w.id));
-      else {
-        // fallback: save to localStorage
-        localStorage.setItem("fixly:widget_order", JSON.stringify(orderedWidgets.map((w) => w.id)));
-      }
-    } catch { /* ignore */ }
-  };
-
   if (isError && !rawData) {
     return (
       <div className="mx-auto max-w-3xl p-6">
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-            <svg className="h-6 w-6 text-destructive" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-            </svg>
-          </div>
-          <h2 className="text-lg font-semibold text-foreground">Failed to load dashboard</h2>
+          <h2 className="text-lg font-semibold">Failed to load dashboard</h2>
           <p className="mt-2 text-sm text-muted-foreground">{error}</p>
           <button
             type="button"
-            onClick={() => window.location.reload()}
-            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            onClick={() => refetch()}
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
             Try again
           </button>
-          <p className="mt-2 text-xs text-muted-foreground">If this persists, check your connection or restart Fixly.</p>
         </div>
       </div>
     );
@@ -170,196 +90,63 @@ export function DashboardPage() {
   const showSkeleton = (queryLoading || loading) && !rawData && !data;
   if (showSkeleton) {
     return (
-      <div className="mx-auto max-w-7xl space-y-6 p-6 animate-in fade-in duration-100">
-        <Skeleton className="h-8 w-64 animate-pulse" />
-        <Skeleton className="h-4 w-48 animate-pulse" />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl animate-pulse" />)}
+      <div className="mx-auto max-w-5xl space-y-6 p-6">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-4 w-48" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
         </div>
-        <Skeleton className="h-64 rounded-xl animate-pulse" />
       </div>
     );
   }
 
-  const profile = data?.profile || { display_name: "Student", xp: 0, streak: 0 };
+  const profile = data?.profile || { display_name: "Student" };
   const stats = data?.stats || {
     total: 0, completed: 0, pending: 0, in_progress: 0,
     overdue: 0, due_today: 0, due_this_week: 0, completion_percentage: 0,
   };
   const recentAssignments = data?.recent_assignments || [];
-  const emailData = data?.email || { unread: 0, pending_review: 0 };
-
-  const parsedAlerts = (() => {
-    if (!risk?.content) return [];
-    try {
-      // First try full JSON parse
-      const parsed = JSON.parse(risk.content);
-      if (Array.isArray(parsed.alerts)) return parsed.alerts;
-      if (Array.isArray(parsed)) return parsed;
-    } catch { /* try regex fallback */ }
-    try {
-      const jsonMatch = risk.content.match(/\{[\s\S]*"alerts"[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        return Array.isArray(parsed.alerts) ? parsed.alerts : [];
-      }
-    } catch {
-      // fallback
-    }
-    return [];
-  })();
-
-  const widgetComponents: Record<string, React.ReactNode> = {
-    briefing: (
-      <BriefingWidget
-        briefing={briefing}
-        loading={briefingLoading}
-        onGenerate={handleGenerateBriefing}
-      />
-    ),
-    mission: (
-      <MissionWidget
-        mission={mission}
-        loading={missionLoading}
-        onGenerate={handleGenerateMission}
-      />
-    ),
-    focus: (
-      <FocusWidget
-        focusMinutes={data?.study?.total_hours ? Math.round(data.study.total_hours * 60) : 0}
-        date={new Date().toISOString()}
-        xpEarned={data?.today?.xp_earned ?? 0}
-      />
-    ),
-    tasks: (
-      <div className="rounded-xl border bg-card p-5 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold">AI Recommended Tasks</h3>
-        <div className="space-y-2 text-sm">
-          {stats.pending > 0 ? (
-            [
-              { label: `${stats.pending} pending assignments`, color: "text-yellow-500" },
-              ...(stats.overdue > 0
-                ? [{ label: `${stats.overdue} overdue`, color: "text-red-500" as const }]
-                : []),
-            ].map((t) => (
-              <div key={t.label} className="flex items-center gap-2 rounded-lg bg-muted/30 px-3 py-2">
-                <span className={`h-2 w-2 rounded-full ${t.color}`} />
-                <span className="text-muted-foreground">{t.label}</span>
-              </div>
-            ))
-          ) : (
-            <p className="text-muted-foreground">All caught up! No pending tasks.</p>
-          )}
-        </div>
-      </div>
-    ),
-    assignments: (
-      <DeadlinesWidget
-        deadlines={recentAssignments.map((a) => ({
-          title: a.title || "",
-          due: a.due_date || new Date().toISOString(),
-          priority: a.priority || "medium",
-          status: a.status,
-        }))}
-        total={stats.total}
-        urgent={stats.overdue}
-      />
-    ),
-    emails: <EmailWidget unread={emailData.unread} pendingReview={emailData.pending_review} />,
-    xp: <XPStreakWidget xp={profile.xp} streak={profile.streak} />,
-    score: <ProductivityScoreWidget score={stats.completion_percentage} />,
-    actions: <QuickActionsWidget onOpenSearch={() => setSearchOpen(true)} />,
-    pomodoro: (
-      <div className="rounded-xl border bg-card p-5 shadow-sm">
-        <h3 className="mb-3 text-sm font-semibold">Pomodoro</h3>
-        <p className="text-sm text-muted-foreground">No active session.</p>
-      </div>
-    ),
-  };
-
-  const topRowTypes = ["momentum", "focus", "xp", "score"];
-  const midRowTypes = ["mission", "briefing"];
-  const bottomRowTypes = ["assignments", "tasks", "actions", "emails"];
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold">{formatGreeting(profile.display_name)}</h1>
-          <p className="text-sm text-muted-foreground">{todayString()}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-1.5">
-            <svg className="h-4 w-4 text-yellow-500" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-            </svg>
-            <span className="text-sm font-semibold">{profile.xp} XP</span>
-          </div>
-          <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-1.5">
-            <svg className="h-4 w-4 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
-            </svg>
-            <span className="text-sm font-semibold">{profile.streak} day streak</span>
-          </div>
-        </div>
-      </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
-      >
-        <p className="text-sm text-muted-foreground">
+    <div className="mx-auto max-w-5xl space-y-6 p-6">
+      <div>
+        <h1 className="text-2xl font-bold">{formatGreeting(profile.display_name)}</h1>
+        <p className="text-sm text-muted-foreground">{todayString()}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
           {stats.due_today > 0
             ? `${stats.due_today} assignment${stats.due_today !== 1 ? "s" : ""} due today`
             : "No assignments due today"}
           {stats.overdue > 0 && (
             <span className="ml-2 font-medium text-destructive">&middot; {stats.overdue} overdue</span>
           )}
-          {stats.due_this_week > stats.due_today && (
-            <span className="ml-2">&middot; {stats.due_this_week} due this week</span>
-          )}
         </p>
-      </motion.div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {orderedWidgets
-          .filter((w) => topRowTypes.includes(w.type))
-          .map((widget) => (
-            <div
-              key={widget.id}
-              draggable
-              onDragStart={() => handleDragStart(orderedWidgets.indexOf(widget))}
-              onDragOver={(e) => handleDragOver(e, orderedWidgets.indexOf(widget))}
-              onDragEnd={handleDragEnd}
-              className="cursor-grab active:cursor-grabbing"
-            >
-              {widgetComponents[widget.type]}
-            </div>
-          ))}
       </div>
 
-      {orderedWidgets
-        .filter((w) => midRowTypes.includes(w.type))
-        .map((widget) => (
-          <div key={widget.id}>{widgetComponents[widget.type]}</div>
-        ))}
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {orderedWidgets
-          .filter((w) => bottomRowTypes.includes(w.type))
-          .map((widget) => (
-            <div
-              key={widget.id}
-              draggable
-              onDragStart={() => handleDragStart(orderedWidgets.indexOf(widget))}
-              onDragOver={(e) => handleDragOver(e, orderedWidgets.indexOf(widget))}
-              onDragEnd={handleDragEnd}
-              className="cursor-grab active:cursor-grabbing"
-            >
-              {widgetComponents[widget.type]}
-            </div>
-          ))}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <FocusWidget
+          focusMinutes={data?.study?.total_hours ? Math.round(data.study.total_hours * 60) : 0}
+          date={new Date().toISOString()}
+          xpEarned={data?.today?.xp_earned ?? 0}
+        />
+        <BriefingWidget
+          briefing={briefing}
+          loading={briefingLoading}
+          onGenerate={handleGenerateBriefing}
+        />
+        <DeadlinesWidget
+          deadlines={recentAssignments.map((a: unknown) => {
+            const r = a as Record<string, unknown>;
+            return {
+              title: (r.title as string) || "",
+              due: (r.due as string) || (r.due_date as string) || new Date().toISOString(),
+              priority: (r.priority as string) || "medium",
+              status: r.status as string,
+            };
+          })}
+          total={stats.total}
+          urgent={stats.overdue}
+        />
+        <QuickActionsWidget onOpenSearch={() => setSearchOpen(true)} />
       </div>
     </div>
   );

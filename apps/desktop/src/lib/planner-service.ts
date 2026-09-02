@@ -22,3 +22,8 @@ export async function generateRevisionPlan(subject_ids?: string[]): Promise<Plan
   const response = await apiClient.post("/api/v1/ai/plan/revision", { subject_ids });
   return response.data;
 }
+
+export async function listPlans(): Promise<PlanResponse[]> {
+  const response = await apiClient.get("/api/v1/ai/plans");
+  return response.data;
+}

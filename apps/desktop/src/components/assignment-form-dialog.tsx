@@ -97,7 +97,7 @@ export function AssignmentFormDialog({
   const onSubmit = form.handleSubmit(async (data) => {
     setSubmitError(null);
     try {
-      const dueDate = data.due_date ? data.due_date + ":00.000Z" : null;
+      const dueDate = data.due_date ? new Date(data.due_date).toISOString() : null;
       const payload = {
         title: data.title,
         description: data.description || null,
@@ -137,10 +137,10 @@ export function AssignmentFormDialog({
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
-        className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border bg-card p-6 shadow-2xl"
+        className="relative flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-6 flex items-center justify-between">
+        <div className="flex items-center justify-between border-b px-6 py-4">
           <h2 className="text-xl font-semibold">{isEditing ? "Edit Assignment" : "New Assignment"}</h2>
           <button type="button" onClick={() => {
             if (form.formState.isDirty) {
@@ -154,7 +154,8 @@ export function AssignmentFormDialog({
           </button>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form onSubmit={onSubmit} className="flex flex-1 flex-col overflow-hidden">
+          <div className="flex-1 space-y-4 overflow-y-auto px-6 py-4">
           <div className="space-y-2">
             <Label htmlFor="title">Title</Label>
             <Input id="title" placeholder="Assignment title" autoFocus {...form.register("title")} />
@@ -254,7 +255,8 @@ export function AssignmentFormDialog({
             </label>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4">
+          </div>
+          <div className="flex shrink-0 justify-end gap-3 border-t bg-card px-6 py-4">
             <Button type="button" variant="outline" onClick={() => {
               if (form.formState.isDirty) {
                 if (!window.confirm("Discard unsaved changes?")) return;

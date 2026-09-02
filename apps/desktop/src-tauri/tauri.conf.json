@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:*; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* https://*.supabase.co https://github.com https://objects.githubusercontent.com https://release-assets.githubusercontent.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self'; script-src 'self' 'unsafe-inline'"
     }
   },
   "plugins": {
@@ -31,11 +31,21 @@
       "desktop": {
         "schemes": ["fixly"]
       }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ5MDM1NzBFRDFCRDk2OTgKUldTWWxyM1JEbGNEU1lOam1VUGUwaWlZSExHMmJvNmNkTCtJU2t3L0hsOEthT2dWMTYrYkRLdlEK",
+      "endpoints": [
+        "https://github.com/aryan-sonsurkar/Fixly-Desktop/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "createUpdaterArtifacts": "v1Compatible",
+    "targets": ["nsis", "msi"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

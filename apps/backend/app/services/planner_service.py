@@ -26,9 +26,28 @@ class PlannerService:
         self.study_repo = StudyRepository(access_token=access_token)
         self.context = WorkspaceContext(access_token=access_token)
 
+    def _extract_json(self, raw: str) -> str:
+        """Strip markdown fences, preamble, and extract the JSON payload."""
+        s = raw.strip()
+        # Remove ```json ... ``` or ``` ... ```
+        if "```" in s:
+            # Find first { or [ inside fences
+            import re as _re
+            fence = _re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", s)
+            if fence:
+                s = fence.group(1).strip()
+        # If still not starting with { or [, try to locate JSON object/array
+        if not s.startswith(("{", "[")):
+            import re as _re
+            m = _re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", s)
+            if m:
+                s = m.group(1).strip()
+        return s
+
     def _validate_schedule_items(self, content: str) -> list[dict[str, Any]]:
+        raw = self._extract_json(content)
         try:
-            data = json.loads(content)
+            data = json.loads(raw)
         except json.JSONDecodeError as e:
             raise FixlyValidationError(
                 detail=f"AI response is not valid JSON: {e}"
@@ -47,6 +66,9 @@ class PlannerService:
             raise FixlyValidationError(
                 detail="AI response does not contain a valid list of schedule items"
             )
+
+        if len(items) == 0:
+            raise FixlyValidationError(detail="AI returned an empty schedule")
 
         validated: list[dict[str, Any]] = []
         errors: list[str] = []
@@ -90,15 +112,20 @@ class PlannerService:
 
         conv = await self.ai_repo.create_conversation(user_id, "Daily Plan")
         prompt = await PromptManager(access_token=self.access_token).build(
-    PromptType.PLANNER, user_id, **prompt_kwargs
-)
+            PromptType.PLANNER, user_id, **prompt_kwargs
+        )
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
 
         content = result["message"]["content"]
         try:
             schedule_items = self._validate_schedule_items(content)
+        except FixlyValidationError as ve:
+            # Lenient fallback: AI returned useful text but not strict JSON.
+            # Keep the conversation and return content without schedule_items
+            # so the user sees the plan instead of an error.
+            logger.warning("Planner daily: strict JSON failed, returning text plan: %s", ve.detail)
+            schedule_items = []
         except Exception:
-            # orphan cleanup: remove conversation created for failed validation
             try:
                 await self.ai_repo.delete_conversation(conv["id"], user_id)
             except Exception:
@@ -146,12 +173,22 @@ class PlannerService:
 
         conv = await self.ai_repo.create_conversation(user_id, "Weekly Plan")
         prompt = await PromptManager(access_token=self.access_token).build(
-    PromptType.PLANNER, user_id, **prompt_kwargs
-)
+            PromptType.PLANNER, user_id, **prompt_kwargs
+        )
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
 
         content = result["message"]["content"]
-        schedule_items = self._validate_schedule_items(content)
+        try:
+            schedule_items = self._validate_schedule_items(content)
+        except FixlyValidationError as ve:
+            logger.warning("Planner weekly: strict JSON failed, returning text plan: %s", ve.detail)
+            schedule_items = []
+        except Exception:
+            try:
+                await self.ai_repo.delete_conversation(conv["id"], user_id)
+            except Exception:
+                pass
+            raise
 
         return {
             "plan_type": "weekly",
@@ -194,12 +231,22 @@ class PlannerService:
 
         conv = await self.ai_repo.create_conversation(user_id, "Revision Plan")
         prompt = await PromptManager(access_token=self.access_token).build(
-    PromptType.PLANNER, user_id, **prompt_kwargs
-)
+            PromptType.PLANNER, user_id, **prompt_kwargs
+        )
         result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
 
         content = result["message"]["content"]
-        schedule_items = self._validate_schedule_items(content)
+        try:
+            schedule_items = self._validate_schedule_items(content)
+        except FixlyValidationError as ve:
+            logger.warning("Planner revision: strict JSON failed, returning text plan: %s", ve.detail)
+            schedule_items = []
+        except Exception:
+            try:
+                await self.ai_repo.delete_conversation(conv["id"], user_id)
+            except Exception:
+                pass
+            raise
 
         return {
             "plan_type": "revision",

@@ -58,7 +58,10 @@ export function usePomodoroTimer() {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
-    startTimestampRef.current = Date.now();
+    // Compensate for already-elapsed time so pause/resume doesn't reset
+    const s = usePomodoroStore.getState();
+    const elapsedBefore = s.totalTime - s.timeRemaining;
+    startTimestampRef.current = Date.now() - elapsedBefore * 1000;
     setIsRunning(true);
   }, [timeRemaining, isRunning, setIsRunning]);
 

@@ -196,8 +196,6 @@ export function StartupGate({ children }: StartupGateProps) {
       if (result.stage === "ready") {
         let port = result.port ?? null;
         if (!port) {
-          // Backend reported ready but the poll response lacked the port;
-          // ask for it directly so the API client targets the right process.
           try {
             port = await invoke<number>("get_backend_port");
           } catch {
@@ -211,14 +209,13 @@ export function StartupGate({ children }: StartupGateProps) {
         setReady(true);
       }
     } catch {
-      // Transient IPC error: keep polling. Do NOT proceed without a backend
-      // port, otherwise every request would target a stale/default port and
-      // fail with "Network request failed".
+      // Transient IPC error: keep polling.
     }
   }, []);
 
   useEffect(() => {
     checkStatus();
+    if (status?.stage === "ready") return;
     const interval = setInterval(checkStatus, status?.stage === "error" ? 2000 : 500);
     return () => clearInterval(interval);
   }, [checkStatus, status?.stage]);

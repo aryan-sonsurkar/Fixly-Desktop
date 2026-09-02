@@ -90,18 +90,35 @@ class FixlyLocalProvider(AIProvider):
             llama = self._load_llama()
             if llama is None:
                 raise RuntimeError(f"Fixly Local model not found: {MODEL_FILENAME} – run installer with bundled model or place in models/")
-            # Convert OpenAI style messages to llama_cpp chat
-            # llama_cpp expects list of {"role": "...", "content": "..."}
             try:
                 out = llama.create_chat_completion(
                     messages=messages,
                     temperature=temperature,
                     max_tokens=max_tokens,
                 )
-                # out: {"choices": [{"message": {"content": "..."}}]}
                 choices = out.get("choices", [])
                 if choices:
-                    return str(choices[0].get("message", {}).get("content", ""))
+                    text = str(choices[0].get("message", {}).get("content", "") or "").strip()
+                    if text:
+                        return text
+                    # Tiny model sometimes returns empty on long system prompts — retry with shorter context
+                    short_msgs = [m for m in messages if m["role"] != "system"]
+                    if short_msgs:
+                        short_msgs.insert(0, {"role": "system", "content": "You are Fixly AI, a helpful academic assistant."})
+                        try:
+                            out2 = llama.create_chat_completion(
+                                messages=short_msgs,
+                                temperature=0.8,
+                                max_tokens=max_tokens,
+                            )
+                            c2 = out2.get("choices", [])
+                            if c2:
+                                t2 = str(c2[0].get("message", {}).get("content", "") or "").strip()
+                                if t2:
+                                    return t2
+                        except Exception:
+                            pass
+                    return text
                 return ""
             except Exception as e:
                 logger.error("Fixly Local generate failed: %s", e)

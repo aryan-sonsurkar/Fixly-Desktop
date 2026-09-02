@@ -100,7 +100,8 @@ export function NotificationPage() {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && !loading && notifications.length < total) {
-          setPage(page + 1);
+          const next = useNotificationStore.getState().page + 1;
+          setPage(next);
         }
       },
       { threshold: 0.1 },
@@ -113,7 +114,6 @@ export function NotificationPage() {
     try {
       await markNotificationRead(id);
       markRead(id);
-      setUnreadCount(Math.max(0, unreadCount - 1));
     } catch (err) {
       logger.error("Failed to mark notification read", err);
     }

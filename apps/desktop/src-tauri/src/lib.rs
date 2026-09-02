@@ -517,6 +517,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // Register the fixly:// scheme (HKCU) so OAuth callbacks reach this app.
             if let Err(e) = app.deep_link().register_all() {

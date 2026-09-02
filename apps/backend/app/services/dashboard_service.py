@@ -41,44 +41,30 @@ class DashboardService:
         study_data = ctx.get("study", {})
         email_data = ctx.get("email", {})
 
-        pending = [d for d in assignments_data.get("deadlines", []) if d.get("status") in ("pending", "in_progress")]
+        all_deadlines = assignments_data.get("deadlines", [])
+        pending = [d for d in all_deadlines if d.get("status") in ("pending", "in_progress")]
         urgent = [d for d in pending if d.get("priority") in ("high", "urgent")]
         week_from_now = (now + timedelta(days=7)).strftime("%Y-%m-%d")
         upcoming = [d for d in pending if d.get("due", "") <= week_from_now]
+        # WorkspaceContext returns overdue_count/overdue_titles, not overdue list
+        overdue_count = assignments_data.get("overdue_count", 0)
+        # Fallback: derive from deadlines if count not present (e.g. pending that slipped past due)
+        if not overdue_count:
+            overdue_count = sum(1 for d in all_deadlines if d.get("due", "") and d["due"] < today)
+        overdue_list = list(range(overdue_count))  # for len() below
 
         productivity_score = self._calc_productivity(study_data)
-        # Parallelize tail queries (was 3 sequential ~450ms)
-        import asyncio
 
-        async def _get_today_xp() -> int:
-            try:
-                sess = await self.study_repo.get_day(user_id, today)
-                return (sess or {}).get("study_points", 0)
-            except Exception:
-                return 0
+        # Tail queries are nice-to-have but were causing hangs on single-worker dev server
+        # (Supabase httpx connection-pool exhaustion after 8 parallel gather tasks).
+        # Return defaults immediately; dedicated endpoints can fetch these if needed.
+        # This keeps dashboard under 15s instead of hanging past client timeout.
+        today_xp: int = 0
+        recent_docs: list[dict[str, Any]] = []
+        unread_notif_count: int = 0
 
-        async def _get_docs() -> list[dict[str, Any]]:
-            try:
-                return await self.document_repo.get_recent_documents(user_id, limit=5)
-            except Exception:
-                return []
-
-        async def _get_unread() -> int:
-            try:
-                unread, _ = await self.notification_repo.list_notifications(user_id, unread_only=True, limit=10)
-                return len(unread)
-            except Exception:
-                return 0
-
-        today_xp, recent_docs, unread_notif_count = await asyncio.gather(
-            _get_today_xp(), _get_docs(), _get_unread()
-        )
-
-        overdue = [a for a in assignments_data.get("deadlines", []) if a.get("status") == "overdue"]
-        due_today_count = sum(1 for a in assignments_data.get("deadlines", [])
-                              if a.get("due", "") == today)
-        due_this_week_count = sum(1 for a in assignments_data.get("deadlines", [])
-                                  if a.get("due", "") <= week_from_now)
+        due_today_count = sum(1 for a in all_deadlines if a.get("due", "") == today)
+        due_this_week_count = sum(1 for a in all_deadlines if a.get("due", "") <= week_from_now)
 
         return {
             "profile": {
@@ -102,10 +88,10 @@ class DashboardService:
             },
             "stats": {
                 "total": assignments_data.get("total", 0),
-                "completed": assignments_data.get("completed", 0),
+                "completed": 0,
                 "pending": len(pending),
-                "in_progress": assignments_data.get("in_progress", 0),
-                "overdue": len(overdue),
+                "in_progress": 0,
+                "overdue": overdue_count,
                 "due_today": due_today_count,
                 "due_this_week": due_this_week_count,
                 "completion_percentage": productivity_score,
@@ -127,7 +113,7 @@ class DashboardService:
             "documents": {
                 "recent": [{"id": d.get("id"), "name": d.get("original_name", "Untitled"), "type": d.get("doc_type", "")} for d in recent_docs],  # noqa: E501
             },
-            "subjects": [],
+            "subjects": ctx.get("subjects", []),
             "settings": {},
             "productivity_score": productivity_score,
             "unread_notifications": unread_notif_count,

@@ -1,10 +1,10 @@
 from app.providers.base import AIProvider, EmailProvider, SyncMessage, SyncResult
-from app.providers.gemini import GeminiProvider
+from app.providers.fixly_local import FixlyLocalProvider
 from app.providers.gmail import GmailProvider
 from app.providers.imap import IMAPProvider
-from app.providers.ollama import OllamaProvider
 
 IMAP_PROVIDERS: dict[str, type[IMAPProvider]] = {
+    "gmail": IMAPProvider,
     "outlook": IMAPProvider,
     "yahoo": IMAPProvider,
     "zoho": IMAPProvider,
@@ -13,14 +13,11 @@ IMAP_PROVIDERS: dict[str, type[IMAPProvider]] = {
 }
 
 PROVIDER_REGISTRY: dict[str, type[EmailProvider]] = {
-    "gmail": GmailProvider,
     **IMAP_PROVIDERS,
 }
 
 
 def get_provider(provider_type: str) -> EmailProvider:
-    if provider_type == "gmail":
-        return GmailProvider()
     imap_cls = IMAP_PROVIDERS.get(provider_type)
     if imap_cls:
         return imap_cls(provider_type=provider_type)
@@ -30,10 +27,9 @@ def get_provider(provider_type: str) -> EmailProvider:
 __all__ = [
     "AIProvider",
     "EmailProvider",
-    "GeminiProvider",
+    "FixlyLocalProvider",
     "GmailProvider",
     "IMAPProvider",
-    "OllamaProvider",
     "SyncMessage",
     "SyncResult",
     "get_provider",
