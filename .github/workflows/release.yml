@@ -247,6 +247,7 @@ jobs:
       - name: Mirror updater to public Fixly-Updates (artifact-only)
         env:
           FIXLY_UPDATES_PAT: ${{ secrets.FIXLY_UPDATES_PAT }}
+          GH_TOKEN: ${{ secrets.FIXLY_UPDATES_PAT }}
         run: |
           if [ -z "$FIXLY_UPDATES_PAT" ]; then
             echo "FIXLY_UPDATES_PAT not set — skipping public mirror. Private Fixly-Desktop release is the updater source (collaborators only)."
@@ -263,8 +264,6 @@ jobs:
           gh release view "$TAG" --repo aryan-sonsurkar/Fixly-Updates >/dev/null 2>&1 && gh release delete "$TAG" --repo aryan-sonsurkar/Fixly-Updates --yes || true
           gh release create "$TAG" --repo aryan-sonsurkar/Fixly-Updates --title "Fixly $TAG (updater)" --notes "Public updater artifacts for Fixly $TAG — see Fixly-Desktop $TAG for full release." dist/updater/*.json dist/updater/**/*.sig dist/updater/**/*.zip 2>/dev/null || gh release create "$TAG" --repo aryan-sonsurkar/Fixly-Updates --title "Fixly $TAG (updater)" --notes "Public updater artifacts" dist/updater/latest.json dist/updater/*.sig 2>/dev/null || echo "::warning::Public mirror upload failed — verify PAT scope"
           echo "Public mirror done (if repo and PAT were correct). Updater endpoint for public beta: https://github.com/aryan-sonsurkar/Fixly-Updates/releases/latest/download/latest.json"
-        env:
-          GH_TOKEN: ${{ secrets.FIXLY_UPDATES_PAT }}
         continue-on-error: true
 
       - name: Summary
