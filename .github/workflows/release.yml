@@ -268,8 +268,10 @@ jobs:
         continue-on-error: true
 
       - name: Summary
+        env:
+          HAS_UPDATES_PAT: ${{ secrets.FIXLY_UPDATES_PAT != '' }}
         run: |
           echo "Release draft created for tag ${{ steps.notes.outputs.tag }}"
           echo "Artifacts uploaded: NSIS + MSI + portable + updater (latest.json + sig + zip)"
           echo "Source archive is GitHub default; repair installer is NSIS/MSI only."
-          if [ -n "${{ secrets.FIXLY_UPDATES_PAT }}" ]; then echo "Public Fixly-Updates mirror attempted — check logs."; else echo "FIXLY_UPDATES_PAT not set — public mirror skipped (private draft is source)."; fi
+          if [ "$HAS_UPDATES_PAT" = "true" ]; then echo "Public Fixly-Updates mirror attempted — check logs."; else echo "FIXLY_UPDATES_PAT not set — public mirror skipped (private draft is source)."; fi

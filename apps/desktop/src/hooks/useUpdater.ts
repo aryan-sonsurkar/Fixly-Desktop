@@ -69,10 +69,11 @@ export function useUpdater() {
       setState({ status: "available", version, body, date });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      // Network offline, malformed JSON, invalid signature — all handled as soft error, never crash
+      // Network offline, malformed JSON, invalid signature — soft error, never crash.
+      // 404 / network failure means the check FAILED, never "up to date".
       if (message.includes("not found") || message.includes("404") || message.includes("Failed to fetch")) {
-        logger.debug("Updater: no update or endpoint not yet published", { message });
-        setState({ status: "up_to_date" });
+        logger.warn("Updater: endpoint unreachable — check failed, will retry later", { message });
+        setState({ status: "error", message: "Update check failed — will retry later. Fixly is still usable." });
         return;
       }
       logger.warn("Updater: check failed", { message });
