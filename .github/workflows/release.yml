@@ -237,7 +237,7 @@ jobs:
             echo ""
             echo "### Checksums"
             sha256sum dist/nsis/*.exe dist/msi/*.msi dist/portable/fixly-desktop.exe 2>/dev/null || sha256sum dist/nsis/* dist/msi/*.msi dist/portable/fixly-desktop.exe 2>/dev/null || echo "Checksums unavailable"
-            if ls dist/updater/*.sig >/dev/null 2>&1; then
+            if find dist/updater -name '*.sig' 2>/dev/null | grep -q .; then
               echo ""
               echo "### Updater artifacts"
               echo "Updatable via Tauri in-app updater (signed)."
@@ -266,6 +266,8 @@ jobs:
           FIXLY_UPDATES_PAT: ${{ secrets.FIXLY_UPDATES_PAT }}
           GH_TOKEN: ${{ secrets.FIXLY_UPDATES_PAT }}
         run: |
+          echo "=== Updater artifact inventory (dist/updater may nest files by source path) ==="
+          ls -R dist/updater 2>/dev/null || echo "dist/updater missing entirely"
           if [ -z "$FIXLY_UPDATES_PAT" ]; then
             echo "FIXLY_UPDATES_PAT not set — skipping public mirror. Private Fixly-Desktop release is the updater source (collaborators only)."
             echo "To enable public beta: create public repo aryan-sonsurkar/Fixly-Updates and set FIXLY_UPDATES_PAT (contents:write on that repo only)."
@@ -277,9 +279,19 @@ jobs:
             echo "::warning::Public Fixly-Updates repo not found — skipping mirror. Create it per release/RELEASE_PROCESS.md."
             exit 0
           fi
-          echo "Mirroring $TAG to Fixly-Updates..."
+          # Collect updater files at ANY depth: download-artifact preserves nested
+          # source paths, and bash `**` without globstar only matches one level,
+          # so fixed globs silently match nothing. `find` handles both layouts.
+          mapfile -t UPDATER_FILES < <(find dist/updater -type f \( -name '*.json' -o -name '*.sig' -o -name '*.zip' \) 2>/dev/null)
+          echo "Found ${#UPDATER_FILES[@]} updater file(s):"
+          printf '  %s\n' "${UPDATER_FILES[@]}"
+          if [ "${#UPDATER_FILES[@]}" -eq 0 ]; then
+            echo "::warning::No updater files (latest.json/.sig/.zip) under dist/updater — skipping public mirror. Check the Fixly-Updater artifact upload step."
+            exit 0
+          fi
+          echo "Mirroring $TAG to Fixly-Updates (${#UPDATER_FILES[@]} files)..."
           gh release view "$TAG" --repo aryan-sonsurkar/Fixly-Updates >/dev/null 2>&1 && gh release delete "$TAG" --repo aryan-sonsurkar/Fixly-Updates --yes || true
-          gh release create "$TAG" --repo aryan-sonsurkar/Fixly-Updates --title "Fixly $TAG (updater)" --notes "Public updater artifacts for Fixly $TAG — see Fixly-Desktop $TAG for full release." dist/updater/*.json dist/updater/**/*.sig dist/updater/**/*.zip 2>/dev/null || gh release create "$TAG" --repo aryan-sonsurkar/Fixly-Updates --title "Fixly $TAG (updater)" --notes "Public updater artifacts" dist/updater/latest.json dist/updater/*.sig 2>/dev/null || echo "::warning::Public mirror upload failed — verify PAT scope"
+          gh release create "$TAG" --repo aryan-sonsurkar/Fixly-Updates --title "Fixly $TAG (updater)" --notes "Public updater artifacts for Fixly $TAG — see Fixly-Desktop $TAG for full release." "${UPDATER_FILES[@]}" || echo "::warning::Public mirror upload failed — verify PAT scope"
           echo "Public mirror done (if repo and PAT were correct). Updater endpoint for public beta: https://github.com/aryan-sonsurkar/Fixly-Updates/releases/latest/download/latest.json"
         continue-on-error: true
 
