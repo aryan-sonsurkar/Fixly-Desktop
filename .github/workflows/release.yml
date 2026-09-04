@@ -69,11 +69,21 @@ jobs:
         working-directory: apps/backend
         run: pytest tests/ -v
 
-      - name: Cargo check
-        working-directory: apps/desktop/src-tauri
-        run: cargo check
+      # ---- Release artifacts prep: model + backend must exist before Tauri ----
+      # Tauri's build script validates every `resources` path at compile time,
+      # so `cargo check` and `tauri build` both fail if these files are missing.
 
-      # ---- Backend (PyInstaller) — must exist before Tauri bundles it ----
+      - name: Download bundled model (public Hugging Face, no auth)
+        run: |
+          mkdir -p apps/backend/models
+          MODEL="apps/backend/models/qwen2-0.5b-instruct-q4_k_m.gguf"
+          if [ -f "$MODEL" ] && [ "$(wc -c < "$MODEL")" -gt 300000000 ]; then
+            echo "Model already present, skipping download"
+          else
+            curl -fsSL --retry 3 -o "$MODEL" "https://huggingface.co/Qwen/Qwen2-0.5B-Instruct-GGUF/resolve/main/qwen2-0_5b-instruct-q4_k_m.gguf"
+          fi
+          ls -lh "$MODEL"
+          test "$(wc -c < "$MODEL")" -gt 300000000
 
       - name: Build backend (PyInstaller)
         working-directory: apps/backend
@@ -82,7 +92,14 @@ jobs:
           pyinstaller backend.spec --noconfirm
 
       - name: Verify backend bundle exists
-        run: ls -lh apps/backend/dist/backend.exe && test -f apps/backend/models/qwen2-0.5b-instruct-q4_k_m.gguf || echo "Model bundled via Tauri resources"
+        run: |
+          ls -lh apps/backend/dist/backend.exe
+          test -f apps/backend/dist/backend.exe
+          test -f apps/backend/models/qwen2-0.5b-instruct-q4_k_m.gguf
+
+      - name: Cargo check
+        working-directory: apps/desktop/src-tauri
+        run: cargo check
 
       # ---- Tauri desktop (NSIS + MSI + Updater artifacts) ----
 
