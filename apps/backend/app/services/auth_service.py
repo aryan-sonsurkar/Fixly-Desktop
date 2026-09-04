@@ -172,11 +172,20 @@ class AuthService:
         except Exception as e:
             msg = str(e).lower()
             # Supabase returns 400/422 when google provider disabled – translate to user-friendly
-            if "provider" in msg and ("disabled" in msg or "not enabled" in msg or "not configured" in msg):
-                raise AuthenticationError("Google sign-in is not enabled. Please use email or contact the administrator.")
+            disabled = ("disabled" in msg or "not enabled" in msg or "not configured" in msg)
+            if "provider" in msg and disabled:
+                raise AuthenticationError(
+                    "Google sign-in is not enabled. Please use email or contact the administrator."
+                )
             if "redirect_uri" in msg or "redirect" in msg:
-                logger.error("Google OAuth redirect_uri mismatch – check Supabase additional_redirect_urls and Google Cloud authorized redirect URIs: %s", e)
-                raise AuthenticationError("Google sign-in misconfigured (redirect_uri). Add fixly://auth/callback and http://localhost:1420/auth/callback to Supabase Auth allowed redirects and to Google Cloud Console authorized redirect URIs.")
+                logger.error(
+                    "Google OAuth redirect_uri mismatch – check Supabase allowed redirects "
+                    "and Google Cloud authorized redirect URIs: %s", e
+                )
+                raise AuthenticationError(
+                    "Google sign-in misconfigured (redirect_uri). "
+                    "Add fixly://auth/callback to Supabase Auth allowed redirects."
+                )
             logger.error("Failed to get Google auth URL: %s", e)
             raise AuthenticationError("Google authentication is currently unavailable. Please try email sign-in.")
 

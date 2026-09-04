@@ -118,7 +118,9 @@ class HttpsRedirectMiddleware(BaseHTTPMiddleware):
         if is_production:
             proto = request.headers.get("x-forwarded-proto", request.url.scheme)
             host = request.headers.get("host", "") or request.url.hostname or ""
-            if proto == "http" and host not in ("127.0.0.1", "localhost") and not host.startswith("127.0.0.1:") and not host.startswith("localhost:"):
+            is_loopback = host in ("127.0.0.1", "localhost")
+            is_loopback_port = host.startswith("127.0.0.1:") or host.startswith("localhost:")
+            if proto == "http" and not is_loopback and not is_loopback_port:
                 url = str(request.url).replace("http://", "https://", 1)
                 return RedirectResponse(url, status_code=307)
         return await call_next(request)

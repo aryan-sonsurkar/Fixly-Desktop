@@ -200,6 +200,7 @@ class AssignmentRepository:
 
     async def get_stats(self, user_id: str) -> dict[str, Any]:
         import asyncio
+
         from app.core.threads import run_in_thread
 
         client = self._client

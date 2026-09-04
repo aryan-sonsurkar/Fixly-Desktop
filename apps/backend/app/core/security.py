@@ -8,6 +8,7 @@ from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
 
+
 # --- Sensitive data encryption (e.g., email tokens) ---
 # Uses FERNET_KEY env or derives from SUPABASE_JWT_SECRET. Fallback is not for prod.
 def _get_fernet() -> Fernet:
@@ -86,7 +87,10 @@ def strip_blocked_fields(payload: dict[str, Any], allowed: set[str] | None = Non
 
 # --- Trim API responses: remove sensitive keys before returning ---
 
-SENSITIVE_KEYS = {"access_token", "refresh_token", "token", "password", "secret", "service_role", "jwt_secret", "hashed_password"}
+SENSITIVE_KEYS = {
+    "access_token", "refresh_token", "token", "password", "secret",
+    "service_role", "jwt_secret", "hashed_password",
+}
 
 def trim_response(data: Any) -> Any:
     if isinstance(data, dict):

@@ -50,8 +50,9 @@ class DashboardService:
         overdue_count = assignments_data.get("overdue_count", 0)
         # Fallback: derive from deadlines if count not present (e.g. pending that slipped past due)
         if not overdue_count:
-            overdue_count = sum(1 for d in all_deadlines if d.get("due", "") and d["due"] < today)
-        overdue_list = list(range(overdue_count))  # for len() below
+            overdue_count = sum(
+                1 for d in all_deadlines if d.get("due", "") and d["due"] < today
+            )
 
         productivity_score = self._calc_productivity(study_data)
 

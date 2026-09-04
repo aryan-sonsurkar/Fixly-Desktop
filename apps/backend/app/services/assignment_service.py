@@ -52,7 +52,7 @@ class AssignmentService:
         return assignment
 
     async def create_assignment(self, user_id: str, data: dict[str, Any]) -> dict[str, Any]:
-        from app.core.security import sanitize_dict, strip_blocked_fields, ALLOWED_ASSIGNMENT_FIELDS
+        from app.core.security import ALLOWED_ASSIGNMENT_FIELDS, sanitize_dict, strip_blocked_fields
 
         safe = strip_blocked_fields(data, ALLOWED_ASSIGNMENT_FIELDS)
         safe = sanitize_dict(safe, max_str=5000)
@@ -62,7 +62,7 @@ class AssignmentService:
     async def update_assignment(
         self, assignment_id: str, user_id: str, data: dict[str, Any]
     ) -> dict[str, Any]:
-        from app.core.security import sanitize_dict, strip_blocked_fields, ALLOWED_ASSIGNMENT_FIELDS
+        from app.core.security import ALLOWED_ASSIGNMENT_FIELDS, sanitize_dict, strip_blocked_fields
 
         existing = await self.repository.get_assignment(assignment_id, user_id)
         if not existing:

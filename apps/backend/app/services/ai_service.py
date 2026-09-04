@@ -65,7 +65,8 @@ class AIService:
         if ok:
             return provider
         raise AIProviderUnavailableError(
-            "Fixly AI model is not available — reinstall the Fixly 1.0.0+ installer or place qwen2-0.5b-instruct-q4_k_m.gguf in backend/models/"
+            "Fixly AI model is not available — reinstall the Fixly 1.0.0+ installer "
+            "or place qwen2-0.5b-instruct-q4_k_m.gguf in backend/models/"
         )
 
     async def _get_settings(self, user_id: str) -> dict[str, Any]:
@@ -140,13 +141,20 @@ class AIService:
                 ac = await self._get_academic_context(user_id)
                 deadlines = ac.get("upcoming_deadlines", [])
                 if deadlines:
-                    items = "\n".join(f"- {d.get('title','')} (Due: {d.get('due','') or d.get('due_date','')})" for d in deadlines[:5])
+                    items = "\n".join(
+                        f"- {d.get('title','')} (Due: {d.get('due','') or d.get('due_date','')})"
+                        for d in deadlines[:5]
+                    )
+                    active = ac.get('active_assignments', 0)
+                    hours = ac.get('total_study_hours', 0)
+                    days = ac.get('study_days', 0)
                     response_text = (
-                        f"Hello! I'm Fixly AI — your academic assistant. I couldn't generate a full AI response right now, "
-                        f"but here's what I know about your workload:\n\n**Active assignments: {ac.get('active_assignments', 0)}**\n"
+                        "Hello! I'm Fixly AI — your academic assistant. "
+                        "I couldn't generate a full AI response right now, "
+                        f"but here's what I know about your workload:\n\n**Active: {active}**\n"
                         f"{items}\n\n"
-                        f"You've studied **{ac.get('total_study_hours', 0)}h** across **{ac.get('study_days', 0)} days**. "
-                        f"Tip: focus on the most urgent deadline first and break work into 25-min Pomodoro sessions."
+                        f"You've studied **{hours}h** across **{days} days**. "
+                        "Tip: focus on the most urgent deadline first."
                     )
                 else:
                     response_text = (
@@ -248,10 +256,21 @@ class AIService:
                 ac = await self._get_academic_context(user_id)
                 dl = ac.get("upcoming_deadlines", [])
                 if dl:
-                    items = "\n".join(f"- {d.get('title','')} (Due: {d.get('due','') or d.get('due_date','')})" for d in dl[:3])
-                    final_text = f"Hello! I'm Fixly AI. Having a brief hiccup, but here's your workload:\n\n**Active: {ac.get('active_assignments',0)}**\n{items}\n\nAsk again or try the Planner for a study schedule."
+                    items = "\n".join(
+                        f"- {d.get('title','')} (Due: {d.get('due','') or d.get('due_date','')})"
+                        for d in dl[:3]
+                    )
+                    active = ac.get('active_assignments', 0)
+                    final_text = (
+                        "Hello! I'm Fixly AI. Having a brief hiccup, "
+                        f"but here's your workload:\n\n**Active: {active}**\n{items}\n\n"
+                        "Ask again or try the Planner for a study schedule."
+                    )
                 else:
-                    final_text = "Hello! I'm Fixly AI. I'm having a momentary issue — please retry your message. Your workspace is otherwise ready."
+                    final_text = (
+                        "Hello! I'm Fixly AI. I'm having a momentary issue — "
+                        "please retry your message. Your workspace is otherwise ready."
+                    )
             except Exception:
                 final_text = "Hello! I'm Fixly AI. Couldn't generate a response — please retry."
             # Ensure the user actually sees something in the stream
@@ -314,12 +333,19 @@ class AIService:
                 ac = await self._get_academic_context(user_id)
                 dl = ac.get("upcoming_deadlines", [])
                 if dl:
-                    items = "\n".join(f"- {d.get('title','')} (Due: {d.get('due','') or d.get('due_date','')})" for d in dl[:3])
-                    response_text = f"Hello! I'm Fixly AI. Brief hiccup — here's your snapshot:\n\nActive: {ac.get('active_assignments',0)}\n{items}"
+                    items = "\n".join(
+                        f"- {d.get('title','')} (Due: {d.get('due','') or d.get('due_date','')})"
+                        for d in dl[:3]
+                    )
+                    active = ac.get('active_assignments', 0)
+                    response_text = (
+                        "Hello! I'm Fixly AI. Brief hiccup — here's your snapshot:\n\n"
+                        f"Active: {active}\n{items}"
+                    )
                 else:
-                    response_text = "Hello! I'm Fixly AI. Brief hiccup generating — please retry your message."
+                    response_text = "Hello! I'm Fixly AI. Brief hiccup — please retry your message."
             except Exception:
-                response_text = "Hello! I'm Fixly AI. Brief hiccup generating — please retry."
+                response_text = "Hello! I'm Fixly AI. Brief hiccup — please retry."
         token_count = self.token_counter.count_tokens(response_text)
 
         msg = await self.repository.create_message(

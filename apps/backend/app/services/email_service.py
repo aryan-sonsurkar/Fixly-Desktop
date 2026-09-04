@@ -380,7 +380,11 @@ class EmailService:
                         # If no match and subject_name already looks like UUID, keep it
                         if not subject_id:
                             import re as _re
-                            if _re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", str(subject_name), re.I):
+                            uuid_re = (
+                                r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
+                                r"[0-9a-f]{4}-[0-9a-f]{12}$"
+                            )
+                            if _re.match(uuid_re, str(subject_name), re.I):
                                 subject_id = str(subject_name)
                     except Exception as e:
                         logger.warning("Failed to resolve review subject '%s': %s", subject_name, e)

@@ -89,7 +89,10 @@ class FixlyLocalProvider(AIProvider):
         def _sync() -> str:
             llama = self._load_llama()
             if llama is None:
-                raise RuntimeError(f"Fixly Local model not found: {MODEL_FILENAME} – run installer with bundled model or place in models/")
+                raise RuntimeError(
+                    f"Fixly Local model not found: {MODEL_FILENAME} – "
+                    "run installer with bundled model or place in models/"
+                )
             try:
                 out = llama.create_chat_completion(
                     messages=messages,
@@ -104,7 +107,10 @@ class FixlyLocalProvider(AIProvider):
                     # Tiny model sometimes returns empty on long system prompts — retry with shorter context
                     short_msgs = [m for m in messages if m["role"] != "system"]
                     if short_msgs:
-                        short_msgs.insert(0, {"role": "system", "content": "You are Fixly AI, a helpful academic assistant."})
+                        short_msgs.insert(0, {
+                            "role": "system",
+                            "content": "You are Fixly AI, a helpful academic assistant.",
+                        })
                         try:
                             out2 = llama.create_chat_completion(
                                 messages=short_msgs,
@@ -228,7 +234,10 @@ class FixlyLocalProvider(AIProvider):
             "required_model": MODEL_FILENAME,
         }
         if not self.model_path:
-            result["error"] = f"Bundled model not found: {MODEL_FILENAME} – reinstall Fixly 1.0.0+ installer or place GGUF in backend/models/"
+            result["error"] = (
+                f"Bundled model not found: {MODEL_FILENAME} – "
+                "reinstall Fixly 1.0.0+ installer or place GGUF in backend/models/"
+            )
             return result
         try:
             import importlib.util as _u

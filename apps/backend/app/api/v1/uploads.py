@@ -1,12 +1,9 @@
+import html
+import re
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
-
-import html
-import re
-
-from fastapi import Request
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 
 from app.core.exceptions import ValidationError
 from app.core.logging import get_logger
@@ -31,7 +28,10 @@ ALLOWED_TYPES = {
     "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "application/zip", "application/x-zip-compressed",
 }
-ALLOWED_EXTENSIONS = {".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip"}
+ALLOWED_EXTENSIONS = {
+    ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp",
+    ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip",
+}
 # Magic bytes mapping (first bytes)
 MAGIC_BYTES = {
     b"%PDF": "application/pdf",

@@ -247,7 +247,11 @@ class AIRepository:
     async def update_ai_settings(self, user_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         client = self._client
         # Filter to known columns to avoid 500 if migration 00013 not yet applied on remote
-        allowed = {"preferred_provider", "provider_model", "temperature", "max_tokens", "streaming_enabled", "system_prompt", "academic_context", "conversation_memory", "fallback_provider", "ai_enabled"}
+        allowed = {
+            "preferred_provider", "provider_model", "temperature", "max_tokens",
+            "streaming_enabled", "system_prompt", "academic_context",
+            "conversation_memory", "fallback_provider", "ai_enabled",
+        }
         clean = {k: v for k, v in updates.items() if k in allowed}
         # If provider_model column missing on remote, retry without it
         for attempt in (clean, {k: v for k, v in clean.items() if k != "provider_model"}):

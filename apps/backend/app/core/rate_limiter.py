@@ -2,7 +2,7 @@ import time
 from collections import defaultdict, deque
 from typing import Deque, Dict
 
-from fastapi import Request, HTTPException
+from fastapi import HTTPException, Request
 
 
 class RateLimiter:

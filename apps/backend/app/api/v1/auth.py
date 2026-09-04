@@ -4,9 +4,8 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.core.rate_limiter import auth_limiter
-
 from app.config import settings
+from app.core.rate_limiter import auth_limiter
 from app.dependencies.auth import CurrentUser, get_current_user
 from app.schemas.auth import (
     AuthResponse,
