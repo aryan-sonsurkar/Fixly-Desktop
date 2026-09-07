@@ -215,6 +215,42 @@ jobs:
           path: dist/updater
         continue-on-error: true
 
+      - name: Generate updater latest.json (Tauri bundler does not emit it)
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          TAG="${RELEASE_TAG:-${GITHUB_REF#refs/tags/}}"
+          VERSION="${TAG#v}"
+          NSIS_ZIP="$(find dist/updater -name '*.nsis.zip' 2>/dev/null | head -1)"
+          if [ -z "$NSIS_ZIP" ] || [ ! -f "$NSIS_ZIP.sig" ]; then
+            echo "::warning::No signed NSIS updater bundle under dist/updater — skipping latest.json generation."
+            ls -R dist/updater 2>/dev/null || echo "dist/updater missing entirely"
+            exit 0
+          fi
+          SIG="$(tr -d '\r\n' < "$NSIS_ZIP.sig")"
+          FILENAME="$(basename "$NSIS_ZIP")"
+          URL="https://github.com/aryan-sonsurkar/Fixly-Updates/releases/download/$TAG/$FILENAME"
+          PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          export TAG VERSION SIG FILENAME URL PUB_DATE
+          python3 - << 'PYEOF'
+          import json, os
+          doc = {
+              "version": os.environ["VERSION"],
+              "notes": "Fixly " + os.environ["TAG"],
+              "pub_date": os.environ["PUB_DATE"],
+              "platforms": {
+                  "windows-x86_64": {
+                      "signature": os.environ["SIG"],
+                      "url": os.environ["URL"],
+                  }
+              },
+          }
+          with open("dist/updater/latest.json", "w", encoding="utf-8") as f:
+              json.dump(doc, f, indent=2)
+              f.write("\n")
+          print("Wrote dist/updater/latest.json for version " + os.environ["VERSION"])
+          PYEOF
+
       - name: Generate release notes
         id: notes
         run: |
