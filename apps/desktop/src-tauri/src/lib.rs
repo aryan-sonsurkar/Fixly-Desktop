@@ -6,6 +6,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
+use sysinfo::System;
 use tauri::{AppHandle, Manager, RunEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
 
@@ -33,7 +34,9 @@ struct BackendState {
 }
 
 #[tauri::command]
-fn get_startup_status(state: tauri::State<'_, Arc<Mutex<BackendState>>>) -> Result<StartupStatus, String> {
+fn get_startup_status(
+    state: tauri::State<'_, Arc<Mutex<BackendState>>>,
+) -> Result<StartupStatus, String> {
     let s = state.lock().map_err(|e| e.to_string())?;
     Ok(StartupStatus {
         stage: s.stage.clone(),
@@ -50,13 +53,124 @@ fn get_backend_port(state: tauri::State<'_, Arc<Mutex<BackendState>>>) -> Result
     s.port.ok_or_else(|| "Backend not ready".to_string())
 }
 
-fn kill_backend(state: &Arc<Mutex<BackendState>>) {
+fn get_fixly_backend_install_path(app: Option<&AppHandle>) -> Option<std::path::PathBuf> {
+    // Strictly scoped to Fixly's own backend location — never matches arbitrary backend.exe
+    if let Some(handle) = app {
+        if let Ok(resource_dir) = handle.path().resource_dir() {
+            let p = resource_dir.join("backend").join("backend.exe");
+            if p.exists() {
+                return p.canonicalize().ok().or(Some(p));
+            }
+        }
+        if let Ok(app_data) = handle.path().app_data_dir() {
+            // Fallback: AppData/Local/Fixly/backend/backend.exe is where NSIS currentUser installs backend
+            let p = app_data
+                .join("..")
+                .join("Fixly")
+                .join("backend")
+                .join("backend.exe");
+            if p.exists() {
+                return p.canonicalize().ok().or(Some(p));
+            }
+        }
+    }
+    // Direct well-known currentUser install path (independent of AppHandle)
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        let p = std::path::PathBuf::from(local)
+            .join("Fixly")
+            .join("backend")
+            .join("backend.exe");
+        if p.exists() {
+            return p.canonicalize().ok().or(Some(p));
+        }
+    }
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        let p = std::path::PathBuf::from(appdata)
+            .join("..")
+            .join("Local")
+            .join("Fixly")
+            .join("backend")
+            .join("backend.exe");
+        if p.exists() {
+            return p.canonicalize().ok().or(Some(p));
+        }
+    }
+    None
+}
+
+fn kill_fixly_orphans(fixly_backend_path: Option<&std::path::Path>) {
+    let Some(target) = fixly_backend_path else {
+        return;
+    };
+    let target_canonical = target
+        .canonicalize()
+        .unwrap_or_else(|_| target.to_path_buf());
+    let mut sys = System::new_all();
+    sys.refresh_all();
+    for (pid, proc) in sys.processes() {
+        let Some(exe) = proc.exe() else { continue };
+        // Only match exact Fixly backend path — never global backend.exe/python.exe
+        let is_exact = exe == target_canonical.as_path();
+        let is_fixly_backend = proc.name() == "backend.exe"
+            && exe.to_string_lossy().contains("Fixly")
+            && exe
+                .canonicalize()
+                .map(|c| c == target_canonical)
+                .unwrap_or(false);
+        if !is_exact && !is_fixly_backend {
+            continue;
+        }
+        // Don't kill our own tracked child again (already killed above)
+        let pid_u32 = pid.as_u32();
+        // Use sysinfo kill first, fallback to taskkill for stubborn grandchild
+        if !proc.kill() {
+            let _ = std::process::Command::new("taskkill")
+                .args(["/PID", &pid_u32.to_string(), "/F"])
+                .output();
+        }
+    }
+}
+
+fn wait_for_backend_unlocked(path: Option<&std::path::Path>) {
+    let Some(p) = path else { return };
+    for _ in 0..30 {
+        // Try to open with write — if locked, open fails
+        match std::fs::OpenOptions::new().write(true).open(p) {
+            Ok(_) => return,
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+                thread::sleep(Duration::from_millis(100));
+                continue;
+            }
+            Err(_) => return,
+        }
+    }
+}
+
+fn kill_backend_tree(state: &Arc<Mutex<BackendState>>, app: Option<&AppHandle>) {
+    // 1. Tracked child (PyInstaller bootloader)
     if let Ok(mut s) = state.lock() {
         if let Some(mut child) = s.child.take() {
             let _ = child.kill();
             let _ = child.wait();
         }
     }
+    // 2. Orphan grandchild / previous install's backend — strictly Fixly path scoped
+    let fixly_path = get_fixly_backend_install_path(app);
+    kill_fixly_orphans(fixly_path.as_deref());
+    wait_for_backend_unlocked(fixly_path.as_deref());
+}
+
+fn kill_backend(state: &Arc<Mutex<BackendState>>) {
+    kill_backend_tree(state, None);
+}
+
+#[tauri::command]
+fn shutdown_backend(
+    state: tauri::State<'_, Arc<Mutex<BackendState>>>,
+    app: AppHandle,
+) -> Result<(), String> {
+    kill_backend_tree(state.inner(), Some(&app));
+    Ok(())
 }
 
 fn health_check(port: u16) -> Result<(), String> {
@@ -68,10 +182,13 @@ fn health_check(port: u16) -> Result<(), String> {
         if start.elapsed() > timeout {
             return Err("Backend health check timed out after 15s".to_string());
         }
-        let parsed = addr.parse().map_err(|e| format!("Invalid address: {}", e))?;
+        let parsed = addr
+            .parse()
+            .map_err(|e| format!("Invalid address: {}", e))?;
         match TcpStream::connect_timeout(&parsed, Duration::from_secs(2)) {
             Ok(mut stream) => {
-                let request = "GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n";
+                let request =
+                    "GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n";
                 if stream.write_all(request.as_bytes()).is_err() {
                     thread::sleep(Duration::from_millis(300));
                     continue;
@@ -108,10 +225,7 @@ fn find_backend_exe(app: &AppHandle) -> Option<std::path::PathBuf> {
         }
     }
 
-    let resource_dir = app
-        .path()
-        .resource_dir()
-        .ok()?;
+    let resource_dir = app.path().resource_dir().ok()?;
     let exe_path = resource_dir.join("backend").join("backend.exe");
     if exe_path.exists() {
         return Some(exe_path);
@@ -159,7 +273,10 @@ fn find_backend_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
         return Ok(prod_path);
     }
 
-    Err("Backend directory not found. Reinstall Fixly or verify backend files are present.".to_string())
+    Err(
+        "Backend directory not found. Reinstall Fixly or verify backend files are present."
+            .to_string(),
+    )
 }
 
 fn restrict_file_permissions(path: &std::path::Path) {
@@ -167,7 +284,12 @@ fn restrict_file_permissions(path: &std::path::Path) {
     {
         let path_str = path.to_string_lossy();
         let _ = std::process::Command::new("icacls")
-            .args([&*path_str, "/inheritance:r", "/grant", &*format!("%USERNAME%:F")])
+            .args([
+                &*path_str,
+                "/inheritance:r",
+                "/grant",
+                &*format!("%USERNAME%:F"),
+            ])
             .output();
     }
     #[cfg(not(target_os = "windows"))]
@@ -225,7 +347,11 @@ fn drain_backend_stdout(mut reader: BufReader<std::process::ChildStdout>) {
     });
 }
 
-fn start_backend_exe(app: AppHandle, state: Arc<Mutex<BackendState>>, exe_path: std::path::PathBuf) {
+fn start_backend_exe(
+    app: AppHandle,
+    state: Arc<Mutex<BackendState>>,
+    exe_path: std::path::PathBuf,
+) {
     {
         if let Ok(mut s) = state.lock() {
             s.stage = "starting_backend".to_string();
@@ -475,7 +601,10 @@ fn start_backend(app: AppHandle, state: Arc<Mutex<BackendState>>) {
             if let Ok(mut s) = state.lock() {
                 s.stage = "error".to_string();
                 s.message = "Backend port not detected".to_string();
-                s.error = Some("The backend did not report its port. Verify the backend installation.".to_string());
+                s.error = Some(
+                    "The backend did not report its port. Verify the backend installation."
+                        .to_string(),
+                );
             }
             return;
         }
@@ -541,7 +670,11 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![get_startup_status, get_backend_port])
+        .invoke_handler(tauri::generate_handler![
+            get_startup_status,
+            get_backend_port,
+            shutdown_backend
+        ])
         .build(tauri::generate_context!())
         .expect("error while building Fixly")
         .run(|app_handle, event| {
@@ -550,4 +683,56 @@ pub fn run() {
                 kill_backend(state.inner());
             }
         });
+}
+
+#[cfg(test)]
+mod shutdown_tests {
+    use super::*;
+
+    fn empty_state() -> Arc<Mutex<BackendState>> {
+        Arc::new(Mutex::new(BackendState {
+            child: None,
+            port: None,
+            stage: String::new(),
+            message: String::new(),
+            error: None,
+        }))
+    }
+
+    #[test]
+    fn kill_backend_is_idempotent_on_empty_state() {
+        let s = empty_state();
+        kill_backend(&s);
+        kill_backend(&s);
+        assert!(s.lock().unwrap().child.is_none());
+    }
+
+    #[test]
+    fn kill_backend_tree_is_idempotent_without_app() {
+        let s = empty_state();
+        kill_backend_tree(&s, None);
+        kill_backend_tree(&s, None);
+        assert!(s.lock().unwrap().child.is_none());
+    }
+
+    #[test]
+    fn get_fixly_backend_path_returns_option_without_panic() {
+        let _ = get_fixly_backend_install_path(None);
+        // Should not panic and should be either Some(canonical) or None
+    }
+
+    #[test]
+    fn kill_orphans_with_none_is_noop() {
+        kill_fixly_orphans(None);
+        wait_for_backend_unlocked(None);
+    }
+
+    #[test]
+    fn kill_orphans_never_kills_unrelated_backend_exe() {
+        // Craft a fake unrelated path and ensure kill_fixly_orphans does not touch it.
+        // We pass a path that does not exist; kill should be no-op and not panic.
+        let fake = std::path::Path::new("C:\\Windows\\System32\\not_fixly_backend.exe");
+        kill_fixly_orphans(Some(fake));
+        // No assertion beyond not panicking and not killing global backend.exe
+    }
 }

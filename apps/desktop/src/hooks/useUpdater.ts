@@ -90,6 +90,19 @@ export function useUpdater() {
     setState({ status: "downloading", downloaded: 0, total: null });
 
     try {
+      // Stop Fixly's backend before NSIS tries to overwrite backend.exe.
+      // Idempotent, scoped to Fixly's install path only, and never throws.
+      try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        await invoke("shutdown_backend");
+        // Brief pause so Windows releases the file handle before extraction
+        await new Promise<void>((r) => setTimeout(r, 800));
+      } catch (e) {
+        logger.warn("Updater: shutdown_backend pre-install failed, proceeding anyway", {
+          message: e instanceof Error ? e.message : String(e),
+        });
+      }
+
       const { check } = await import("@tauri-apps/plugin-updater");
       const update = await check();
       if (!update) {
