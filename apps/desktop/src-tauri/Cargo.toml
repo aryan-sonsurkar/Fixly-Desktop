@@ -1,6 +1,6 @@
 [package]
 name = "fixly-desktop"
-version = "1.0.1"
+version = "1.0.2"
 description = "Fixly - AI-powered academic operating system"
 authors = ["Aryan Sonsurkar"]
 homepage = "https://github.com/aryan-sonsurkar/Fixly-Desktop"
