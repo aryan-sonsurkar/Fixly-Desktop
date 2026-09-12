@@ -9,6 +9,7 @@ import { BriefingWidget } from "@/components/dashboard/briefing-widget";
 import { FocusWidget } from "@/components/dashboard/focus-widget";
 import { DeadlinesWidget } from "@/components/dashboard/deadlines-widget";
 import { QuickActionsWidget } from "@/components/dashboard/quick-actions-widget";
+import { ProactiveInsights } from "@/components/dashboard/proactive-insights";
 
 function formatGreeting(name: string): string {
   const h = new Date().getHours();
@@ -147,6 +148,7 @@ export function DashboardPage() {
           urgent={stats.overdue}
         />
         <QuickActionsWidget onOpenSearch={() => setSearchOpen(true)} />
+        <ProactiveInsights />
       </div>
     </div>
   );

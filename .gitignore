@@ -71,3 +71,12 @@ secrets.toml
 apps/backend/uploads/
 # Bundled AI model (large, keep local)
 apps/backend/models/*.gguf
+
+# Runtime data (SQLite DBs, PID files)
+apps/backend/data/
+apps/backend/app/data/
+*.pids
+apps/backend/build_log.txt
+
+# Output directories
+graphify-out/

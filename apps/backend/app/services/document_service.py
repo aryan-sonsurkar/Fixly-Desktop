@@ -11,9 +11,12 @@ from app.repositories.ai_repository import AIRepository
 from app.repositories.document_repository import DocumentRepository
 from app.services.ai_service import AIService
 from app.services.context_service import ContextService
+from app.services.embedding_service import EmbeddingService
 from app.services.ocr_service import OCRService
 from app.services.pdf_service import PDFService
+from app.services.rag_service import RAGService
 from app.services.study_service import StudyService
+from app.services.vector_store import VectorStore
 
 logger = get_logger(__name__)
 
@@ -37,6 +40,9 @@ class DocumentService:
         self.context_service = ContextService(access_token=access_token)
         self.ai_service = AIService(access_token=access_token)
         self.study_service = StudyService(access_token=access_token)
+        self.embedding_service = EmbeddingService()
+        self.vector_store = VectorStore()
+        self.rag_service = RAGService()
         os.makedirs(UPLOAD_DIR, exist_ok=True)
 
     async def upload_document(self, user_id: str, file: Any) -> dict[str, Any]:
@@ -112,6 +118,22 @@ class DocumentService:
                 }
             else:
                 raise ValidationError(f"Unsupported file type for processing: {file_type}")
+
+            # Generate local embeddings for semantic search
+            try:
+                if self.embedding_service.is_available():
+                    all_chunks = await self.repository.get_chunks(document_id, user_id)
+                    if all_chunks:
+                        indexed = await self.rag_service.reindex_document(
+                            user_id, document_id, all_chunks
+                        )
+                        result["embeddings_indexed"] = indexed
+                        logger.info(
+                            "Indexed %d embeddings for document %s", indexed, document_id
+                        )
+            except Exception as e:
+                logger.warning("Embedding generation failed (non-fatal): %s", e)
+                result["embeddings_indexed"] = 0
 
             await self.repository.update_document(document_id, user_id, {
                 "status": "processed",
@@ -319,8 +341,52 @@ class DocumentService:
             except OSError as e:
                 logger.warning("Failed to delete file %s: %s", file_path, e)
 
+        # Delete local embeddings
+        try:
+            deleted = self.vector_store.delete_by_document(user_id, document_id)
+            if deleted:
+                logger.info("Deleted %d embeddings for document %s", deleted, document_id)
+        except Exception as e:
+            logger.warning("Failed to delete embeddings for document %s: %s", document_id, e)
+
         await self.repository.delete_chunks(document_id, user_id)
         await self.repository.delete_document(document_id, user_id)
 
     async def get_recent_documents(self, user_id: str, limit: int = 5) -> list[dict[str, Any]]:
         return await self.repository.get_recent_documents(user_id, limit)
+
+    async def semantic_search(
+        self, user_id: str, query: str, top_k: int = 10, document_id: str | None = None,
+        strategy: str = "semantic",
+    ) -> dict[str, Any]:
+        """Cross-document semantic search.
+
+        Args:
+            strategy: "semantic" (default), "keyword", or "hybrid" (RRF).
+
+        Returns ranked chunks with source attribution and context prompt.
+        """
+        if not self.embedding_service.is_available():
+            return {
+                "chunks": [],
+                "sources": [],
+                "context_prompt": "[Embedding model not available. Semantic search disabled.]",
+                "total_chunks": 0,
+            }
+
+        return await self.rag_service.search_with_context(
+            user_id, query, top_k, document_id, strategy=strategy
+        )
+
+    async def reindex_document(self, document_id: str, user_id: str) -> dict[str, Any]:
+        """Re-embed a document's chunks in the local vector store."""
+        doc = await self.repository.get_document(document_id, user_id)
+        if not doc:
+            raise NotFoundError("Document not found")
+
+        chunks = await self.repository.get_chunks(document_id, user_id)
+        if not chunks:
+            return {"indexed": 0, "message": "No chunks to index"}
+
+        indexed = await self.rag_service.reindex_document(user_id, document_id, chunks)
+        return {"indexed": indexed, "document_id": document_id}

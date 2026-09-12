@@ -1,7 +1,11 @@
+import asyncio
+import datetime
+import json
 import socket
 import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
@@ -12,9 +16,22 @@ from app.api.v1 import routers
 from app.config import settings
 from app.core.exceptions import FixlyError, fixly_exception_handler
 from app.core.logging import get_logger, setup_logging
+from app.core.supabase import get_supabase_service
 from app.prompts.registry import init_registry
 
 logger = get_logger(__name__)
+
+
+def _resolve_version() -> str:
+    """Read version from desktop package.json (single source of truth)."""
+    try:
+        pkg_json = Path(__file__).resolve().parents[2] / "desktop" / "package.json"
+        return json.loads(pkg_json.read_text(encoding="utf-8"))["version"]
+    except (FileNotFoundError, KeyError, OSError):
+        return "1.0.4"
+
+
+APP_VERSION = _resolve_version()
 
 _backend_port: int = 8000
 
@@ -29,10 +46,189 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     init_registry()
     logger.info(
         "Fixly backend starting",
-        extra={"environment": settings.environment, "version": "0.1.0"},
+        extra={"environment": settings.environment, "version": APP_VERSION},
     )
+
+    from app.services.memory_service import MemoryService
+    from app.services.proactive_engine import ProactiveEngine
+
+    decay_service = MemoryService()
+    proactive_engine = ProactiveEngine()
+
+    async def _decay_loop():
+        while True:
+            await asyncio.sleep(6 * 3600)
+            try:
+                results = decay_service.run_memory_decay_all_users()
+                if results:
+                    logger.info("Memory decay results: %s", results)
+            except Exception as e:
+                logger.warning("Background memory decay failed: %s", e)
+
+    async def _proactive_loop():
+        INTERVAL = 30 * 60  # 30 minutes
+        QUIET_START = 23  # 11 PM
+        QUIET_END = 7     # 7 AM
+
+        while True:
+            await asyncio.sleep(INTERVAL)
+            try:
+                await _run_proactive_checks(proactive_engine, QUIET_START, QUIET_END)
+            except Exception as e:
+                logger.warning("Background proactive check failed: %s", e)
+
+    decay_task = asyncio.create_task(_decay_loop())
+    proactive_task = asyncio.create_task(_proactive_loop())
+
     yield
+
+    proactive_task.cancel()
+    decay_task.cancel()
+    try:
+        await proactive_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await decay_task
+    except asyncio.CancelledError:
+        pass
+    proactive_engine.close()
+    decay_service.close()
     logger.info("Fixly backend shutting down")
+
+
+async def _run_proactive_checks(
+    engine: "ProactiveEngine",  # noqa: F821
+    quiet_start: int,
+    quiet_end: int,
+) -> None:
+    """Fetch active users and run proactive engine checks for each."""
+    from app.core.threads import run_in_thread
+
+    def _fetch_active_user_ids() -> list[str]:
+        client = get_supabase_service()
+        cutoff = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)).isoformat()
+        resp = (
+            client.table("assignments")
+            .select("user_id")
+            .gte("created_at", cutoff)
+            .execute()
+        )
+        data = resp.model_dump() if hasattr(resp, "model_dump") else dict(resp)
+        rows = data.get("data", [])
+        return list({r["user_id"] for r in rows if r.get("user_id")})
+
+    def _fetch_user_settings(uid: str) -> dict[str, Any]:
+        client = get_supabase_service()
+        resp = client.table("settings").select("*").eq("user_id", uid).execute()
+        data = resp.model_dump() if hasattr(resp, "model_dump") else dict(resp)
+        rows = data.get("data", [])
+        return rows[0] if rows else {}
+
+    def _fetch_assignments(uid: str) -> list[dict[str, Any]]:
+        client = get_supabase_service()
+        resp = (
+            client.table("assignments")
+            .select("id, title, deadline, due_date, status")
+            .eq("user_id", uid)
+            .in_("status", ["pending", "in_progress"])
+            .execute()
+        )
+        data = resp.model_dump() if hasattr(resp, "model_dump") else dict(resp)
+        return data.get("data", [])
+
+    def _fetch_study_streak(uid: str) -> dict[str, Any]:
+        client = get_supabase_service()
+        today = datetime.date.today().isoformat()
+        resp = (
+            client.table("study_days")
+            .select("date")
+            .eq("user_id", uid)
+            .order("date", desc=True)
+            .limit(30)
+            .execute()
+        )
+        data = resp.model_dump() if hasattr(resp, "model_dump") else dict(resp)
+        rows = data.get("data", [])
+        active_dates = sorted({r["date"] for r in rows}, reverse=True)
+        streak = 0
+        check = datetime.date.today()
+        for d in active_dates:
+            if d == check.isoformat():
+                streak += 1
+                check -= datetime.timedelta(days=1)
+            elif d == (check - datetime.timedelta(days=1)).isoformat():
+                streak += 1
+                check -= datetime.timedelta(days=2)
+            else:
+                break
+        return {"streak": streak}
+
+    def _fetch_weaknesses(uid: str) -> list[dict[str, Any]]:
+        client = get_supabase_service()
+        resp = (
+            client.table("subjects")
+            .select("name, average_score, weak_topics")
+            .eq("user_id", uid)
+            .execute()
+        )
+        data = resp.model_dump() if hasattr(resp, "model_dump") else dict(resp)
+        rows = data.get("data", [])
+        weaknesses = []
+        for r in rows:
+            avg = r.get("average_score", 100)
+            if avg < 60:
+                weaknesses.append({
+                    "subject": r.get("name", "Unknown"),
+                    "average": avg,
+                    "weak_topics": r.get("weak_topics", []),
+                })
+        return weaknesses
+
+    user_ids = await run_in_thread(_fetch_active_user_ids)
+    if not user_ids:
+        logger.info("Proactive check: no active users found")
+        return
+
+    total_nudges = 0
+    for uid in user_ids:
+        try:
+            settings_data = await run_in_thread(_fetch_user_settings, uid)
+
+            # Respect quiet hours
+            now_hour = datetime.datetime.now(datetime.timezone.utc).hour
+            quiet_hours = settings_data.get("quiet_hours")
+            if quiet_hours and isinstance(quiet_hours, dict):
+                q_start = quiet_hours.get("start", quiet_start)
+                q_end = quiet_hours.get("end", quiet_end)
+                if q_start > q_end:
+                    in_quiet = now_hour >= q_start or now_hour < q_end
+                else:
+                    in_quiet = q_start <= now_hour < q_end
+                if in_quiet:
+                    continue
+
+            assignments = await run_in_thread(_fetch_assignments, uid)
+            # Normalize deadline field: the engine reads 'deadline', Supabase has 'due_date'
+            for a in assignments:
+                if not a.get("deadline") and a.get("due_date"):
+                    a["deadline"] = a["due_date"]
+
+            study_data = await run_in_thread(_fetch_study_streak, uid)
+            weaknesses = await run_in_thread(_fetch_weaknesses, uid)
+
+            nudges = []
+            if assignments:
+                nudges.extend(engine.check_deadlines(uid, assignments))
+            nudges.extend(engine.check_study_patterns(uid, study_data))
+            if weaknesses:
+                nudges.extend(engine.check_weaknesses(uid, weaknesses))
+
+            total_nudges += len(nudges)
+        except Exception as e:
+            logger.warning("Proactive check failed for user %s: %s", uid, e)
+
+    logger.info("Proactive check completed: %d users, %d nudges generated", len(user_ids), total_nudges)
 
 
 ALLOWED_ORIGINS = {
@@ -85,7 +281,7 @@ is_production = settings.environment == "production"
 
 app = FastAPI(
     title="Fixly API",
-    version="0.1.0",
+    version=APP_VERSION,
     description="Fixly - AI-powered academic operating system",
     lifespan=lifespan,
     docs_url=None if is_production else "/docs",
@@ -161,7 +357,7 @@ for router in routers:
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {"status": "ok", "version": "0.1.0", "environment": settings.environment}
+    return {"status": "ok", "version": APP_VERSION, "environment": settings.environment}
 
 
 if __name__ == "__main__":

@@ -10,6 +10,8 @@ from app.providers import AIProvider
 from app.providers.fixly_local import FixlyLocalProvider
 from app.repositories.ai_repository import AIRepository
 from app.repositories.assignment_repository import AssignmentRepository
+from app.services.context_engine import ContextEngine
+from app.services.memory_service import MemoryService
 from app.services.token_counter import TokenCounter
 from app.services.workspace_context import WorkspaceContext
 
@@ -43,6 +45,39 @@ class AIService:
         self.assignment_repo = AssignmentRepository(access_token=access_token)
         self.prompt_manager = PromptManager(access_token=self.access_token)
         self.token_counter = TokenCounter()
+        self.context_engine = ContextEngine()
+        self.memory_service = MemoryService()
+        self._tool_executor = None
+
+    def _get_tool_executor(self):
+        """Lazy-init tool executor with registered handlers."""
+        if self._tool_executor is None:
+            from app.services.tool_executor import ToolExecutor
+            from app.services.tool_registration import register_all_handlers
+
+            executor = ToolExecutor()
+            register_all_handlers(executor)
+            self._tool_executor = executor
+        return self._tool_executor
+
+    def execute_tool(self, user_id: str, tool_name: str, parameters: dict[str, Any]) -> dict[str, Any]:
+        """Execute a tool by name with parameters. Returns tool result dict."""
+        from app.services.tool_handlers import ToolHandlerContext
+        from app.services.tool_executor import ToolExecutor
+
+        executor = self._get_tool_executor()
+        ctx = ToolHandlerContext(access_token=self.access_token)
+
+        handler = executor._handlers.get(tool_name)
+        if handler is None:
+            return {"success": False, "error": f"Tool '{tool_name}' not available"}
+
+        try:
+            result = handler(user_id, parameters, ctx)
+            return {"success": True, "tool_name": tool_name, "result": result}
+        except Exception as e:
+            logger.error("Tool execution failed: %s - %s", tool_name, e)
+            return {"success": False, "error": str(e)}
 
     def _get_providers(self) -> dict[str, AIProvider]:
         return {
@@ -130,7 +165,8 @@ class AIService:
 
         history = await self.repository.get_messages(conversation_id)
         formatted = await self._format_messages(
-            history, user_id, system_prompt_override, academic_context_enabled, conversation_memory
+            history, user_id, system_prompt_override, academic_context_enabled, conversation_memory,
+            current_message=message, document_ids=[], conversation_id=conversation_id,
         )
 
         response_text = await provider.generate(formatted, temperature, max_tokens_count)
@@ -171,6 +207,26 @@ class AIService:
         msg = await self.repository.create_message(
             conversation_id, user_id, "assistant", response_text, _map_provider(provider.name), token_count
         )
+
+        # Phase 2 integration: extract memories from user message
+        try:
+            candidates = self.memory_service.extract_memories(
+                user_id, message, source="conversation", source_conversation_id=conversation_id
+            )
+            for candidate in candidates:
+                try:
+                    self.memory_service.add_memory(
+                        user_id,
+                        candidate["content"],
+                        candidate["category"],
+                        source=candidate.get("source", "conversation"),
+                        confidence=candidate.get("confidence"),
+                        source_conversation_id=conversation_id,
+                    )
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug("Memory extraction failed (non-critical): %s", e)
 
         msg_count = await self.repository.get_message_count(conversation_id)
         if msg_count <= 2 and str(conv.get("title", "")).startswith("New conversation"):
@@ -216,7 +272,8 @@ class AIService:
         await self.repository.create_message(conversation_id, user_id, "user", message, _map_provider(provider.name))
         history = await self.repository.get_messages(conversation_id)
         formatted = await self._format_messages(
-            history, user_id, system_prompt_override, academic_context_enabled, conversation_memory
+            history, user_id, system_prompt_override, academic_context_enabled, conversation_memory,
+            current_message=message, document_ids=[], conversation_id=conversation_id,
         )
 
         accumulated = ""
@@ -279,6 +336,25 @@ class AIService:
         await self.repository.create_message(
             conversation_id, user_id, "assistant", final_text, _map_provider(provider.name), token_count
         )
+        # Phase 2 integration: extract memories from user message
+        try:
+            candidates = self.memory_service.extract_memories(
+                user_id, message, source="conversation", source_conversation_id=conversation_id
+            )
+            for candidate in candidates:
+                try:
+                    self.memory_service.add_memory(
+                        user_id,
+                        candidate["content"],
+                        candidate["category"],
+                        source=candidate.get("source", "conversation"),
+                        confidence=candidate.get("confidence"),
+                        source_conversation_id=conversation_id,
+                    )
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug("Memory extraction failed (non-critical): %s", e)
         # Update title if needed (same as chat)
         try:
             msg_count = await self.repository.get_message_count(conversation_id)
@@ -323,7 +399,8 @@ class AIService:
         provider = await self._resolve_provider(preferred, user_id, settings_data)
 
         formatted = await self._format_messages(
-            history, user_id, system_prompt_override, academic_context_enabled, conversation_memory
+            history, user_id, system_prompt_override, academic_context_enabled, conversation_memory,
+            current_message=None, document_ids=[], conversation_id=conversation_id,
         )
 
         response_text = await provider.generate(formatted, temperature, max_tokens_count)
@@ -362,6 +439,9 @@ class AIService:
         system_prompt_override: str | None = None,
         academic_context_enabled: bool = True,
         max_pairs: int = 50,
+        current_message: str | None = None,
+        document_ids: list[str] | None = None,
+        conversation_id: str | None = None,
     ) -> list[dict[str, str]]:
         messages: list[dict[str, str]] = []
 
@@ -387,6 +467,56 @@ class AIService:
             kwargs["unread_emails"] = str(ac.get("unread_emails", 0))
 
         system_content = await self.prompt_manager.build(PromptType.SYSTEM, user_id, **kwargs)
+
+        # Phase 3 integration: assemble context via ContextEngine
+        engine_context = ""
+        citations = []
+        intent = "simple_chat"
+        if current_message:
+            try:
+                # Gather workspace data for ContextEngine
+                workspace_data = {}
+                if academic_context_enabled:
+                    ctx = WorkspaceContext(access_token=self.access_token)
+                    raw = await ctx.gather(user_id, budget="briefing")
+                    workspace_data = {
+                        "profile": raw.get("profile"),
+                        "subjects": raw.get("subjects"),
+                        "assignments": raw.get("assignments", {}).get("items", []),
+                        "upcoming_deadlines": raw.get("assignments", {}).get("deadlines", []),
+                    }
+
+                # Get conversation messages for context
+                conv_messages = []
+                if history:
+                    conv_messages = [{"role": m["role"], "content": m["content"]} for m in history[-6:]]
+
+                ctx_result = await self.context_engine.assemble_context(
+                    user_id=user_id,
+                    message=current_message,
+                    workspace_data=workspace_data,
+                    document_ids=document_ids or [],
+                    conversation_messages=conv_messages,
+                    conversation_id=conversation_id,
+                )
+                intent = ctx_result.get("intent", "simple_chat")
+                citations = ctx_result.get("citations", [])
+
+                # Inject engine context into system prompt
+                source_parts = []
+                for source in ctx_result.get("sources", []):
+                    stype = source.get("type", "")
+                    content = source.get("content", "")
+                    if content and stype != "workspace":
+                        source_parts.append(f"[{stype.upper()}]\n{content}")
+                if source_parts:
+                    engine_context = "\n\n".join(source_parts)
+            except Exception as e:
+                logger.warning("ContextEngine assembly failed, falling back to workspace-only: %s", e)
+
+        if engine_context:
+            system_content += f"\n\n[Additional Context]\n{engine_context}"
+
         if system_prompt_override:
             # Sanitize: keep authoritative prefix, append user custom as untrusted block
             clean = system_prompt_override.strip()[:2000].replace("{", "(").replace("}", ")")
@@ -446,15 +576,8 @@ class AIService:
     async def set_message_feedback(
         self, message_id: str, user_id: str, feedback: str | None
     ) -> dict[str, Any]:
-        msg = None
-        all_convs = await self.repository.list_conversations(user_id)
-        for conv in all_convs:
-            msgs = await self.repository.get_messages(conv["id"])
-            for m in msgs:
-                if m["id"] == message_id and m.get("role") == "assistant":
-                    msg = m
-                    break
-        if not msg:
+        msg = await self.repository.get_message_by_id(message_id, user_id)
+        if not msg or msg.get("role") != "assistant":
             raise NotFoundError("Message not found")
         result = await self.repository.update_message(message_id, user_id, {"feedback": feedback})
         if not result:

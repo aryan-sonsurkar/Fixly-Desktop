@@ -20,6 +20,9 @@ const SettingsPage = lazy(() => import("@/pages/settings").then((m) => ({ defaul
 const ProfilePage = lazy(() => import("@/pages/profile").then((m) => ({ default: m.ProfilePage })));
 const NotificationPage = lazy(() => import("@/pages/notifications").then((m) => ({ default: m.NotificationPage })));
 const PlannerPage = lazy(() => import("@/pages/planner").then((m) => ({ default: m.PlannerPage })));
+const AcademicProfilePage = lazy(() => import("@/pages/academic-profile").then((m) => ({ default: m.AcademicProfilePage })));
+const GoalsPage = lazy(() => import("@/pages/goals").then((m) => ({ default: m.GoalsPage })));
+const OpportunitiesPage = lazy(() => import("@/pages/opportunities").then((m) => ({ default: m.OpportunitiesPage })));
 
 function NotFoundPage() {
   return (
@@ -82,6 +85,9 @@ const router = createMemoryRouter(
         { path: "study", element: <LazyLoad><StudyPage /></LazyLoad> },
         { path: "settings", element: <LazyLoad><SettingsPage /></LazyLoad> },
         { path: "profile", element: <LazyLoad><ProfilePage /></LazyLoad> },
+        { path: "academic", element: <LazyLoad><AcademicProfilePage /></LazyLoad> },
+        { path: "goals", element: <LazyLoad><GoalsPage /></LazyLoad> },
+        { path: "opportunities", element: <LazyLoad><OpportunitiesPage /></LazyLoad> },
       ],
     },
     { path: "*", element: <ErrorBoundary><NotFoundPage /></ErrorBoundary> },

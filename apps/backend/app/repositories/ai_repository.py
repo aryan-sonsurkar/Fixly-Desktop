@@ -172,6 +172,15 @@ class AIRepository:
 
         return result
 
+    async def get_message_by_id(self, message_id: str, user_id: str) -> dict[str, Any] | None:
+        client = self._client
+        return single_or_none(
+            client.table("messages")
+            .select("*")
+            .eq("id", message_id)
+            .eq("user_id", user_id)
+        )
+
     async def get_message_count(self, conversation_id: str) -> int:
         client = self._client
         response = (

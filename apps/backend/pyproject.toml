@@ -1,6 +1,6 @@
 [project]
 name = "fixly-backend"
-version = "0.1.0"
+version = "1.0.4"
 description = "Fixly - AI-powered academic operating system backend"
 requires-python = ">=3.11"
 dependencies = [
@@ -15,6 +15,7 @@ dependencies = [
     "python-multipart>=0.0.20",
     "cryptography>=44.0.0",
     "pypdf>=5.0.0",
+    "sentence-transformers>=6.0.0",
     "llama-cpp-python>=0.3.0; sys_platform == 'win32'",
 ]
 

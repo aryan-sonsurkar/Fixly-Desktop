@@ -16,6 +16,9 @@ from app.schemas.document import (
     DocumentResponse,
     DocumentSummaryRequest,
     DocumentUpdate,
+    ReindexResponse,
+    SemanticSearchRequest,
+    SemanticSearchResponse,
 )
 from app.services.document_service import DocumentService
 
@@ -176,6 +179,28 @@ async def list_documents(
         "search": search,
         "favorites_only": favorites_only,
     })
+
+
+@router.post("/search", response_model=SemanticSearchResponse)
+async def semantic_search(
+    body: SemanticSearchRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    service = DocumentService(access_token=current_user.access_token)
+    return await service.semantic_search(
+        current_user.id, body.query, body.top_k,
+        str(body.document_id) if body.document_id else None,
+        strategy=body.strategy,
+    )
+
+
+@router.post("/{document_id}/reindex", response_model=ReindexResponse)
+async def reindex_document(
+    document_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    service = DocumentService(access_token=current_user.access_token)
+    return await service.reindex_document(str(document_id), current_user.id)
 
 
 

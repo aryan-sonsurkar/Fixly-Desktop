@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { MarkdownRenderer } from "@/components/ai/markdown-renderer";
+import { SourceCitations, type Citation } from "@/components/ai/source-citations";
 import type { Message } from "@/lib/ai-service";
 import { setMessageFeedback, editMessage } from "@/lib/ai-service";
 import { useAIStore } from "@/stores/ai-store";
@@ -105,6 +106,12 @@ export function MessageComponent({ message, onDelete, onResend }: MessageCompone
             </div>
           )}
         </div>
+
+        {!isUser && (message as Message & { citations?: Citation[] }).citations && (
+          <SourceCitations
+            citations={(message as Message & { citations: Citation[] }).citations}
+          />
+        )}
 
         <div className={`flex items-center gap-2 px-1 ${isUser ? "flex-row-reverse" : "flex-row"}`}>
           <span className="text-[10px] text-muted-foreground">

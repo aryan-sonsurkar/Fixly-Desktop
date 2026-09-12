@@ -108,3 +108,22 @@ class DocumentLibraryFilter(BaseModel):
     favorites_only: bool = False
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=20, ge=1, le=100)
+
+
+class SemanticSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=2000)
+    top_k: int = Field(default=10, ge=1, le=50)
+    document_id: OptionalUUID = None
+    strategy: str = Field(default="semantic", pattern=r"^(semantic|keyword|hybrid)$")
+
+
+class SemanticSearchResponse(BaseModel):
+    chunks: list[dict[str, Any]]
+    sources: list[dict[str, Any]]
+    context_prompt: str
+    total_chunks: int
+
+
+class ReindexResponse(BaseModel):
+    indexed: int
+    document_id: str

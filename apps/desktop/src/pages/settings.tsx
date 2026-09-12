@@ -10,6 +10,8 @@ import { useAuthContext } from "@/contexts/auth-context";
 import { version } from "../../package.json";
 import { createLogger } from "@/lib/logger";
 import { toast } from "@/stores/toast-store";
+import { MemoryPanel } from "@/components/ai/memory-panel";
+import { AIDataResetSection } from "@/components/ai/ai-data-reset";
 
 const logger = createLogger("settings-page");
 
@@ -90,6 +92,7 @@ export function SettingsPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSaving, setAiSaving] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [memoryOpen, setMemoryOpen] = useState(false);
 
   const { data: aiSettings } = useQuery({
     queryKey: ["ai-settings"],
@@ -373,6 +376,9 @@ export function SettingsPage() {
                 {aiError && <p className="mt-3 text-xs text-destructive">{aiError}</p>}
 
                 <div className="mt-4 flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setMemoryOpen(true)}>
+                    View Memories
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => void fetchAiDetail()} disabled={aiLoading}>
                     Test Connection
                   </Button>
@@ -381,6 +387,8 @@ export function SettingsPage() {
                   </Button>
                 </div>
               </section>
+
+              <AIDataResetSection />
             </motion.div>
           )}
 
@@ -513,6 +521,7 @@ export function SettingsPage() {
           )}
         </div>
       </div>
+      <MemoryPanel open={memoryOpen} onOpenChange={setMemoryOpen} />
     </div>
   );
 }
