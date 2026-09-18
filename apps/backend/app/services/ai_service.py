@@ -100,8 +100,7 @@ class AIService:
         if ok:
             return provider
         raise AIProviderUnavailableError(
-            "Fixly AI model is not available — reinstall the Fixly 1.0.0+ installer "
-            "or place qwen2-0.5b-instruct-q4_k_m.gguf in backend/models/"
+            "Fixly AI is currently unavailable. Please try again in a moment."
         )
 
     async def _get_settings(self, user_id: str) -> dict[str, Any]:
@@ -635,7 +634,12 @@ class AIService:
                 detail = await asyncio.wait_for(provider.check_availability_detail(), timeout=5.0)
                 return name, detail
             except Exception as e:
-                return name, {"available": False, "error": str(e)}
+                logger.warning("AI provider detail check failed for %s: %s", name, e)
+                return name, {
+                    "available": False,
+                    "reason": "unavailable",
+                    "error": "Fixly AI is currently unavailable. Please try again in a moment.",
+                }
 
         pairs = await asyncio.gather(*[_detail(i) for i in providers.items()])
         return dict(pairs)

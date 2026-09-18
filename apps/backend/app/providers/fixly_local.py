@@ -89,10 +89,8 @@ class FixlyLocalProvider(AIProvider):
         def _sync() -> str:
             llama = self._load_llama()
             if llama is None:
-                raise RuntimeError(
-                    f"Fixly Local model not found: {MODEL_FILENAME} – "
-                    "run installer with bundled model or place in models/"
-                )
+                logger.warning("Fixly Local generate called with engine unavailable")
+                raise RuntimeError("Fixly AI is currently unavailable. Please try again in a moment.")
             try:
                 out = llama.create_chat_completion(
                     messages=messages,
@@ -143,7 +141,7 @@ class FixlyLocalProvider(AIProvider):
         def _sync_gen() -> Iterator[str]:
             llama = self._load_llama()
             if llama is None:
-                raise RuntimeError(f"Fixly Local model not found: {MODEL_FILENAME}")
+                raise RuntimeError("Fixly AI is currently unavailable. Please try again in a moment.")
             # Try streaming, fallback to single yield if not supported
             try:
                 stream = llama.create_chat_completion(
@@ -223,6 +221,7 @@ class FixlyLocalProvider(AIProvider):
             return False
 
     async def check_availability_detail(self) -> dict[str, Any]:
+        # Student-facing `error` copy only — technical details go to logs.
         result: dict[str, Any] = {
             "name": self.name,
             "available": False,
@@ -230,27 +229,33 @@ class FixlyLocalProvider(AIProvider):
             "running": False,
             "models": [MODEL_FILENAME] if self.model_path else [],
             "error": None,
+            "reason": "unavailable",
             "model_count": 1 if self.model_path else 0,
             "required_model": MODEL_FILENAME,
         }
         if not self.model_path:
-            result["error"] = (
-                f"Bundled model not found: {MODEL_FILENAME} – "
-                "reinstall Fixly 1.0.0+ installer or place GGUF in backend/models/"
-            )
+            logger.warning("Fixly Local bundled model missing (searched candidate dirs)")
+            result["error"] = "Fixly AI couldn't start. Restart Fixly or check for an available update."
+            result["reason"] = "needs_update"
             return result
         try:
             import importlib.util as _u
 
             if _u.find_spec("llama_cpp") is None:
+                logger.warning("Fixly Local runtime unavailable (native engine missing)")
                 result["installed"] = True
-                result["error"] = "llama-cpp-python not installed – pip install llama-cpp-python"
+                result["error"] = "Fixly AI couldn't start. Restart Fixly or check for an available update."
+                result["reason"] = "needs_update"
                 return result
             result["installed"] = True
             result["running"] = True
             result["available"] = True
+            result["error"] = None
+            result["reason"] = "ready"
         except Exception as e:
-            result["error"] = str(e)
+            logger.warning("Fixly Local availability check failed: %s", e)
+            result["error"] = "Fixly AI is currently unavailable. Please try again in a moment."
+            result["reason"] = "unavailable"
         return result
 
     async def list_models(self) -> list[dict[str, Any]]:

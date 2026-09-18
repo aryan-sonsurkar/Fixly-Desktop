@@ -25,10 +25,10 @@ export function UpdaterBanner() {
     return (
       <div className="flex items-center justify-between gap-3 border-b bg-green-500/10 px-4 py-2 text-sm">
         <span className="text-green-700 dark:text-green-300">
-          Update {state.version} downloaded — restart Fixly to apply.
+          Restart Fixly to finish updating to {state.version}.
         </span>
         <Button size="sm" onClick={() => window.location.reload()}>
-          Restart now
+          Restart
         </Button>
       </div>
     );
@@ -56,7 +56,7 @@ export function UpdaterBanner() {
       <div className="flex items-center justify-between gap-3 border-b bg-card px-4 py-2.5 text-sm shadow-sm">
         <span>
           <span className="font-medium">Fixly {state.version} is available.</span>
-          <span className="ml-2 text-muted-foreground hidden sm:inline">Update without losing your data.</span>
+          <span className="ml-2 text-muted-foreground hidden sm:inline">An update is ready with improvements and fixes.</span>
         </span>
         <div className="flex shrink-0 items-center gap-2">
           <Button size="sm" onClick={downloadAndInstall}>

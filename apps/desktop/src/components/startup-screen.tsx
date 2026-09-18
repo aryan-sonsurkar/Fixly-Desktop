@@ -21,7 +21,7 @@ const stageLabels: Record<string, string> = {
   initializing: "Starting Fixly...",
   starting_backend: "Starting backend server...",
   connecting_database: "Connecting to database...",
-  checking_ollama: "Checking Ollama connection...",
+  checking_ollama: "Starting Fixly AI...",
   waiting_health: "Waiting for backend health check...",
   ready: "Ready!",
   error: "Startup failed",

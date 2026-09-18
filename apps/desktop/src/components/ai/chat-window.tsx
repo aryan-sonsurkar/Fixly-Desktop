@@ -107,15 +107,12 @@ export function ChatWindow() {
         return;
       }
       const axiosErr = err as { response?: { data?: { error?: string }; status?: number } };
-      const msg = axiosErr?.response?.data?.error || (err instanceof Error ? err.message : "");
-      if (msg.toLowerCase().includes("not available") || msg.toLowerCase().includes("ai provider")) {
-        setError("Fixly AI is currently unavailable – " + msg + ". Check Diagnostics > AI Provider.");
-      } else if (msg.toLowerCase().includes("model is not installed") || msg.toLowerCase().includes("required:")) {
-        setError(msg + " – open Diagnostics to verify Ollama model.");
-      } else if (axiosErr?.response?.status === 503) {
+      const status = axiosErr?.response?.status;
+      if (status === 503) {
         setError("Fixly AI is currently unavailable (service starting). Try again in a few seconds.");
       } else {
-        setError(msg ? `Failed to send message: ${msg}` : "Failed to send message");
+        // Student-facing copy only — never surface backend internals, paths, or package names.
+        setError("Fixly AI is currently unavailable. Please try again in a moment.");
       }
       setShowStop(false);
       setIsStreaming(false);

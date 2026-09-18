@@ -328,8 +328,15 @@ export function SettingsPage() {
                             <span className="ml-auto text-[10px] text-muted-foreground">Qwen2 0.5B · Offline · Bundled</span>
                           </div>
                           <p className="mt-1 text-[11px] text-muted-foreground">
-                            {fixly?.available ? "Ready — no download needed, runs entirely offline" : fixly?.error || "Model not found — reinstall Fixly 1.0.0+ installer"}
+                            {fixly?.available
+                              ? "Fixly AI is ready — Private · Local · Offline capable"
+                              : "Fixly AI is currently unavailable. Please try again in a moment."}
                           </p>
+                          {!fixly?.available && (
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              Restart Fixly or check for an available update.
+                            </p>
+                          )}
                         </div>
                       );
                     })()}

@@ -179,8 +179,12 @@ export function AISettingsDialog() {
                 </div>
                 <span className="text-[11px] text-muted-foreground">Qwen2 0.5B • Bundled • Offline</span>
               </div>
-              {fixlyStatus?.error && <p className="mt-1.5 text-[11px] text-amber-600">{fixlyStatus.error}</p>}
-              {fixlyStatus?.available && <p className="mt-1 text-[11px] text-muted-foreground">1 model bundled • No download needed</p>}
+              {fixlyStatus && !fixlyStatus.available && (
+                <p className="mt-1.5 text-[11px] text-amber-600">
+                  Fixly AI is currently unavailable. Please try again in a moment.
+                </p>
+              )}
+              {fixlyStatus?.available && <p className="mt-1 text-[11px] text-muted-foreground">Fixly AI is ready — Private · Local · Offline capable</p>}
             </div>
             {/* Ollama */}
             <div className="mb-5 rounded-lg border bg-card p-3">
