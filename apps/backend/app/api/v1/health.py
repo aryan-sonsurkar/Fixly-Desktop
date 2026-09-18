@@ -48,6 +48,9 @@ async def check_ai() -> dict[str, Any]:
 
 @router.get("/health")
 async def health(request: Request) -> dict[str, Any]:
+    # Deferred import: app.main imports this router at startup.
+    from app.main import APP_VERSION
+
     supabase_status, supabase_error = await check_supabase()
     fixly_ai = await check_ai()
 
@@ -62,7 +65,7 @@ async def health(request: Request) -> dict[str, Any]:
 
     return {
         "status": "ok",
-        "version": "0.1.0",
+        "version": APP_VERSION,
         "environment": settings.environment,
         "port": request.url.port or 8000,
         "supabase": supabase_status,

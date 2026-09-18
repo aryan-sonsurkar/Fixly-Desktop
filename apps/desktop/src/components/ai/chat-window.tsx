@@ -43,19 +43,23 @@ export function ChatWindow() {
     setIsSending(true);
     setError(null);
 
-    try {
-      let convId = currentConversationId;
+    let convId = currentConversationId;
+    let createdNow = false;
+    let tempId = "";
 
+    try {
       if (!convId) {
         const conv = await aiService.createConversation();
         convId = conv.id;
+        createdNow = true;
         useAIStore.getState().setCurrentConversationId(conv.id);
         useAIStore.getState().addConversation(conv);
         useAIStore.getState().setMessages([]);
       }
 
+      tempId = `temp-${Date.now()}`;
       const userMessage: aiService.Message = {
-        id: `temp-${Date.now()}`,
+        id: tempId,
         conversation_id: convId,
         role: "user",
         content: text,
@@ -113,6 +117,14 @@ export function ChatWindow() {
       } else {
         // Student-facing copy only — never surface backend internals, paths, or package names.
         setError("Fixly AI is currently unavailable. Please try again in a moment.");
+      }
+      // Roll back a conversation created by this failed send so empty
+      // "New conversation" entries do not accumulate in the sidebar.
+      const store = useAIStore.getState();
+      if (tempId) store.removeMessage(tempId);
+      if (createdNow && convId) {
+        store.removeConversation(convId);
+        void aiService.deleteConversation(convId).catch(() => undefined);
       }
       setShowStop(false);
       setIsStreaming(false);
@@ -190,6 +202,15 @@ export function ChatWindow() {
                 <div className="whitespace-pre-wrap text-sm">{streamingContent}</div>
               </div>
             </motion.div>
+          )}
+
+          {isStreaming && !streamingContent && (
+            <div className="flex justify-start">
+              <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm bg-muted px-4 py-3 text-xs text-muted-foreground">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+                Fixly AI is generating…
+              </div>
+            </div>
           )}
 
           {isSending && !isStreaming && (

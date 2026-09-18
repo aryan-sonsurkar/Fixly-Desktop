@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
   "productName": "Fixly",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "identifier": "com.fixly.desktop",
   "build": {
     "beforeDevCommand": "pnpm --filter @fixly/desktop exec vite",
@@ -62,7 +62,8 @@
     "resources": {
       "../../backend/dist/backend.exe": "backend/backend.exe",
       "../../backend/.env.default": "backend/.env.default",
-      "../../backend/models/qwen2-0.5b-instruct-q4_k_m.gguf": "backend/models/qwen2-0.5b-instruct-q4_k_m.gguf"
+      "../../backend/models/qwen2-0.5b-instruct-q4_k_m.gguf": "backend/models/qwen2-0.5b-instruct-q4_k_m.gguf",
+      "../../backend/models/embeddings": "backend/models/embeddings"
     },
     "publisher": "Aryan Sonsurkar",
     "copyright": "Copyright (c) 2026 Aryan Sonsurkar. All rights reserved.",

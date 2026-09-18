@@ -444,27 +444,38 @@ class AIService:
         messages: list[dict[str, str]] = []
 
         # Always include authoritative Fixly system prompt; treat custom as untrusted addition
+        # Academic context is best-effort: if workspace/Supabase is down, chat must still work.
         kwargs: dict[str, Any] = {}
         if academic_context_enabled:
-            ac = await self._get_academic_context(user_id)
-            kwargs["active_assignments"] = str(ac.get("active_assignments", 0))
-            deadlines = ac.get("upcoming_deadlines", [])
-            if deadlines:
-                deadline_texts = [
-                    f"- {d['title']} (Due: {d['due'][:10] if d.get('due') else 'Unknown'})"
-                    for d in deadlines
-                    if d.get("title")
-                ]
-                kwargs["upcoming_deadlines"] = "\n".join(deadline_texts) if deadline_texts else "None"
-            else:
-                kwargs["upcoming_deadlines"] = "None"
-            kwargs["today_focus_minutes"] = str(ac.get("today_focus_minutes", 0))
-            kwargs["weekly_cycles"] = str(ac.get("weekly_cycles", 0))
-            kwargs["total_study_hours"] = str(ac.get("total_study_hours", 0))
-            kwargs["study_days"] = str(ac.get("study_days", 0))
-            kwargs["unread_emails"] = str(ac.get("unread_emails", 0))
+            try:
+                ac = await self._get_academic_context(user_id)
+                kwargs["active_assignments"] = str(ac.get("active_assignments", 0))
+                deadlines = ac.get("upcoming_deadlines", [])
+                if deadlines:
+                    deadline_texts = []
+                    for d in deadlines:
+                        if not d.get("title"):
+                            continue
+                        due = d.get("due") or d.get("due_date") or "Unknown"
+                        due_str = str(due)[:10] if isinstance(due, str) else str(due)
+                        deadline_texts.append(f"- {d['title']} (Due: {due_str})")
+                    kwargs["upcoming_deadlines"] = "\n".join(deadline_texts) if deadline_texts else "None"
+                else:
+                    kwargs["upcoming_deadlines"] = "None"
+                kwargs["today_focus_minutes"] = str(ac.get("today_focus_minutes", 0))
+                kwargs["weekly_cycles"] = str(ac.get("weekly_cycles", 0))
+                kwargs["total_study_hours"] = str(ac.get("total_study_hours", 0))
+                kwargs["study_days"] = str(ac.get("study_days", 0))
+                kwargs["unread_emails"] = str(ac.get("unread_emails", 0))
+            except Exception as e:
+                logger.warning("Academic context unavailable, continuing without it: %s", e)
+                kwargs = {}
 
-        system_content = await self.prompt_manager.build(PromptType.SYSTEM, user_id, **kwargs)
+        try:
+            system_content = await self.prompt_manager.build(PromptType.SYSTEM, user_id, **kwargs)
+        except Exception as e:
+            logger.warning("System prompt build failed, using minimal prompt: %s", e)
+            system_content = "You are Fixly AI, a helpful academic assistant."
 
         # Phase 3 integration: assemble context via ContextEngine
         engine_context = ""
@@ -637,6 +648,50 @@ class AIService:
 
         pairs = await asyncio.gather(*[_detail(i) for i in providers.items()])
         return dict(pairs)
+
+    async def get_diagnostics(self, user_id: str) -> dict[str, Any]:
+        """Internal diagnostic snapshot (developer use only, never student-facing UI).
+
+        Reports per-subsystem readiness without running inference.
+        """
+        diag: dict[str, Any] = {"status": "ok"}
+        # AI runtime
+        try:
+            provider = self._get_providers()["fixly-local"]
+            detail = await asyncio.wait_for(provider.check_availability_detail(), timeout=10.0)
+            diag["runtime"] = {
+                "available": bool(detail.get("available")),
+                "reason": detail.get("reason", "unknown"),
+                "model_found": bool(detail.get("models")),
+                "model_resident": bool(detail.get("model_loaded", False)),
+            }
+        except Exception as e:
+            logger.warning("AI diagnostics runtime check failed: %s", e)
+            diag["runtime"] = {"available": False, "reason": "check_failed"}
+        # RAG index
+        try:
+            from app.services.embedding_service import EmbeddingService
+            from app.services.vector_store import VectorStore
+
+            store = VectorStore()
+            diag["rag"] = {
+                "index_chunks": store.count(user_id),
+                "embedding_available": bool(EmbeddingService.is_available()),
+            }
+            store.close()
+        except Exception as e:
+            logger.warning("AI diagnostics RAG check failed: %s", e)
+            diag["rag"] = {"index_chunks": 0, "embedding_available": False}
+        # Memory store
+        try:
+            diag["memory"] = {
+                "available": True,
+                "stored_memories": self.memory_service.store.count_by_user(user_id),
+            }
+        except Exception as e:
+            logger.warning("AI diagnostics memory check failed: %s", e)
+            diag["memory"] = {"available": False, "stored_memories": 0}
+        return diag
 
     async def list_ollama_models(self, force_refresh: bool = False) -> list[dict[str, Any]]:
         # Deprecated: only Fixly Local is supported; returns empty

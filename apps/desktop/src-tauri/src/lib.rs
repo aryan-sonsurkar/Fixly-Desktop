@@ -592,6 +592,15 @@ fn start_backend_exe(
     if let Some(env) = &env_file {
         cmd.env("FIXLY_ENV_FILE", env);
     }
+    // Point the backend at the bundled embedding model so document
+    // search works offline on fresh installs (no Hugging Face download).
+    // Layout mirrors tauri.conf.json resources: backend/models/embeddings.
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        let emb = resource_dir.join("backend").join("models").join("embeddings");
+        if emb.join("all-MiniLM-L6-v2").join("config.json").exists() {
+            cmd.env("FIXLY_EMBEDDINGS_DIR", &emb);
+        }
+    }
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 

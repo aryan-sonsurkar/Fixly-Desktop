@@ -95,7 +95,11 @@ export const useAIStore = create<AIState>((set) => ({
   setEditingMessageId: (id) => set({ editingMessageId: id }),
   setEditingContent: (content) => set({ editingContent: content }),
   addConversation: (conversation) =>
-    set((state) => ({ conversations: [conversation, ...state.conversations] })),
+    set((state) =>
+      state.conversations.some((c) => c.id === conversation.id)
+        ? state
+        : { conversations: [conversation, ...state.conversations] },
+    ),
   updateConversation: (id, updates) =>
     set((state) => ({
       conversations: state.conversations.map((c) =>

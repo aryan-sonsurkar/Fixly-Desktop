@@ -6,8 +6,10 @@ Runs entirely offline with the all-MiniLM-L6-v2 model (~23MB).
 
 from __future__ import annotations
 
+import os
 import struct
 import time
+from pathlib import Path
 from typing import Any
 
 from app.core.logging import get_logger
@@ -20,15 +22,35 @@ EMBEDDING_DIM = 384
 _model_instance: Any = None
 
 
+def _bundled_model_dir() -> str | None:
+    """Path to the pre-bundled embedding model, if shipped with the install.
+
+    Resolution order: FIXLY_EMBEDDINGS_DIR env (set by the Tauri launcher to
+    <resources>/backend/models/embeddings) then the dev checkout layout.
+    """
+    candidates = []
+    env_dir = os.environ.get("FIXLY_EMBEDDINGS_DIR")
+    if env_dir:
+        candidates.append(Path(env_dir) / MODEL_NAME)
+    candidates.append(
+        Path(__file__).resolve().parents[2] / "models" / "embeddings" / MODEL_NAME
+    )
+    for cand in candidates:
+        if (cand / "config.json").exists():
+            return str(cand)
+    return None
+
+
 def _load_model() -> Any:
     """Load the sentence-transformer model (lazy, cached)."""
     global _model_instance
     if _model_instance is None:
         from sentence_transformers import SentenceTransformer
 
-        logger.info("Loading embedding model: %s", MODEL_NAME)
+        source = _bundled_model_dir() or MODEL_NAME
+        logger.info("Loading embedding model: %s", source)
         start = time.time()
-        _model_instance = SentenceTransformer(MODEL_NAME)
+        _model_instance = SentenceTransformer(source)
         elapsed = time.time() - start
         logger.info("Embedding model loaded in %.2fs", elapsed)
     return _model_instance

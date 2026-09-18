@@ -34,6 +34,20 @@ export function ConversationSidebar() {
   }, [fetchConversations]);
 
   const handleNewConversation = async () => {
+    // Reuse the current conversation when it is still empty instead of
+    // stacking another blank entry in the sidebar.
+    const current = conversations.find((c) => c.id === currentConversationId);
+    if (current) {
+      try {
+        const detail = await aiService.getConversation(current.id);
+        if ((detail.messages || []).length === 0) {
+          setMessages([]);
+          return;
+        }
+      } catch {
+        // fall through and create a fresh conversation
+      }
+    }
     try {
       const conv = await aiService.createConversation();
       addConversation(conv);

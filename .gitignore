@@ -71,6 +71,8 @@ secrets.toml
 apps/backend/uploads/
 # Bundled AI model (large, keep local)
 apps/backend/models/*.gguf
+# Bundled embedding model snapshot (large, downloaded in CI release job)
+apps/backend/models/embeddings/
 
 # Runtime data (SQLite DBs, PID files)
 apps/backend/data/

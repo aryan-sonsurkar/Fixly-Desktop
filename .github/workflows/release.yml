@@ -85,6 +85,19 @@ jobs:
           ls -lh "$MODEL"
           test "$(wc -c < "$MODEL")" -gt 300000000
 
+      - name: Download bundled embedding model (public Hugging Face, no auth)
+        run: |
+          EMB="apps/backend/models/embeddings/all-MiniLM-L6-v2"
+          if [ -f "$EMB/config.json" ] && [ -f "$EMB/model.safetensors" ]; then
+            echo "Embedding model already present, skipping download"
+          else
+            pip install "huggingface_hub>=0.23"
+            python -c "from huggingface_hub import snapshot_download; snapshot_download('sentence-transformers/all-MiniLM-L6-v2', local_dir='$EMB', local_dir_use_symlinks=False)"
+          fi
+          ls -lh "$EMB"
+          test -f "$EMB/config.json"
+          test -f "$EMB/model.safetensors"
+
       - name: Build backend (PyInstaller)
         working-directory: apps/backend
         run: |
@@ -97,6 +110,28 @@ jobs:
           ls -lh apps/backend/dist/backend.exe
           test -f apps/backend/dist/backend.exe
           test -f apps/backend/models/qwen2-0.5b-instruct-q4_k_m.gguf
+          test -f apps/backend/models/embeddings/all-MiniLM-L6-v2/config.json
+
+      - name: Verify native AI runtime inside frozen backend (fail fast)
+        working-directory: apps/backend
+        run: |
+          python - << 'PYEOF'
+          from PyInstaller.archive.readers import CArchiveReader
+          arc = CArchiveReader("dist/backend.exe")
+          names = list(arc.toc)
+          needed = [
+              "llama_cpp\\lib\\llama.dll",
+              "llama_cpp\\lib\\ggml-cpu.dll",
+              "llama_cpp\\lib\\ggml.dll",
+              "llama_cpp\\lib\\ggml-base.dll",
+              "llama_cpp\\lib\\mtmd.dll",
+          ]
+          missing = [n for n in needed if n not in names]
+          if missing:
+              print("FROZEN BACKEND MISSING NATIVE LIBS:", missing)
+              raise SystemExit(1)
+          print("Frozen backend contains all llama.cpp native libs")
+          PYEOF
 
       - name: Cargo check
         working-directory: apps/desktop/src-tauri

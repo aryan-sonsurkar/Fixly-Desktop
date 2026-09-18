@@ -218,6 +218,13 @@ async def check_providers_detail(current_user: CurrentUser = Depends(get_current
     return {"providers": providers_data}
 
 
+@router.get("/diagnostics")
+async def ai_diagnostics(current_user: CurrentUser = Depends(get_current_user)) -> dict[str, Any]:
+    """Internal AI runtime/RAG/memory diagnostic snapshot (developer use only)."""
+    service = AIService(access_token=current_user.access_token)
+    return await service.get_diagnostics(current_user.id)
+
+
 @router.get("/providers/ollama/models")
 async def list_ollama_models(
     refresh: bool = Query(False),

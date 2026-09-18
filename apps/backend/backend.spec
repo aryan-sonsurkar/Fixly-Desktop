@@ -1,10 +1,27 @@
 # -*- mode: python ; coding: utf-8 -*-
+import glob as _glob
+import os as _os
+
 block_cipher = None
+
+# llama-cpp-python loads its native engine (llama.dll, ggml-*.dll, mtmd.dll)
+# via ctypes from <package>/lib at runtime. PyInstaller's dependency scan
+# cannot see ctypes loads, so collect the DLLs explicitly. Without these the
+# frozen backend imports llama_cpp fine but Llama() construction fails.
+_llama_binaries: list[tuple[str, str]] = []
+try:
+    import llama_cpp as _lc
+
+    _lc_lib = _os.path.join(_os.path.dirname(_lc.__file__), "lib")
+    for _dll in sorted(_glob.glob(_os.path.join(_lc_lib, "*.dll"))):
+        _llama_binaries.append((_dll, "llama_cpp/lib"))
+except Exception:
+    pass
 
 a = Analysis(
     ['run_backend.py'],
     pathex=[r'C:\Users\Aryan Sonsurkar\OneDrive\Documents\GitHub\Fixly-Desktop\apps\backend'],
-    binaries=[],
+    binaries=_llama_binaries,
     datas=[],
     hiddenimports=[
         'pypdf',
