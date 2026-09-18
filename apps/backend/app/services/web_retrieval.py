@@ -5,7 +5,6 @@ Provides web search, URL fetching, and opportunity tracking.
 
 from __future__ import annotations
 
-import json
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -79,7 +78,7 @@ class WebRetrievalService:
             return [WebSearchResult(
                 title=f"Search: {query}",
                 url="",
-                snippet=f"Web search unavailable. Try again later.",
+                snippet="Web search unavailable. Try again later.",
                 source="offline",
             )]
 
@@ -130,7 +129,8 @@ class OpportunityService:
                           title=title, company=company, category=category,
                           url=url, description=description, deadline=deadline)
         self._conn.execute(
-            "INSERT INTO ai_opportunities (id,user_id,title,company,category,url,description,deadline,status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO ai_opportunities (id,user_id,title,company,category,url,"
+            "description,deadline,status,notes,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (opp.id, opp.user_id, opp.title, opp.company, opp.category,
              opp.url, opp.description, opp.deadline, opp.status, opp.notes,
              opp.created_at, opp.updated_at))
@@ -139,13 +139,17 @@ class OpportunityService:
 
     def list_saved(self, user_id: str, status: str | None = None) -> list[Opportunity]:
         if status:
-            rows = self._conn.execute("SELECT * FROM ai_opportunities WHERE user_id=? AND status=?", (user_id, status)).fetchall()
+            rows = self._conn.execute(
+                "SELECT * FROM ai_opportunities WHERE user_id=? AND status=?", (user_id, status)
+            ).fetchall()
         else:
             rows = self._conn.execute("SELECT * FROM ai_opportunities WHERE user_id=?", (user_id,)).fetchall()
         return [self._row_to_opp(r) for r in rows]
 
     def update_status(self, user_id: str, opp_id: str, status: str) -> Opportunity | None:
-        row = self._conn.execute("SELECT * FROM ai_opportunities WHERE id=? AND user_id=?", (opp_id, user_id)).fetchone()
+        row = self._conn.execute(
+            "SELECT * FROM ai_opportunities WHERE id=? AND user_id=?", (opp_id, user_id)
+        ).fetchone()
         if not row:
             return None
         opp = self._row_to_opp(row)

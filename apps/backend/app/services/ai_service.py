@@ -63,7 +63,6 @@ class AIService:
     def execute_tool(self, user_id: str, tool_name: str, parameters: dict[str, Any]) -> dict[str, Any]:
         """Execute a tool by name with parameters. Returns tool result dict."""
         from app.services.tool_handlers import ToolHandlerContext
-        from app.services.tool_executor import ToolExecutor
 
         executor = self._get_tool_executor()
         ctx = ToolHandlerContext(access_token=self.access_token)
@@ -469,8 +468,6 @@ class AIService:
 
         # Phase 3 integration: assemble context via ContextEngine
         engine_context = ""
-        citations = []
-        intent = "simple_chat"
         if current_message:
             try:
                 # Gather workspace data for ContextEngine
@@ -498,9 +495,6 @@ class AIService:
                     conversation_messages=conv_messages,
                     conversation_id=conversation_id,
                 )
-                intent = ctx_result.get("intent", "simple_chat")
-                citations = ctx_result.get("citations", [])
-
                 # Inject engine context into system prompt
                 source_parts = []
                 for source in ctx_result.get("sources", []):

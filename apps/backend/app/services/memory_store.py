@@ -365,7 +365,8 @@ class MemoryStore:
     def get_summaries(self, user_id: str, conversation_id: str) -> list[dict[str, Any]]:
         conn = self._conn()
         rows = conn.execute(
-            "SELECT * FROM ai_conversation_summaries WHERE user_id = ? AND conversation_id = ? ORDER BY message_range_start",
+            "SELECT * FROM ai_conversation_summaries WHERE user_id = ? "
+            "AND conversation_id = ? ORDER BY message_range_start",
             (user_id, conversation_id),
         ).fetchall()
         return [dict(r) for r in rows]

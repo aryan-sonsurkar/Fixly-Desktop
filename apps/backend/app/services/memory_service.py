@@ -8,7 +8,6 @@ Memory categories: fact, preference, habit, weakness, strength, goal, document.
 
 from __future__ import annotations
 
-import json
 import time
 import uuid
 from typing import Any
@@ -171,7 +170,11 @@ class MemoryService:
                 logger.info("Archived contradicting memory %s", contradiction["id"])
             else:
                 self.store.update_memory(contradiction["id"], user_id, {"confidence": new_confidence})
-                logger.info("Reduced confidence of contradicting memory %s to %.2f", contradiction["id"], new_confidence)
+                logger.info(
+                    "Reduced confidence of contradicting memory %s to %.2f",
+                    contradiction["id"],
+                    new_confidence,
+                )
 
         # Create new memory
         memory_id = f"mem_{uuid.uuid4().hex[:12]}"
@@ -226,7 +229,7 @@ class MemoryService:
 
     def _find_contradiction(self, user_id: str, content: str, category: str) -> dict[str, Any] | None:
         """Find memory that contradicts the new content."""
-        NEGATION_PAIRS = [
+        negation_pairs = [
             ("like", "don't like"), ("prefer", "avoid"),
             ("good at", "struggle with"), ("always", "never"),
             ("understand", "don't understand"), ("want to", "don't want to"),
@@ -235,7 +238,7 @@ class MemoryService:
         existing = self.store.list_memories(user_id, category=category)
         for mem in existing:
             mem_lower = mem["content"].lower()
-            for pos, neg in NEGATION_PAIRS:
+            for pos, neg in negation_pairs:
                 if (pos in content_lower and neg in mem_lower) or (neg in content_lower and pos in mem_lower):
                     return mem
         return None

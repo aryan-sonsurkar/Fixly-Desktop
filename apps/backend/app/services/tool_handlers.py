@@ -9,7 +9,7 @@ Access token is provided via ToolHandlerContext at registration time.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -245,7 +245,7 @@ def handle_update_assignment(user_id: str, params: dict[str, Any], ctx: ToolHand
         return {"error": "No fields to update"}
 
     svc = _get_assignment_service(ctx)
-    result = svc.update_assignment(assignment_id, user_id, data)
+    svc.update_assignment(assignment_id, user_id, data)
     return {
         "assignment_id": assignment_id,
         "updated_fields": list(data.keys()),

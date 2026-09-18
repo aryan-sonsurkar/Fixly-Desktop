@@ -152,7 +152,9 @@ class OfflineManager:
         )
         conn.commit()
 
-    def _update_op_status(self, op_id: str, status: str, error: str | None = None, synced_at: float | None = None) -> None:
+    def _update_op_status(
+        self, op_id: str, status: str, error: str | None = None, synced_at: float | None = None
+    ) -> None:
         conn = _get_conn(self._db_path)
         conn.execute(
             "UPDATE pending_operations SET status = ?, error = ?, synced_at = ? WHERE id = ?",

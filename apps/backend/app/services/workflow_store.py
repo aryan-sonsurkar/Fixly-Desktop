@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import time
-import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -100,7 +99,8 @@ class WorkflowStore:
 
     def create(self, workflow: Workflow) -> Workflow:
         self._conn.execute(
-            """INSERT INTO ai_workflows (id, user_id, name, description, steps, status, created_at, updated_at, error, metadata)
+            """INSERT INTO ai_workflows
+               (id, user_id, name, description, steps, status, created_at, updated_at, error, metadata)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (workflow.id, workflow.user_id, workflow.name, workflow.description,
              json.dumps([s.to_dict() for s in workflow.steps]),

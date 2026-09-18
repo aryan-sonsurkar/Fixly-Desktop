@@ -10,7 +10,6 @@ from __future__ import annotations
 import math
 import os
 import sqlite3
-import struct
 import threading
 from typing import Any
 

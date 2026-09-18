@@ -136,7 +136,8 @@ class GoalsService:
                     title=title, description=description, category=category,
                     target_date=target_date)
         self._conn.execute(
-            "INSERT INTO ai_goals (id,user_id,title,description,category,target_date,status,progress,milestones,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO ai_goals (id,user_id,title,description,category,target_date,"
+            "status,progress,milestones,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (goal.id, goal.user_id, goal.title, goal.description, goal.category,
              goal.target_date, goal.status, goal.progress, json.dumps(goal.milestones),
              goal.created_at, goal.updated_at))
@@ -145,7 +146,9 @@ class GoalsService:
 
     def get_goals(self, user_id: str, status: str | None = None) -> list[Goal]:
         if status:
-            rows = self._conn.execute("SELECT * FROM ai_goals WHERE user_id=? AND status=?", (user_id, status)).fetchall()
+            rows = self._conn.execute(
+                "SELECT * FROM ai_goals WHERE user_id=? AND status=?", (user_id, status)
+            ).fetchall()
         else:
             rows = self._conn.execute("SELECT * FROM ai_goals WHERE user_id=?", (user_id,)).fetchall()
         return [self._row_to_goal(r) for r in rows]
@@ -169,7 +172,8 @@ class GoalsService:
         skill = Skill(id=f"skill_{uuid.uuid4().hex[:12]}", user_id=user_id,
                       name=name, category=category, level=level)
         self._conn.execute(
-            "INSERT INTO ai_skills (id,user_id,name,category,level,evidence,last_practiced_at,created_at) VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO ai_skills (id,user_id,name,category,level,evidence,"
+            "last_practiced_at,created_at) VALUES (?,?,?,?,?,?,?,?)",
             (skill.id, skill.user_id, skill.name, skill.category, skill.level,
              json.dumps(skill.evidence), skill.last_practiced_at, skill.created_at))
         self._conn.commit()
@@ -177,7 +181,9 @@ class GoalsService:
 
     def get_skills(self, user_id: str, category: str | None = None) -> list[Skill]:
         if category:
-            rows = self._conn.execute("SELECT * FROM ai_skills WHERE user_id=? AND category=?", (user_id, category)).fetchall()
+            rows = self._conn.execute(
+                "SELECT * FROM ai_skills WHERE user_id=? AND category=?", (user_id, category)
+            ).fetchall()
         else:
             rows = self._conn.execute("SELECT * FROM ai_skills WHERE user_id=?", (user_id,)).fetchall()
         return [self._row_to_skill(r) for r in rows]

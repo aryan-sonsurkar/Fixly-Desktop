@@ -6,17 +6,15 @@ Executes tools with authorization checks, rollback support, and audit trail.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable
 
 from app.core.logging import get_logger
 from app.services.tool_authorizer import (
     AuditEntry,
-    AuthorizationResult,
-    SafetyClassification,
     ToolAuthorizer,
 )
-from app.services.tool_registry import ToolDefinition, ToolRegistry
+from app.services.tool_registry import ToolRegistry
 
 logger = get_logger(__name__)
 

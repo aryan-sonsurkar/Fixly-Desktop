@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from app.core.logging import get_logger
 from app.services.tool_executor import ToolExecutor
 from app.services.tool_handlers import (
-    ToolHandlerContext,
+    handle_add_to_planner,
     handle_clear_conversation,
     handle_compose_email,
     handle_create_assignment,
@@ -32,7 +32,6 @@ from app.services.tool_handlers import (
     handle_study_scoring,
     handle_update_assignment,
     handle_web_search,
-    handle_add_to_planner,
 )
 
 if TYPE_CHECKING:

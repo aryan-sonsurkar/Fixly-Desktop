@@ -90,7 +90,9 @@ class IntentClassifier:
             # ── Autonomous workflow (multi-step) ──
             {
                 "pattern": re.compile(
-                    r"(?:read|find|search|create|schedule|then|after that|and then|also|add|make).*(?:then|after|and then|also).*(?:create|schedule|add|make|find|search)",
+                    r"(?:read|find|search|create|schedule|then|after that|and then|also|add|make)"
+                    r".*(?:then|after|and then|also)"
+                    r".*(?:create|schedule|add|make|find|search)",
                 ),
                 "intent": Intent.AUTONOMOUS_WORKFLOW,
                 "confidence": 0.8,
@@ -139,9 +141,12 @@ class IntentClassifier:
             # ── Workspace query ──
             {
                 "pattern": re.compile(
-                    r"(?:(?:what|which) (?:are|is|do|does) (?:i |my |the )?(?:have |know )?(?:about )?(?:assignment|deadline|task|subject|schedule)s?|"
-                    r"(?:what|which) (?:assignment|deadline|task|subject|schedule)s? (?:are|is|do|does) (?:i |my |the )?(?:have|know|due)|"
-                    r"(?:show|list|check|tell me about) (?:my|the) (?:assignment|deadline|task|subject|planner|schedule|pomodoro)|"
+                    r"(?:(?:what|which) (?:are|is|do|does) (?:i |my |the )?"
+                    r"(?:have |know )?(?:about )?(?:assignment|deadline|task|subject|schedule)s?|"
+                    r"(?:what|which) (?:assignment|deadline|task|subject|schedule)s? "
+                    r"(?:are|is|do|does) (?:i |my |the )?(?:have|know|due)|"
+                    r"(?:show|list|check|tell me about) (?:my|the) "
+                    r"(?:assignment|deadline|task|subject|planner|schedule|pomodoro)|"
                     r"(?:upcoming|pending|overdue|due) (?:assignment|deadline|task)|"
                     r"how (?:many|much).*(?:assignment|task|subject|point))",
                 ),

@@ -192,7 +192,11 @@ class AcademicProfileService:
                     "subject": subject,
                     "reason": f"Low average score ({perf.average_score:.1f}%)",
                     "priority": "high",
-                    "suggested_action": f"Review {', '.join(perf.weak_topics[:3])}" if perf.weak_topics else "General review needed",
+                    "suggested_action": (
+                        f"Review {', '.join(perf.weak_topics[:3])}"
+                        if perf.weak_topics
+                        else "General review needed"
+                    ),
                 })
             elif perf.trend == "declining":
                 recommendations.append({

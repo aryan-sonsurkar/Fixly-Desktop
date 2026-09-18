@@ -66,14 +66,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 logger.warning("Background memory decay failed: %s", e)
 
     async def _proactive_loop():
-        INTERVAL = 30 * 60  # 30 minutes
-        QUIET_START = 23  # 11 PM
-        QUIET_END = 7     # 7 AM
+        interval = 30 * 60  # 30 minutes
+        quiet_start = 23  # 11 PM
+        quiet_end = 7     # 7 AM
 
         while True:
-            await asyncio.sleep(INTERVAL)
+            await asyncio.sleep(interval)
             try:
-                await _run_proactive_checks(proactive_engine, QUIET_START, QUIET_END)
+                await _run_proactive_checks(proactive_engine, quiet_start, quiet_end)
             except Exception as e:
                 logger.warning("Background proactive check failed: %s", e)
 
@@ -139,7 +139,6 @@ async def _run_proactive_checks(
 
     def _fetch_study_streak(uid: str) -> dict[str, Any]:
         client = get_supabase_service()
-        today = datetime.date.today().isoformat()
         resp = (
             client.table("study_days")
             .select("date")
