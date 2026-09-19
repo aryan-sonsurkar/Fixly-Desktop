@@ -1,5 +1,40 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
+import { version as packageVersion } from "../../package.json";
+
+function isTauriRuntime(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ !== undefined
+  );
+}
+
+/**
+ * Canonical desktop application version.
+ * Prefers the Tauri-native runtime version (tauri.conf.json at runtime);
+ * falls back to the bundled package.json version (dev browser, tests).
+ * Never depends on the backend being started.
+ */
+export function useAppVersion(): string {
+  const [version, setVersion] = useState<string>(packageVersion);
+  useEffect(() => {
+    if (!isTauriRuntime()) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { getVersion } = await import("@tauri-apps/api/app");
+        const v = await getVersion();
+        if (!cancelled && typeof v === "string" && v.length > 0) setVersion(v);
+      } catch {
+        // keep package.json fallback
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return version;
+}
 
 interface StartupStatus {
   stage: string;
@@ -83,6 +118,7 @@ export function StartupScreen({ status, onRetry }: StartupScreenProps) {
   const currentStage = status?.stage || "initializing";
   const isError = currentStage === "error";
   const isReady = currentStage === "ready";
+  const appVersion = useAppVersion();
 
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-background">
@@ -164,7 +200,7 @@ export function StartupScreen({ status, onRetry }: StartupScreenProps) {
           transition={{ delay: 0.5 }}
           className="text-xs text-muted-foreground/60"
         >
-          v{typeof window !== "undefined" ? "1.0.0" : "1.0.0"}
+          v{appVersion}
         </motion.p>
       </div>
     </div>

@@ -28,7 +28,7 @@ def _resolve_version() -> str:
         pkg_json = Path(__file__).resolve().parents[2] / "desktop" / "package.json"
         return json.loads(pkg_json.read_text(encoding="utf-8"))["version"]
     except (FileNotFoundError, KeyError, OSError):
-        return "1.0.6"
+        return "1.0.7"
 
 
 APP_VERSION = _resolve_version()
