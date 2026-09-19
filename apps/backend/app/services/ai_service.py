@@ -78,6 +78,7 @@ class AIService:
             logger.error("Tool execution failed: %s - %s", tool_name, e)
             return {"success": False, "error": str(e)}
 
+
     def _get_providers(self) -> dict[str, AIProvider]:
         return {
             "fixly-local": FixlyLocalProvider(),
@@ -235,6 +236,32 @@ class AIService:
 
         conv_result = await self.repository.get_conversation(conversation_id, user_id)
         return {"message": msg, "conversation": conv_result}
+
+    async def generate_text(
+        self,
+        user_id: str,
+        prompt: str,
+        system_prompt: str | None = None,
+        max_tokens: int = 512,
+        temperature: float = 0.5,
+    ) -> str:
+        """Non-chat direct generation path.
+
+        Invokes the AI provider without creating conversations or persisting
+        messages to the database. Enforces Fixly persona and identity scrubbing.
+        """
+        settings_data = await self._get_settings(user_id)
+        preferred = str(settings_data.get("preferred_provider", "auto"))
+
+        provider = await self._resolve_provider(preferred, user_id, settings_data)
+
+        messages: list[dict[str, str]] = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        response_text = await provider.generate(messages, temperature, max_tokens)
+        return _scrub_identity(response_text)
 
     async def chat_stream(
         self,

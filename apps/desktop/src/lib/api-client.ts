@@ -120,13 +120,14 @@ export async function createTauriAdapter(): Promise<typeof axios.defaults.adapte
       Object.assign(headers, serializeHeaders(config.headers as Record<string, unknown>));
     }
 
+    const isFormData = typeof FormData !== "undefined" && config.data instanceof FormData;
+
     let body: BodyInit | undefined;
     if (config.data && method !== "GET" && method !== "HEAD") {
-      if (typeof FormData !== "undefined" && config.data instanceof FormData) {
-        // Multipart upload: pass through untouched and drop any manually set
-        // Content-Type so the browser-generated boundary survives. Manually
-        // setting "multipart/form-data" without a boundary (or JSON-stringifying
-        // the FormData, which yields "{}") breaks uploads in packaged builds.
+      if (isFormData) {
+        // Multipart upload: drop any manually set Content-Type so the browser/runtime
+        // generates the boundary. Manually setting "multipart/form-data" without a boundary
+        // or JSON-stringifying FormData breaks uploads in packaged builds.
         body = config.data;
         const contentTypeKey = Object.keys(headers).find(
           (k) => k.toLowerCase() === "content-type",
@@ -139,11 +140,31 @@ export async function createTauriAdapter(): Promise<typeof axios.defaults.adapte
 
     let response;
     try {
-      response = await fetch(url, {
-        method,
-        headers,
-        body,
-      });
+      if (isFormData && typeof window !== "undefined" && typeof window.fetch === "function") {
+        // Native webview fetch streams FormData with automatic multipart/form-data boundary.
+        // This avoids plugin-http IPC buffer conversion (which strips the boundary in Chromium
+        // and serializes entire files into massive JSON arrays).
+        try {
+          response = await window.fetch(url, {
+            method,
+            headers,
+            body: config.data as FormData,
+          });
+        } catch {
+          // Fall back to plugin-http fetch if window.fetch fails
+          response = await fetch(url, {
+            method,
+            headers,
+            body,
+          });
+        }
+      } else {
+        response = await fetch(url, {
+          method,
+          headers,
+          body,
+        });
+      }
     } catch (error) {
       // The Tauri fetch wrapper rejects with a plain (non-Error) value on
       // network-level failures (often the raw Rust error string); normalize it

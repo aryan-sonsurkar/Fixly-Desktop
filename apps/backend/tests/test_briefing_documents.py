@@ -2,6 +2,8 @@
 
 import pytest
 
+from app.services.daily_briefing_service import DailyBriefingService
+from app.services.email_service import EmailClassifier
 from app.services.pdf_service import PDFService
 from app.services.planner_service import PlannerService
 
@@ -13,8 +15,6 @@ def pdf_service():
 
 @pytest.mark.asyncio
 async def test_extract_pages_numbers(pdf_service, tmp_path):
-    import asyncio
-
     # Reuse the hand-built 3-page PDF layout via pypdf writer is complex;
     # instead verify chunk_pages attribution directly.
     pages = [(1, "Alpha beta gamma."), (2, "Delta epsilon zeta.")]
@@ -103,6 +103,54 @@ def test_briefing_response_schema():
     )
     assert b.quote.attribution == "Fixly AI"
     assert b.focus_items == []
+
+
+@pytest.mark.asyncio
+async def test_daily_briefing_uses_direct_generation_without_chat_persistence(monkeypatch):
+    service = DailyBriefingService(access_token=None)
+
+    async def gather(_user_id, budget):
+        assert budget == "briefing"
+        return {
+            "profile": {"name": "Aryan", "streak": 2},
+            "assignments": {"total": 1, "deadlines": []},
+            "email": {"unread": 0},
+            "pomodoro": {"today_focus_minutes": 25},
+            "subjects": [{"name": "DBMS"}],
+        }
+
+    async def generate_text(**kwargs):
+        assert kwargs["user_id"] == "user-1"
+        return '{"summary":"Focus on DBMS.","quote":"Keep going.","motivation":"One session helps."}'
+
+    async def must_not_persist(*_args, **_kwargs):
+        raise AssertionError("Daily briefing must not create a conversation or chat message")
+
+    monkeypatch.setattr(service.context, "gather", gather)
+    monkeypatch.setattr(service.ai_service, "generate_text", generate_text)
+    monkeypatch.setattr(service.ai_repo, "create_conversation", must_not_persist)
+    monkeypatch.setattr(service.ai_repo, "create_message", must_not_persist)
+
+    briefing = await service.generate_daily_briefing("user-1")
+
+    assert briefing["summary"] == "Focus on DBMS."
+    assert briefing["quote"]["attribution"] == "Fixly AI"
+    assert briefing["ai_available"] is True
+
+
+@pytest.mark.asyncio
+async def test_email_classifier_uses_direct_generation_without_conversation(monkeypatch):
+    classifier = EmailClassifier(access_token=None)
+
+    async def generate_text(**kwargs):
+        assert kwargs["user_id"] == "user-1"
+        return '{"category":"assignment","confidence":0.9,"assignment_title":"Lab"}'
+
+    monkeypatch.setattr(classifier.ai_service, "generate_text", generate_text)
+    result = await classifier.classify({"subject": "Lab", "body_text": "Due Friday"}, "user-1")
+
+    assert result["category"] == "assignment"
+    assert result["assignment_title"] == "Lab"
 
 
 def test_bundled_embedding_dir_shape():

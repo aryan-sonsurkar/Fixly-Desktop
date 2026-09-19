@@ -100,6 +100,11 @@ async def regenerate(
 async def list_conversations(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
+    from app.services.daily_briefing_service import DailyBriefingService
+
+    briefing_service = DailyBriefingService(access_token=current_user.access_token)
+    await briefing_service.cleanup_leaked_conversations(current_user.id)
+
     service = AIService(access_token=current_user.access_token)
     return await service.list_conversations(current_user.id)
 
@@ -246,7 +251,9 @@ async def daily_plan(
 async def daily_briefing(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
-    service = PlannerService(access_token=current_user.access_token)
+    from app.services.daily_briefing_service import DailyBriefingService
+
+    service = DailyBriefingService(access_token=current_user.access_token)
     return await service.generate_daily_briefing(current_user.id)
 
 

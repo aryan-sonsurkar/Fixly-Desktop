@@ -278,7 +278,13 @@ export function DocumentsPage() {
           setUploadProgress(`Uploading ${idx + 1}/${unique.length}: ${file.name}`);
           const doc = await uploadDocument(file);
           setUploadProgress(`Processing ${idx + 1}/${unique.length}: ${file.name}`);
-          await processDocument(doc.id);
+          try {
+            await processDocument(doc.id);
+          } catch (procErr) {
+            // Post-processing error (e.g. OCR unavailable for image) should not mask that
+            // the file was safely uploaded and stored in the database.
+            console.warn(`[documents] Post-processing note for doc ${doc.id}:`, procErr);
+          }
           return doc;
         }),
       );
@@ -294,9 +300,21 @@ export function DocumentsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
     },
-    onError: () => {
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+    },
+    onError: (err: unknown) => {
       // Student-safe copy only; technical detail stays in logs.
-      setUploadError("Couldn't upload these documents. Check the file type and try again.");
+      console.error("[documents] Upload error:", err);
+      let msg = "Couldn't upload these documents. Check the file type and try again.";
+      if (err instanceof Error) {
+        if (err.message.includes("50MB") || err.message.toLowerCase().includes("size")) {
+          msg = "One or more files exceed the 50 MB limit.";
+        } else if (err.message.toLowerCase().includes("unsupported") || err.message.toLowerCase().includes("extension")) {
+          msg = "Unsupported file type. Supported types: PDF, PNG, JPG, WEBP.";
+        }
+      }
+      setUploadError(msg);
       setUploadProgress(null);
     },
   });

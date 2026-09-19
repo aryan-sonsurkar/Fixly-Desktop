@@ -7,7 +7,6 @@ from typing import Any
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.providers import get_provider
-from app.repositories.ai_repository import AIRepository
 from app.repositories.assignment_repository import AssignmentRepository
 from app.repositories.email_repository import EmailRepository
 from app.repositories.subject_repository import SubjectRepository
@@ -27,7 +26,6 @@ class EmailClassifier:
     def __init__(self, access_token: str | None = None) -> None:
         self.access_token = access_token
         self.ai_service = AIService(access_token=access_token)
-        self.ai_repo = AIRepository(access_token=access_token)
 
     async def classify(self, email: dict[str, Any], user_id: str) -> dict[str, Any]:
         subject = email.get("subject", "")
@@ -55,9 +53,17 @@ class EmailClassifier:
             f"- description: string or null"
         )
 
-        conv = await self.ai_repo.create_conversation(user_id, "Email Classification")
-        result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
-        content = result["message"]["content"]
+        # Use direct generation — no conversation created, no message persisted in AI Workspace.
+        content = await self.ai_service.generate_text(
+            user_id=user_id,
+            prompt=prompt,
+            system_prompt=(
+                "You are Fixly AI classifying academic emails. "
+                "Output only the requested JSON object with no preamble or markdown fences."
+            ),
+            max_tokens=256,
+            temperature=0.2,
+        )
 
         return self._parse_response(content)
 
@@ -187,7 +193,6 @@ class EmailService:
         self.classifier = EmailClassifier(access_token=access_token)
         self.detector = DuplicateDetector(access_token=access_token)
         self.sync_worker = EmailSyncWorker()
-        self.ai_repo = AIRepository(access_token=access_token)
         self.ai_service = AIService(access_token=access_token)
         self.study_service = StudyService(access_token=access_token)
         self.assignment_repo = AssignmentRepository(access_token=access_token)
@@ -439,8 +444,17 @@ class EmailService:
             f"Keep it concise, motivational, and actionable."
         )
 
-        conv = await self.ai_repo.create_conversation(user_id, "Daily Briefing")
-        result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
+        # Direct non-chat generation — no conversation created, no message persisted in AI Workspace.
+        content = await self.ai_service.generate_text(
+            user_id=user_id,
+            prompt=prompt,
+            system_prompt=(
+                "You are Fixly AI generating a concise daily academic briefing. "
+                "Output only the requested briefing text — no JSON, no markdown headers."
+            ),
+            max_tokens=400,
+            temperature=0.5,
+        )
 
         try:
             await self.study_service.log_session(user_id, {
@@ -452,8 +466,7 @@ class EmailService:
             logger.error("Failed to log briefing session: %s", e)
 
         return {
-            "content": result["message"]["content"],
-            "conversation_id": conv["id"],
+            "content": content,
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
