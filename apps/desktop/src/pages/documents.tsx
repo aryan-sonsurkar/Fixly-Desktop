@@ -32,7 +32,18 @@ const statusColors: Record<string, string> = {
   pending: "text-yellow-600 bg-yellow-100 dark:bg-yellow-900/20 dark:text-yellow-400",
   processing: "text-blue-600 bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400",
   processed: "text-green-600 bg-green-100 dark:bg-green-900/20 dark:text-green-400",
+  indexed: "text-green-600 bg-green-100 dark:bg-green-900/20 dark:text-green-400",
+  empty: "text-amber-600 bg-amber-100 dark:bg-amber-900/20 dark:text-amber-400",
   failed: "text-red-600 bg-red-100 dark:bg-red-900/20 dark:text-red-400",
+};
+
+const statusLabels: Record<string, string> = {
+  pending: "Pending",
+  processing: "Processing...",
+  processed: "Ready",
+  indexed: "Ready",
+  empty: "No readable text",
+  failed: "Couldn't process",
 };
 
 function formatSize(bytes: number): string {
@@ -49,11 +60,12 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function DocumentCard({ doc, onSelect, onDelete, onFavorite }: {
+function DocumentCard({ doc, onSelect, onDelete, onFavorite, onRetry }: {
   doc: Document;
   onSelect: () => void;
   onDelete: () => void;
   onFavorite: () => void;
+  onRetry: () => void;
 }) {
   return (
     <motion.div
@@ -104,8 +116,20 @@ function DocumentCard({ doc, onSelect, onDelete, onFavorite }: {
       </div>
       <div className="mt-2 flex items-center gap-2">
         <Badge variant="outline" className={statusColors[doc.status] || ""}>
-          {doc.status === "processing" ? "Processing..." : doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
+          {statusLabels[doc.status] || doc.status.charAt(0).toUpperCase() + doc.status.slice(1)}
         </Badge>
+        {doc.status === "empty" && (
+          <span className="text-[11px] text-muted-foreground">Scanned/image PDF? Text chat still works.</span>
+        )}
+        {doc.status === "failed" && (
+          <button
+            type="button"
+            onClick={(e) => (e.stopPropagation(), onRetry())}
+            className="rounded-md border px-2 py-0.5 text-[11px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+          >
+            Retry
+          </button>
+        )}
       </div>
     </motion.div>
   );
@@ -120,8 +144,9 @@ function DocumentViewer({ doc, onBack }: { doc: DocumentDetail; onBack: () => vo
     try {
       setActionError(null);
       await action();
-    } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Action failed");
+    } catch {
+      // Student-safe copy only; backend detail stays in logs.
+      setActionError("Couldn't complete that action. Please try again.");
     }
   };
 
@@ -234,32 +259,56 @@ export function DocumentsPage() {
   });
 
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const uploadMutation = useMutation({
     mutationFn: async (files: File[]) => {
-      setUploadProgress(`Uploading 0/${files.length}...`);
+      // Drop exact duplicates already queued in this batch.
+      const seen = new Set<string>();
+      const unique = files.filter((f) => {
+        const key = `${f.name}::${f.size}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      setUploadProgress(`Uploading 0/${unique.length}...`);
+      setUploadError(null);
       const results = await Promise.allSettled(
-        files.map(async (file, idx) => {
-          setUploadProgress(`Uploading ${idx + 1}/${files.length}: ${file.name}`);
+        unique.map(async (file, idx) => {
+          setUploadProgress(`Uploading ${idx + 1}/${unique.length}: ${file.name}`);
           const doc = await uploadDocument(file);
-          setUploadProgress(`Processing ${idx + 1}/${files.length}: ${file.name}`);
+          setUploadProgress(`Processing ${idx + 1}/${unique.length}: ${file.name}`);
           await processDocument(doc.id);
           return doc;
         }),
       );
       setUploadProgress(null);
       const failures = results.filter((r) => r.status === "rejected");
-      if (failures.length > 0 && failures.length === files.length) {
-        throw new Error(`All ${files.length} uploads failed`);
+      if (failures.length > 0 && failures.length === unique.length) {
+        throw new Error(`All ${unique.length} uploads failed`);
       }
       if (failures.length > 0) {
-        throw new Error(`${failures.length}/${files.length} uploads failed - check retries`);
+        throw new Error(`${failures.length}/${unique.length} uploads failed - check retries`);
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
     },
-    onError: () => setUploadProgress(null),
+    onError: () => {
+      // Student-safe copy only; technical detail stays in logs.
+      setUploadError("Couldn't upload these documents. Check the file type and try again.");
+      setUploadProgress(null);
+    },
+  });
+
+  const retryMutation = useMutation({
+    mutationFn: (id: string) => processDocument(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+    },
+    onError: () => {
+      setUploadError("Couldn't process this document. Try uploading it again.");
+    },
   });
 
   const handleDelete = async (id: string) => {
@@ -333,7 +382,7 @@ export function DocumentsPage() {
       ) : isFetching && data ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 opacity-60">
           {data.documents.map((doc) => (
-            <DocumentCard key={doc.id} doc={doc} onSelect={() => setSelectedDocId(doc.id)} onDelete={() => handleDelete(doc.id)} onFavorite={() => handleFavorite(doc)} />
+            <DocumentCard key={doc.id} doc={doc} onSelect={() => setSelectedDocId(doc.id)} onDelete={() => handleDelete(doc.id)} onFavorite={() => handleFavorite(doc)} onRetry={() => retryMutation.mutate(doc.id)} />
           ))}
         </div>
       ) : listError ? (
@@ -362,6 +411,7 @@ export function DocumentsPage() {
                 onSelect={() => setSelectedDocId(doc.id)}
                 onDelete={() => handleDelete(doc.id)}
                 onFavorite={() => handleFavorite(doc)}
+                onRetry={() => retryMutation.mutate(doc.id)}
               />
             ))}
           </div>
@@ -373,6 +423,23 @@ export function DocumentsPage() {
         onClose={() => setUploadOpen(false)}
         onUpload={(files) => uploadMutation.mutateAsync(files)}
       />
+
+      {uploadProgress && (
+        <div className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2">
+          <div className="flex items-center gap-2 rounded-full border bg-card px-4 py-2 text-xs shadow-lg">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+            {uploadProgress}
+          </div>
+        </div>
+      )}
+      {uploadError && (
+        <div className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-destructive/30 bg-card px-4 py-2.5 text-xs shadow-lg">
+          <span className="text-destructive">{uploadError}</span>
+          <button type="button" onClick={() => setUploadError(null)} className="text-muted-foreground underline hover:no-underline">
+            Dismiss
+          </button>
+        </div>
+      )}
     </div>
   );
 }

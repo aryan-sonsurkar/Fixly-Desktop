@@ -134,6 +134,26 @@ export function ConversationSidebar() {
   const pinned = filteredConversations.filter((c) => c.is_pinned);
   const unpinned = filteredConversations.filter((c) => !c.is_pinned);
 
+  // Natural time grouping for unpinned conversations.
+  const startOfDay = (d: Date) => {
+    const c = new Date(d);
+    c.setHours(0, 0, 0, 0);
+    return c.getTime();
+  };
+  const todayStart = startOfDay(new Date());
+  const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
+  const groupOf = (c: { created_at: string }) => {
+    const t = new Date(c.created_at).getTime();
+    if (Number.isNaN(t) || t >= todayStart) return "Today";
+    if (t >= yesterdayStart) return "Yesterday";
+    return "Earlier";
+  };
+  const groups: { label: string; items: typeof unpinned }[] = [];
+  for (const label of ["Today", "Yesterday", "Earlier"]) {
+    const items = unpinned.filter((c) => groupOf(c) === label);
+    if (items.length > 0) groups.push({ label, items });
+  }
+
   return (
     <div className="flex h-full flex-col border-r bg-card">
       <div className="flex items-center justify-between border-b px-4 py-3">
@@ -210,22 +230,29 @@ export function ConversationSidebar() {
             {pinned.length > 0 && unpinned.length > 0 && (
               <p className="text-[10px] font-medium uppercase text-muted-foreground">Recent</p>
             )}
-            {unpinned.map((conv) => (
-              <motion.div key={conv.id} layout>
-                <SidebarItem
-                  conv={conv}
-                  isActive={conv.id === currentConversationId}
-                  renameId={renameId}
-                  renameTitle={renameTitle}
-                  onSelect={handleSelectConversation}
-                  onTogglePin={handleTogglePin}
-                  onToggleArchive={handleToggleArchive}
-                  onRenameStart={handleRenameStart}
-                  onRenameEnd={handleRenameEnd}
-                  onRenameTitleChange={setRenameTitle}
-                  onDelete={handleDelete}
-                />
-              </motion.div>
+            {groups.map((g) => (
+              <div key={g.label}>
+                <p className="px-1 pb-1 pt-2 text-[10px] font-medium uppercase text-muted-foreground">
+                  {g.label}
+                </p>
+                {g.items.map((conv) => (
+                  <motion.div key={conv.id} layout>
+                    <SidebarItem
+                      conv={conv}
+                      isActive={conv.id === currentConversationId}
+                      renameId={renameId}
+                      renameTitle={renameTitle}
+                      onSelect={handleSelectConversation}
+                      onTogglePin={handleTogglePin}
+                      onToggleArchive={handleToggleArchive}
+                      onRenameStart={handleRenameStart}
+                      onRenameEnd={handleRenameEnd}
+                      onRenameTitleChange={setRenameTitle}
+                      onDelete={handleDelete}
+                    />
+                  </motion.div>
+                ))}
+              </div>
             ))}
           </div>
         </AnimatePresence>

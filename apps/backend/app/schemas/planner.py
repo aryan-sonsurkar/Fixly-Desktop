@@ -21,5 +21,27 @@ class PlanResponse(BaseModel):
     schedule_items: list[GeneratedScheduleItem] | None = None
 
 
+class BriefingQuote(BaseModel):
+    text: str
+    attribution: str = "Fixly AI"
+
+
+class BriefingNextAction(BaseModel):
+    label: str
+    target: str = "pomodoro"
+
+
+class DailyBriefingResponse(BaseModel):
+    date: str
+    greeting: str
+    summary: str
+    focus_items: list[GeneratedScheduleItem] = []
+    quote: BriefingQuote
+    motivation: str
+    next_action: BriefingNextAction | None = None
+    ai_available: bool = True
+    generated_at: str
+
+
 class RevisionPlanRequest(BaseModel):
     subject_ids: list[str] | None = None

@@ -82,6 +82,34 @@ describe("Tauri HTTP adapter", () => {
     expect(response.data).toEqual({ access_token: "abc" });
   });
 
+  it("passes FormData uploads through without JSON-encoding or manual Content-Type", async () => {
+    const { fetch } = await import("@tauri-apps/plugin-http");
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeResponse(200, { id: "doc-1" }),
+    );
+
+    const { createTauriAdapter } = await import("@/lib/api-client");
+    const adapter = (await createTauriAdapter()) as unknown as MockAdapter;
+    const form = new FormData();
+    form.append("file", new Blob(["%PDF-1.4"], { type: "application/pdf" }), "notes.pdf");
+    const config = {
+      url: "/api/v1/documents/upload",
+      baseURL: "http://127.0.0.1:9999",
+      method: "post",
+      // A manually set multipart header without boundary must not survive:
+      // the browser-generated boundary is required for FastAPI to parse.
+      headers: { "Content-Type": "multipart/form-data" },
+      data: form,
+    };
+
+    await adapter(config as never);
+
+    const calls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    const init = calls[0][1] as { body?: unknown; headers?: Record<string, string> };
+    expect(init.body).toBe(form);
+    expect(init.headers?.["Content-Type"]).toBeUndefined();
+  });
+
   it("resolves the backend port from Rust and targets it for requests", async () => {
     const { invoke } = await import("@tauri-apps/api/core");
     (invoke as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(12345);

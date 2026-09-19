@@ -601,6 +601,13 @@ fn start_backend_exe(
             cmd.env("FIXLY_EMBEDDINGS_DIR", &emb);
         }
     }
+    // Keep user uploads outside the install resources dir so app updates
+    // never wipe them and the frozen backend never writes into TEMP.
+    if let Ok(app_data) = app.path().app_data_dir() {
+        let uploads = app_data.join("uploads").join("documents");
+        let _ = std::fs::create_dir_all(&uploads);
+        cmd.env("FIXLY_UPLOAD_DIR", &uploads);
+    }
     cmd.stdout(Stdio::piped());
     cmd.stderr(Stdio::piped());
 

@@ -24,7 +24,7 @@ from app.schemas.ai import (
     ProviderDetailResponse,
     RegenerateRequest,
 )
-from app.schemas.planner import PlanResponse, RevisionPlanRequest
+from app.schemas.planner import DailyBriefingResponse, PlanResponse, RevisionPlanRequest
 from app.services.ai_service import AIService
 from app.services.planner_service import PlannerService
 
@@ -240,6 +240,14 @@ async def daily_plan(
 ) -> dict[str, Any]:
     service = PlannerService(access_token=current_user.access_token)
     return await service.generate_daily_plan(current_user.id)
+
+
+@router.post("/plan/daily/briefing", response_model=DailyBriefingResponse)
+async def daily_briefing(
+    current_user: CurrentUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    service = PlannerService(access_token=current_user.access_token)
+    return await service.generate_daily_briefing(current_user.id)
 
 
 @router.post("/plan/weekly", response_model=PlanResponse)

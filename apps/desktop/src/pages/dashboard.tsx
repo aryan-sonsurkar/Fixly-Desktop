@@ -1,8 +1,15 @@
 import { useEffect, useCallback, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { Skeleton } from "@fixly/ui";
 import { getDashboard } from "@/lib/dashboard-service";
-import { generateDailyPlan } from "@/lib/planner-service";
+import {
+  generateDailyBriefing,
+  loadBriefingCache,
+  saveBriefingCache,
+  invalidateBriefingCache,
+  briefingStateHash,
+} from "@/lib/planner-service";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { useSearchStore } from "@/stores/search-store";
 import { BriefingWidget } from "@/components/dashboard/briefing-widget";
@@ -27,7 +34,9 @@ export function DashboardPage() {
   } = useDashboardStore();
   const { setOpen: setSearchOpen } = useSearchStore();
   const mountedRef = useRef(true);
+  const briefingBusyRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     mountedRef.current = true;
@@ -58,17 +67,60 @@ export function DashboardPage() {
     }
   }, [rawData, isError, queryError, setData, setLoading]);
 
+  const profile = data?.profile || { display_name: "Student" };
+  const stats = data?.stats || {
+    total: 0, completed: 0, pending: 0, in_progress: 0,
+    overdue: 0, due_today: 0, due_this_week: 0, completion_percentage: 0,
+  };
+  const recentAssignments = data?.recent_assignments || [];
+
   const handleGenerateBriefing = useCallback(async () => {
+    // Guard against double-click storms: one generation at a time.
+    if (briefingBusyRef.current) return;
+    briefingBusyRef.current = true;
     setBriefingLoading(true);
     try {
-      const plan = await generateDailyPlan();
-      if (mountedRef.current) setBriefing(plan);
+      // Read fresh store state at call time (avoids stale closures).
+      const snap = useDashboardStore.getState().data;
+      const userKey = snap?.profile?.display_name || "student";
+      const hashInput = {
+        due_today: snap?.stats?.due_today ?? 0,
+        pending: snap?.stats?.pending ?? 0,
+        overdue: snap?.stats?.overdue ?? 0,
+        upcoming_count: snap?.recent_assignments?.length ?? 0,
+      };
+      invalidateBriefingCache(userKey);
+      const fresh = await generateDailyBriefing();
+      if (mountedRef.current) {
+        saveBriefingCache(userKey, fresh, briefingStateHash(hashInput));
+        setBriefing(fresh);
+      }
     } catch {
-      // silent
+      // silent: cached briefing (if any) stays visible; empty state otherwise
     } finally {
+      briefingBusyRef.current = false;
       if (mountedRef.current) setBriefingLoading(false);
     }
   }, [setBriefing, setBriefingLoading]);
+
+  const handleBriefingNextStep = useCallback(() => {
+    navigate("/pomodoro");
+  }, [navigate]);
+
+  // Cache-first hydration: reuse today's cached briefing when the workspace
+  // state fingerprint matches, so the model runs at most once per state.
+  useEffect(() => {
+    if (!data || briefing || briefingLoading) return;
+    const userKey = data.profile?.display_name || "student";
+    const hash = briefingStateHash({
+      due_today: data.stats?.due_today ?? 0,
+      pending: data.stats?.pending ?? 0,
+      overdue: data.stats?.overdue ?? 0,
+      upcoming_count: data.recent_assignments?.length ?? 0,
+    });
+    const cached = loadBriefingCache(userKey, hash);
+    if (cached) setBriefing(cached);
+  }, [data, briefing, briefingLoading, setBriefing]);
 
   if (isError && !rawData) {
     return (
@@ -101,13 +153,6 @@ export function DashboardPage() {
     );
   }
 
-  const profile = data?.profile || { display_name: "Student" };
-  const stats = data?.stats || {
-    total: 0, completed: 0, pending: 0, in_progress: 0,
-    overdue: 0, due_today: 0, due_this_week: 0, completion_percentage: 0,
-  };
-  const recentAssignments = data?.recent_assignments || [];
-
   return (
     <div className="mx-auto max-w-5xl space-y-6 p-6">
       <div>
@@ -133,6 +178,7 @@ export function DashboardPage() {
           briefing={briefing}
           loading={briefingLoading}
           onGenerate={handleGenerateBriefing}
+          onNextStep={handleBriefingNextStep}
         />
         <DeadlinesWidget
           deadlines={recentAssignments.map((a: unknown) => {

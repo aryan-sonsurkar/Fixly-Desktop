@@ -120,9 +120,21 @@ export async function createTauriAdapter(): Promise<typeof axios.defaults.adapte
       Object.assign(headers, serializeHeaders(config.headers as Record<string, unknown>));
     }
 
-    let body: string | undefined;
+    let body: BodyInit | undefined;
     if (config.data && method !== "GET" && method !== "HEAD") {
-      body = typeof config.data === "string" ? config.data : JSON.stringify(config.data);
+      if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+        // Multipart upload: pass through untouched and drop any manually set
+        // Content-Type so the browser-generated boundary survives. Manually
+        // setting "multipart/form-data" without a boundary (or JSON-stringifying
+        // the FormData, which yields "{}") breaks uploads in packaged builds.
+        body = config.data;
+        const contentTypeKey = Object.keys(headers).find(
+          (k) => k.toLowerCase() === "content-type",
+        );
+        if (contentTypeKey) delete headers[contentTypeKey];
+      } else {
+        body = typeof config.data === "string" ? config.data : JSON.stringify(config.data);
+      }
     }
 
     let response;

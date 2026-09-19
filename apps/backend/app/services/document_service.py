@@ -23,7 +23,7 @@ logger = get_logger(__name__)
 ALLOWED_TYPES = {"pdf", "png", "jpg", "jpeg", "webp"}
 IMAGE_TYPES = {"png", "jpg", "jpeg", "webp"}
 
-UPLOAD_DIR = os.path.join(
+UPLOAD_DIR = os.environ.get("FIXLY_UPLOAD_DIR") or os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
     "uploads",
     "documents",
@@ -114,29 +114,40 @@ class DocumentService:
                 result = {
                     "document_id": document_id,
                     "chunk_count": len(chunks),
+                    "has_text": len(chunks) > 0,
                     "processing_time_ms": ocr_result.get("processing_time_ms", 0),
                 }
+                if not result["has_text"]:
+                    await self.repository.update_document(document_id, user_id, {
+                        "status": "empty",
+                    })
+                    return result
             else:
                 raise ValidationError(f"Unsupported file type for processing: {file_type}")
 
+            if not result.get("has_text", True):
+                # No extractable text: distinct from failure, nothing to index.
+                return result
+
             # Generate local embeddings for semantic search
+            embeddings_indexed = 0
             try:
                 if self.embedding_service.is_available():
                     all_chunks = await self.repository.get_chunks(document_id, user_id)
                     if all_chunks:
-                        indexed = await self.rag_service.reindex_document(
+                        embeddings_indexed = await self.rag_service.reindex_document(
                             user_id, document_id, all_chunks
                         )
-                        result["embeddings_indexed"] = indexed
                         logger.info(
-                            "Indexed %d embeddings for document %s", indexed, document_id
+                            "Indexed %d embeddings for document %s", embeddings_indexed, document_id
                         )
             except Exception as e:
                 logger.warning("Embedding generation failed (non-fatal): %s", e)
-                result["embeddings_indexed"] = 0
+            result["embeddings_indexed"] = embeddings_indexed
 
+            # indexed = text + searchable; processed = text only (search degraded).
             await self.repository.update_document(document_id, user_id, {
-                "status": "processed",
+                "status": "indexed" if embeddings_indexed > 0 else "processed",
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             })
 

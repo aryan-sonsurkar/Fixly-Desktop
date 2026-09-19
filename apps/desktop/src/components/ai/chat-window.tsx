@@ -14,6 +14,7 @@ export function ChatWindow() {
 
   const [input, setInput] = useState("");
   const [showStop, setShowStop] = useState(false);
+  const [failedPrompt, setFailedPrompt] = useState<string | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -40,8 +41,10 @@ export function ChatWindow() {
     if (!text) return;
 
     setInput("");
+    if (inputRef.current) inputRef.current.style.height = "auto";
     setIsSending(true);
     setError(null);
+    setFailedPrompt(null);
 
     let convId = currentConversationId;
     let createdNow = false;
@@ -120,12 +123,14 @@ export function ChatWindow() {
       }
       // Roll back a conversation created by this failed send so empty
       // "New conversation" entries do not accumulate in the sidebar.
+      // Keep the prompt for inline retry.
       const store = useAIStore.getState();
       if (tempId) store.removeMessage(tempId);
       if (createdNow && convId) {
         store.removeConversation(convId);
         void aiService.deleteConversation(convId).catch(() => undefined);
       }
+      setFailedPrompt(text);
       setShowStop(false);
       setIsStreaming(false);
     } finally {
@@ -158,6 +163,13 @@ export function ChatWindow() {
     setShowStop(false);
     setIsStreaming(false);
     abortRef.current?.abort();
+  };
+
+  const autoGrow = () => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   };
 
   if (!currentConversationId && messages.length === 0) {
@@ -225,6 +237,21 @@ export function ChatWindow() {
             </div>
           )}
 
+          {failedPrompt && !isSending && !isStreaming && (
+            <div className="flex justify-start">
+              <div className="flex max-w-[80%] flex-col gap-2 rounded-2xl rounded-bl-sm border border-destructive/20 bg-destructive/5 px-4 py-3">
+                <p className="text-sm">Fixly couldn&apos;t complete that response.</p>
+                <button
+                  type="button"
+                  onClick={() => handleSend(failedPrompt)}
+                  className="self-start rounded-lg bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  Try again
+                </button>
+              </div>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
       </div>
@@ -250,11 +277,14 @@ export function ChatWindow() {
             <textarea
               ref={inputRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                autoGrow();
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Ask Fixly anything..."
               rows={1}
-              className="w-full resize-none rounded-xl border bg-background px-4 py-3 pr-12 text-sm outline-none focus:ring-2 focus:ring-primary"
+              className="max-h-[160px] w-full resize-none rounded-xl border bg-background px-4 py-3 pr-12 text-sm outline-none focus:ring-2 focus:ring-primary"
               disabled={isSending}
             />
             <button

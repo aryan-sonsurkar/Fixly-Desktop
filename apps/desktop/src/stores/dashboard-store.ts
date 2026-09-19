@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { DashboardData } from "@/lib/dashboard-service";
-import type { PlanResponse } from "@/lib/planner-service";
+import type { DailyBriefing } from "@/lib/planner-service";
 import type { DailyMissionResponse, RiskAssessmentResponse } from "@/lib/copilot-service";
 
 export interface DashboardWidget {
@@ -14,7 +14,7 @@ export interface DashboardWidget {
 
 export interface DashboardState {
   data: DashboardData | null;
-  briefing: PlanResponse | null;
+  briefing: DailyBriefing | null;
   loading: boolean;
   briefingLoading: boolean;
   widgets: DashboardWidget[];
@@ -23,7 +23,7 @@ export interface DashboardState {
   risk: RiskAssessmentResponse | null;
   riskLoading: boolean;
   setData: (data: DashboardData | null) => void;
-  setBriefing: (briefing: PlanResponse | null) => void;
+  setBriefing: (briefing: DailyBriefing | null) => void;
   setLoading: (loading: boolean) => void;
   setBriefingLoading: (loading: boolean) => void;
   setWidgets: (widgets: DashboardWidget[]) => void;

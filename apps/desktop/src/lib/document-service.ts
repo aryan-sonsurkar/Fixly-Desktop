@@ -8,7 +8,7 @@ export interface Document {
   file_type: string;
   file_size: number;
   page_count: number;
-  status: "pending" | "processing" | "processed" | "failed";
+  status: "pending" | "processing" | "processed" | "indexed" | "empty" | "failed";
   error_message: string | null;
   processing_time_ms: number | null;
   storage_path: string | null;
@@ -78,9 +78,9 @@ export interface GenerateContentResponse {
 export async function uploadDocument(file: File): Promise<Document> {
   const formData = new FormData();
   formData.append("file", file);
-  const response = await apiClient.post("/api/v1/documents/upload", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  // Never set Content-Type manually: the HTTP layer generates the multipart
+  // boundary. A manual header (or JSON-encoding the FormData) breaks uploads.
+  const response = await apiClient.post("/api/v1/documents/upload", formData);
   return response.data;
 }
 

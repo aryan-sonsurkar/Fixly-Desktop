@@ -51,13 +51,13 @@ export function MessageComponent({ message, onDelete, onResend }: MessageCompone
       animate={{ opacity: 1, y: 0 }}
       className={`group flex ${isUser ? "justify-end" : "justify-start"}`}
     >
-      <div className={`flex max-w-[80%] flex-col gap-1 ${isUser ? "items-end" : "items-start"}`}>
+      <div className={`flex w-full flex-col gap-1 ${isUser ? "items-end" : "items-start"}`}>
         <div
-          className={`rounded-2xl px-4 py-3 ${
+          className={
             isUser
-              ? "rounded-br-sm bg-primary text-primary-foreground"
-              : "rounded-bl-sm bg-muted"
-          }`}
+              ? "max-w-[80%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-primary-foreground"
+              : "w-full max-w-3xl"
+          }
         >
           {isEditing ? (
             <div className="flex flex-col gap-2">

@@ -15,39 +15,70 @@ const ALLOWED_TYPES = [
   "image/webp",
 ];
 
+const ALLOWED_EXTENSIONS = ["pdf", "png", "jpg", "jpeg", "webp"];
+const MAX_SIZE_BYTES = 50 * 1024 * 1024;
+
+function isAllowedFile(file: File): boolean {
+  // Tauri file metadata can carry a blank MIME type: fall back to extension.
+  if (ALLOWED_TYPES.includes(file.type)) return true;
+  const parts = file.name.split(".");
+  const ext = (parts.length > 1 ? parts.pop() : "")?.toLowerCase() ?? "";
+  return ALLOWED_EXTENSIONS.includes(ext);
+}
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / 1048576).toFixed(1)} MB`;
 }
 
-function getTypeLabel(type: string): string {
-  if (type === "application/pdf") return "PDF";
-  if (type.startsWith("image/")) return type.split("/")[1].toUpperCase();
-  return type;
+function getTypeLabel(file: File): string {
+  if (file.type === "application/pdf") return "PDF";
+  if (file.type.startsWith("image/")) return file.type.split("/")[1].toUpperCase();
+  const parts = file.name.split(".");
+  return (parts.length > 1 ? parts.pop() : "FILE")?.toUpperCase() ?? "FILE";
 }
 
 export function UploadDialog({ open, onClose, onUpload }: UploadDialogProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
+  const [rejected, setRejected] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const addFiles = useCallback((incoming: File[]) => {
+    const ok: File[] = [];
+    for (const f of incoming) {
+      if (!isAllowedFile(f)) {
+        setRejected(`"${f.name}" isn't a supported file. PDF, PNG, JPG or WEBP up to 50 MB.`);
+        continue;
+      }
+      if (f.size > MAX_SIZE_BYTES) {
+        setRejected(`"${f.name}" is larger than 50 MB.`);
+        continue;
+      }
+      if (f.size === 0) {
+        setRejected(`"${f.name}" is empty.`);
+        continue;
+      }
+      ok.push(f);
+    }
+    if (ok.length > 0) {
+      setRejected(null);
+      setFiles((prev) => [...prev, ...ok]);
+    }
+  }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const dropped = Array.from(e.dataTransfer.files).filter((f) =>
-      ALLOWED_TYPES.includes(f.type),
-    );
-    if (dropped.length > 0) {
-      setFiles((prev) => [...prev, ...dropped]);
-    }
-  }, []);
+    addFiles(Array.from(e.dataTransfer.files));
+  }, [addFiles]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files ? Array.from(e.target.files) : [];
-    setFiles((prev) => [...prev, ...selected]);
-  }, []);
+    addFiles(selected);
+  }, [addFiles]);
 
   const removeFile = useCallback((index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
@@ -99,6 +130,11 @@ export function UploadDialog({ open, onClose, onUpload }: UploadDialogProps) {
           </div>
 
           <AnimatePresence>
+            {rejected && (
+              <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {rejected}
+              </p>
+            )}
             {files.map((file, i) => (
               <motion.div
                 key={`${file.name}-${i}`}
@@ -108,7 +144,7 @@ export function UploadDialog({ open, onClose, onUpload }: UploadDialogProps) {
                 className="flex items-center gap-3 rounded-lg border bg-card p-3"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded bg-muted text-xs font-bold text-muted-foreground uppercase">
-                  {getTypeLabel(file.type)}
+                  {getTypeLabel(file)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="truncate text-sm font-medium">{file.name}</p>
