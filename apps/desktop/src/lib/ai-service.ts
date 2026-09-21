@@ -70,7 +70,8 @@ export interface OllamaModel {
 }
 
 export async function sendChat(data: ChatRequest): Promise<ChatResponse> {
-  const response = await apiClient.post("/api/v1/ai/chat", data);
+  // Local inference can take a minute+ on first load; allow minutes.
+  const response = await apiClient.post("/api/v1/ai/chat", data, { timeout: 300000 });
   return response.data;
 }
 
@@ -133,7 +134,7 @@ export async function sendChatStream(
 }
 
 export async function regenerateMessage(conversation_id: string, message_id: string): Promise<ChatResponse> {
-  const response = await apiClient.post("/api/v1/ai/regenerate", { conversation_id, message_id });
+  const response = await apiClient.post("/api/v1/ai/regenerate", { conversation_id, message_id }, { timeout: 300000 });
   return response.data;
 }
 

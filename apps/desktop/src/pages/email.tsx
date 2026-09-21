@@ -65,7 +65,31 @@ export function EmailPage() {
       queryClient.invalidateQueries({ queryKey: ["email-messages"] });
       toast({ type: "success", title: "Email synced" });
     },
-    onError: () => toast({ type: "error", title: "Failed to sync email" }),
+    onError: (err: unknown) => {
+      // Stage-coded backend errors (EMAIL_* codes) map to specific safe copy.
+      // Never surface raw provider output (may contain hostnames/credentials).
+      const code =
+        typeof err === "object" && err !== null && "response" in err
+          ? (err as { response?: { data?: { code?: unknown }; status?: unknown } }).response?.data?.code
+          : undefined;
+      const status =
+        typeof err === "object" && err !== null && "response" in err
+          ? (err as { response?: { status?: unknown } }).response?.status
+          : undefined;
+      const message =
+        code === "EMAIL_AUTH_FAILED"
+          ? "Email sign-in failed. Check the app password and reconnect the account."
+          : code === "EMAIL_PROVIDER_UNREACHABLE"
+            ? "Couldn't reach the email provider. Check your connection and try again."
+            : code === "EMAIL_FETCH_FAILED"
+              ? "Couldn't fetch new emails. Try again in a moment."
+              : code === "EMAIL_PERSISTENCE_FAILED"
+                ? "Couldn't save emails. Try again."
+                : status === 404
+                  ? "Email account not found. Reconnect it in Accounts."
+                  : "Failed to sync email";
+      toast({ type: "error", title: message });
+    },
   });
 
   const deleteMutation = useMutation({

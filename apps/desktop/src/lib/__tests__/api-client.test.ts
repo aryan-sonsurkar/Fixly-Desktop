@@ -141,6 +141,28 @@ describe("Tauri HTTP adapter", () => {
     expect(init.headers?.["Content-Type"]).toBeUndefined();
   });
 
+  it("passes an abort signal so configured timeouts are enforced", async () => {
+    const { fetch } = await import("@tauri-apps/plugin-http");
+    (fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
+      makeResponse(200, { ok: true }),
+    );
+
+    const { createTauriAdapter } = await import("@/lib/api-client");
+    const adapter = (await createTauriAdapter()) as unknown as MockAdapter;
+    await adapter({
+      url: "/api/v1/documents",
+      baseURL: "http://127.0.0.1:9999",
+      method: "get",
+      headers: {},
+      timeout: 300000,
+    } as never);
+
+    const calls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    const init = calls[0][1] as { signal?: unknown };
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    expect((init.signal as AbortSignal).aborted).toBe(false);
+  });
+
   it("resolves the backend port from Rust and targets it for requests", async () => {
     const { invoke } = await import("@tauri-apps/api/core");
     (invoke as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(12345);

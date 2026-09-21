@@ -32,12 +32,13 @@ export interface DailyBriefing {
 }
 
 export async function generateDailyPlan(): Promise<PlanResponse> {
-  const response = await apiClient.post("/api/v1/ai/plan/daily");
+  const response = await apiClient.post("/api/v1/ai/plan/daily", undefined, { timeout: 300000 });
   return response.data;
 }
 
 export async function generateDailyBriefing(): Promise<DailyBriefing> {
-  const response = await apiClient.post("/api/v1/ai/plan/daily/briefing");
+  // Two grounded AI generations (plan + narrative); allow minutes.
+  const response = await apiClient.post("/api/v1/ai/plan/daily/briefing", undefined, { timeout: 300000 });
   return response.data;
 }
 

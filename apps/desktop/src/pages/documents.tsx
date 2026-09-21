@@ -290,11 +290,13 @@ export function DocumentsPage() {
       );
       setUploadProgress(null);
       const failures = results.filter((r) => r.status === "rejected");
-      if (failures.length > 0 && failures.length === unique.length) {
-        throw new Error(`All ${unique.length} uploads failed`);
-      }
       if (failures.length > 0) {
-        throw new Error(`${failures.length}/${unique.length} uploads failed - check retries`);
+        // Preserve the first underlying failure so onError can distinguish
+        // auth/network/validation/server causes instead of a generic message.
+        const first = failures[0];
+        throw first.status === "rejected" && first.reason instanceof Error
+          ? first.reason
+          : new Error(`All ${unique.length} uploads failed`);
       }
     },
     onSuccess: () => {
@@ -305,14 +307,37 @@ export function DocumentsPage() {
     },
     onError: (err: unknown) => {
       // Student-safe copy only; technical detail stays in logs.
+      // Map the distinguishing failure so reports are diagnosable.
       console.error("[documents] Upload error:", err);
-      let msg = "Couldn't upload these documents. Check the file type and try again.";
-      if (err instanceof Error) {
-        if (err.message.includes("50MB") || err.message.toLowerCase().includes("size")) {
-          msg = "One or more files exceed the 50 MB limit.";
-        } else if (err.message.toLowerCase().includes("unsupported") || err.message.toLowerCase().includes("extension")) {
-          msg = "Unsupported file type. Supported types: PDF, PNG, JPG, WEBP.";
-        }
+      const response =
+        typeof err === "object" && err !== null && "response" in err
+          ? (err as { response?: { data?: { error?: unknown; code?: unknown }; status?: unknown } }).response
+          : undefined;
+      const status = typeof response?.status === "number" ? response.status : undefined;
+      const backendMessage = typeof response?.data?.error === "string" ? response.data.error : "";
+      const backendCode = typeof response?.data?.code === "string" ? response.data.code : "";
+      const text = `${backendCode} ${backendMessage} ${err instanceof Error ? err.message : ""}`.toLowerCase();
+      let msg: string;
+      if (status === 401) {
+        msg = "Your session expired. Sign in again, then retry the upload.";
+      } else if (status === 404) {
+        msg = "Upload service not found. Restart Fixly and try again.";
+      } else if (status === 422 || text.includes("50mb") || text.includes("size")) {
+        msg = "One or more files exceed the 50 MB limit.";
+      } else if (
+        text.includes("unsupported") ||
+        text.includes("extension") ||
+        text.includes("does not match")
+      ) {
+        msg = "Unsupported file type. Supported types: PDF, PNG, JPG, WEBP.";
+      } else if (status !== undefined && status >= 500) {
+        msg = "Fixly couldn't process the upload. Try again in a moment.";
+      } else if (text.includes("timeout") || text.includes("timed out")) {
+        msg = "The upload timed out. Check your connection and try a smaller file.";
+      } else if (text.includes("network") || status === undefined) {
+        msg = "Couldn't reach Fixly. Check that the app backend is running and try again.";
+      } else {
+        msg = "Couldn't upload these documents. Check the file type and try again.";
       }
       setUploadError(msg);
       setUploadProgress(null);

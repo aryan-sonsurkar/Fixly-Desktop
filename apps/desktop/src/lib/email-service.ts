@@ -103,7 +103,8 @@ export async function deleteEmailAccount(id: string): Promise<void> {
 }
 
 export async function syncEmailAccount(accountId: string): Promise<{ synced: number; duration_ms: number }> {
-  const response = await apiClient.post(`/api/v1/email/accounts/${accountId}/sync`);
+  // IMAP fetch + AI classification can take minutes on large inboxes.
+  const response = await apiClient.post(`/api/v1/email/accounts/${accountId}/sync`, undefined, { timeout: 300000 });
   return response.data;
 }
 

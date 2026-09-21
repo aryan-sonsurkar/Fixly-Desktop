@@ -4,7 +4,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from app.core.exceptions import NotFoundError, ValidationError
+from app.core.exceptions import EmailSyncError, NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.providers import get_provider
 from app.repositories.assignment_repository import AssignmentRepository
@@ -18,6 +18,37 @@ logger = get_logger(__name__)
 CATEGORIES = ["assignment", "exam", "project", "notice", "holiday", "event", "general", "spam"]
 HIGH_CONFIDENCE = 0.95
 MEDIUM_CONFIDENCE = 0.70
+
+
+def _classify_sync_error(error: Exception) -> EmailSyncError:
+    """Map a provider/network failure to a stage-coded sync error.
+
+    Codes are stable API contract for the UI taxonomy. Provider credential
+    failures use 502 (never 401) so a bad app-password can never trigger
+    the app session refresh flow.
+    """
+    text = f"{type(error).__name__}: {error}".lower()
+    if any(k in text for k in (
+        "authenticationfailed", "invalid credentials", "login failed",
+        "auth failed", "username and password not accepted", "application-specific password",
+    )):
+        return EmailSyncError(
+            "Email sign-in failed. Check the app password and reconnect the account.",
+            code="EMAIL_AUTH_FAILED",
+        )
+    if any(k in text for k in (
+        "name or service not known", "nodename nor servname", "temporary failure in name",
+        "network is unreachable", "connection refused", "connection reset",
+        "timed out", "timeout", "socket", "gaierror", "ssl",
+    )):
+        return EmailSyncError(
+            "Could not reach the email provider. Check your connection and try again.",
+            code="EMAIL_PROVIDER_UNREACHABLE",
+        )
+    return EmailSyncError(
+        "Could not fetch new emails. Try again in a moment.",
+        code="EMAIL_FETCH_FAILED",
+    )
 
 
 class EmailClassifier:
@@ -143,7 +174,13 @@ class EmailSyncWorker:
 
             for sync_msg in result.messages:
                 row = self._to_message_row(account, sync_msg)
-                await self.repository.upsert_message(user_id, row)
+                try:
+                    await self.repository.upsert_message(user_id, row)
+                except Exception as e:
+                    logger.error("Email persistence failed for account %s: %s", account_id, e)
+                    raise EmailSyncError(
+                        "Could not save fetched emails.", code="EMAIL_PERSISTENCE_FAILED"
+                    ) from e
                 synced += 1
 
             updates: dict[str, Any] = {
@@ -158,13 +195,15 @@ class EmailSyncWorker:
             duration = int((time.time() - start) * 1000)
             return {"account_id": account_id, "synced": synced, "duration_ms": duration}
 
+        except EmailSyncError:
+            raise
         except Exception as e:
             logger.error("Sync failed for account %s: %s", account_id, e)
             await self.repository.update_account(account_id, user_id, {
                 "sync_status": "error",
-                "sync_error": str(e),
+                "sync_error": "Sync failed. Check connection and credentials.",
             })
-            raise
+            raise _classify_sync_error(e) from e
 
     @staticmethod
     def _to_message_row(account: dict[str, Any], msg: Any) -> dict[str, Any]:
@@ -192,7 +231,7 @@ class EmailService:
         self.repository = EmailRepository(access_token=access_token)
         self.classifier = EmailClassifier(access_token=access_token)
         self.detector = DuplicateDetector(access_token=access_token)
-        self.sync_worker = EmailSyncWorker()
+        self.sync_worker = EmailSyncWorker(access_token=access_token)
         self.ai_service = AIService(access_token=access_token)
         self.study_service = StudyService(access_token=access_token)
         self.assignment_repo = AssignmentRepository(access_token=access_token)

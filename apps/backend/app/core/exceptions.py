@@ -43,6 +43,20 @@ class OCRUnavailableError(FixlyError):
     detail = "OCR engine is unavailable on this device"
 
 
+class EmailSyncError(FixlyError):
+    """Email sync failed at a specific stage. Never use 401 here: provider
+    auth failures must not trigger the app session refresh flow."""
+
+    status_code = 502
+    error_code = "EMAIL_SYNC_FAILED"
+    detail = "Email sync failed"
+
+    def __init__(self, detail: str | None = None, *, code: str | None = None) -> None:
+        if code is not None:
+            self.error_code = code
+        super().__init__(detail)
+
+
 async def fixly_exception_handler(request: Request, exc: FixlyError) -> JSONResponse:
     import os
 

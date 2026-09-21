@@ -80,12 +80,18 @@ export async function uploadDocument(file: File): Promise<Document> {
   formData.append("file", file);
   // Never set Content-Type manually: the HTTP layer generates the multipart
   // boundary. A manual header (or JSON-encoding the FormData) breaks uploads.
-  const response = await apiClient.post("/api/v1/documents/upload", formData);
+  // Generous timeout: large PDFs stream slowly through the Tauri IPC bridge.
+  const response = await apiClient.post("/api/v1/documents/upload", formData, {
+    timeout: 300000,
+  });
   return response.data;
 }
 
 export async function processDocument(id: string): Promise<Record<string, unknown>> {
-  const response = await apiClient.post(`/api/v1/documents/${id}/process`);
+  // Processing includes extraction + cold embedding-model load; allow minutes.
+  const response = await apiClient.post(`/api/v1/documents/${id}/process`, undefined, {
+    timeout: 300000,
+  });
   return response.data;
 }
 
@@ -127,26 +133,26 @@ export async function getRecentDocuments(limit = 5): Promise<Document[]> {
 }
 
 export async function chatWithDocument(data: DocumentChatRequest): Promise<DocumentChatResponse> {
-  const response = await apiClient.post("/api/v1/documents/chat", data);
+  const response = await apiClient.post("/api/v1/documents/chat", data, { timeout: 300000 });
   return response.data;
 }
 
 export async function summarizeDocument(id: string, maxLength = 500): Promise<GenerateContentResponse> {
-  const response = await apiClient.post(`/api/v1/documents/${id}/summarize`, { max_length: maxLength });
+  const response = await apiClient.post(`/api/v1/documents/${id}/summarize`, { max_length: maxLength }, { timeout: 300000 });
   return response.data;
 }
 
 export async function generateNotes(id: string, style = "detailed"): Promise<GenerateContentResponse> {
-  const response = await apiClient.post(`/api/v1/documents/${id}/notes`, { style });
+  const response = await apiClient.post(`/api/v1/documents/${id}/notes`, { style }, { timeout: 300000 });
   return response.data;
 }
 
 export async function generateFlashcards(id: string, count = 10): Promise<GenerateContentResponse> {
-  const response = await apiClient.post(`/api/v1/documents/${id}/flashcards`, { count });
+  const response = await apiClient.post(`/api/v1/documents/${id}/flashcards`, { count }, { timeout: 300000 });
   return response.data;
 }
 
 export async function generateQuiz(id: string, count = 5, difficulty = "medium"): Promise<GenerateContentResponse> {
-  const response = await apiClient.post(`/api/v1/documents/${id}/quiz`, { count, difficulty });
+  const response = await apiClient.post(`/api/v1/documents/${id}/quiz`, { count, difficulty }, { timeout: 300000 });
   return response.data;
 }

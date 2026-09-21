@@ -139,6 +139,14 @@ export async function createTauriAdapter(): Promise<typeof axios.defaults.adapte
     }
 
     let response;
+    // Custom adapters must enforce axios timeout themselves: abort the
+    // request after config.timeout so hung requests surface as explicit
+    // timeout errors instead of hanging forever.
+    const timeoutMs = typeof config.timeout === "number" && config.timeout > 0 ? config.timeout : 0;
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timer = timeoutMs > 0 && controller
+      ? setTimeout(() => controller.abort(new Error(`Request timed out after ${timeoutMs}ms: ${config.url || ""}`)), timeoutMs)
+      : null;
     try {
       if (isFormData && typeof window !== "undefined" && typeof window.fetch === "function") {
         // Native webview fetch streams FormData with automatic multipart/form-data boundary.
@@ -149,13 +157,16 @@ export async function createTauriAdapter(): Promise<typeof axios.defaults.adapte
             method,
             headers,
             body: config.data as FormData,
+            signal: controller?.signal,
           });
-        } catch {
+        } catch (err) {
+          if (controller?.signal.aborted) throw err;
           // Fall back to plugin-http fetch if window.fetch fails
           response = await fetch(url, {
             method,
             headers,
             body,
+            signal: controller?.signal,
           });
         }
       } else {
@@ -163,6 +174,7 @@ export async function createTauriAdapter(): Promise<typeof axios.defaults.adapte
           method,
           headers,
           body,
+          signal: controller?.signal,
         });
       }
     } catch (error) {
@@ -178,6 +190,8 @@ export async function createTauriAdapter(): Promise<typeof axios.defaults.adapte
                 ? String((error as { message: unknown }).message)
                 : "Network request failed",
           );
+    } finally {
+      if (timer) clearTimeout(timer);
     }
 
     const responseText = await response.text();
