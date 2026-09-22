@@ -1,6 +1,6 @@
 [project]
 name = "fixly-backend"
-version = "1.0.8"
+version = "1.0.9"
 description = "Fixly - AI-powered academic operating system backend"
 requires-python = ">=3.11"
 dependencies = [
