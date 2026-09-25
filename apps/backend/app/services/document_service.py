@@ -235,60 +235,123 @@ class DocumentService:
         if not doc:
             raise NotFoundError("Document not found")
 
+        status = str(doc.get("status", ""))
+        if status in ("pending", "processing"):
+            raise ValidationError("Document is still being processed. Try again in a moment.")
+
         all_chunks = await self.repository.get_chunks(document_id, user_id)
         full_text = "\n\n".join(c.get("content", "") for c in all_chunks)
+        if not full_text.strip():
+            raise ValidationError(
+                "This document has no extractable text to work with."
+                if status == "empty"
+                else "Document is still being processed. Try again in a moment."
+            )
         name = doc.get("original_name", "Document")
+        pages = sorted({c.get("page_number") for c in all_chunks if c.get("page_number")})
+        sources = [{
+            "title": name,
+            "pages": pages,
+            "chunk_count": len(all_chunks),
+        }]
 
-        prompts = {
-            "summarize": (
-                f"Summarize the following document '{name}' in a clear, structured way. "
-                f"Extract key points, main arguments, and important details. "
-                f"Keep the summary to approximately {kwargs.get('max_length', 500)} words.\n\n"
+        structured_types = {"flashcards", "quiz"}
+        if prompt_type == "flashcards":
+            count = int(kwargs.get("count", 10))
+            prompt = (
+                f"Create {count} flashcards from the document '{name}'. "
+                "Reply with ONLY a JSON array (no fences, no preamble). "
+                'Each item: {"front": "<question or term>", "back": "<answer>"}. '
+                "Cover the most important concepts.\n\n"
                 f"Document content:\n{full_text[:10000]}"
-            ),
-            "notes": (
-                f"Generate {kwargs.get('style', 'detailed')} study notes from the document '{name}'. "
-                f"Organize by topics and key concepts. Use bullet points and headings.\n\n"
+            )
+        elif prompt_type == "quiz":
+            count = int(kwargs.get("count", 5))
+            difficulty = str(kwargs.get("difficulty", "medium"))
+            prompt = (
+                f"Create {count} {difficulty}-difficulty quiz questions "
+                f"from the document '{name}'. "
+                "Reply with ONLY a JSON array (no fences, no preamble). "
+                'Each item: {"question": "...", "options": ["A) ...", "B) ...", '
+                '"C) ...", "D) ..."], "answer": "B) ...", '
+                '"explanation": "one sentence"}. For short-answer style, '
+                'use "options": [].\n\n'
                 f"Document content:\n{full_text[:10000]}"
+            )
+        else:
+            prompts = {
+                "summarize": (
+                    f"Summarize the following document '{name}' in a clear, structured way. "
+                    f"Extract key points, main arguments, and important details. "
+                    f"Keep the summary to approximately {kwargs.get('max_length', 500)} words.\n\n"
+                    f"Document content:\n{full_text[:10000]}"
+                ),
+                "notes": (
+                    f"Generate {kwargs.get('style', 'detailed')} study notes from the document '{name}'. "
+                    f"Organize by topics and key concepts. Use bullet points and headings.\n\n"
+                    f"Document content:\n{full_text[:10000]}"
+                ),
+                "explain": (
+                    f"Explain the difficult concepts in the document '{name}' in simple terms. "
+                    f"Break down complex ideas for a student.\n\n"
+                    f"Document content:\n{full_text[:10000]}"
+                ),
+            }
+            prompt = prompts.get(prompt_type)
+            if not prompt:
+                raise ValidationError(f"Unknown content type: {prompt_type}")
+
+        # Conversation-free generation: internal document actions must not
+        # create AI Workspace conversations or persist chat messages.
+        content = await self.ai_service.generate_text(
+            user_id=user_id,
+            prompt=prompt,
+            system_prompt=(
+                "You are Fixly AI helping a student study their document. "
+                "Use only the provided document content. "
+                "Output only what was requested, no preamble."
             ),
-            "flashcards": (
-                f"Create {kwargs.get('count', 10)} flashcards from the document '{name}'. "
-                f"Format each as Q&A pairs. Cover the most important concepts.\n\n"
-                f"Document content:\n{full_text[:10000]}"
-            ),
-            "quiz": (
-                f"Create {kwargs.get('count', 5)} {kwargs.get('difficulty', 'medium')}-difficulty "
-                f"quiz questions from the document '{name}'. Include multiple choice and short answer. "
-                f"Provide the correct answers after each question.\n\n"
-                f"Document content:\n{full_text[:10000]}"
-            ),
-            "explain": (
-                f"Explain the difficult concepts in the document '{name}' in simple terms. "
-                f"Break down complex ideas for a student.\n\n"
-                f"Document content:\n{full_text[:10000]}"
-            ),
+            max_tokens=2048,
+            temperature=0.5,
+        )
+
+        result: dict[str, Any] = {
+            "document_id": document_id,
+            "content_type": prompt_type,
+            "content": content,
+            "cards": [],
+            "questions": [],
+            "sources": sources,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
-
-        prompt = prompts.get(prompt_type)
-        if not prompt:
-            raise ValidationError(f"Unknown content type: {prompt_type}")
-
-        conv = await self.ai_repo.create_conversation(user_id, f"{prompt_type.title()} from {name}")
-        await self.repository.link_conversation(document_id, conv["id"], user_id)
-
-        result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
-
-        points_map = {
-            "summarize": "pdf_analysis",
-            "notes": "revision",
-            "flashcards": "flashcard",
-            "quiz": "quiz",
-            "explain": "ai_study",
-        }
+        if prompt_type in structured_types:
+            parsed = self._parse_structured_list(content)
+            if prompt_type == "flashcards":
+                result["cards"] = [
+                    {"front": str(i.get("front", "")), "back": str(i.get("back", ""))}
+                    for i in parsed
+                    if isinstance(i, dict) and (i.get("front") or i.get("back"))
+                ][:20]
+            else:
+                result["questions"] = [
+                    {
+                        "question": str(i.get("question", "")),
+                        "options": [str(o) for o in (i.get("options") or [])][:6],
+                        "answer": str(i.get("answer", "")),
+                        "explanation": str(i.get("explanation", "")),
+                    }
+                    for i in parsed
+                    if isinstance(i, dict) and i.get("question")
+                ][:20]
 
         try:
             await self.study_service.log_session(user_id, {
-                "activity_type": points_map.get(prompt_type, "ai_study"),
+                "activity_type": {
+                    "summarize": "pdf_analysis",
+                    "notes": "revision",
+                    "flashcards": "flashcard",
+                    "quiz": "quiz",
+                }.get(prompt_type, "ai_study"),
                 "duration_minutes": 2,
                 "subject_id": doc.get("subject_id"),
                 "metadata": {
@@ -300,10 +363,27 @@ class DocumentService:
         except Exception as e:
             logger.error("Failed to log content generation session: %s", e)
 
-        return {
-            "message": result["message"],
-            "conversation": result["conversation"],
-        }
+        return result
+
+    @staticmethod
+    def _parse_structured_list(content: str) -> list[Any]:
+        """Lenient JSON-array extraction for flashcards/quiz output."""
+        import json as _json
+        import re as _re
+
+        s = content.strip()
+        fence = _re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", s)
+        if fence:
+            s = fence.group(1).strip()
+        if not s.startswith("["):
+            m = _re.search(r"\[[\s\S]*\]", s)
+            if m:
+                s = m.group(0)
+        try:
+            data = _json.loads(s)
+        except Exception:
+            return []
+        return data if isinstance(data, list) else []
 
     async def get_document_detail(self, document_id: str, user_id: str) -> dict[str, Any]:
         doc = await self.repository.get_document(document_id, user_id)

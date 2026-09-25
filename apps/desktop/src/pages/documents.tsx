@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button, Input, Badge, Skeleton } from "@fixly/ui";
 import { UploadDialog } from "@/components/documents/upload-dialog";
 import { DocumentChat } from "@/components/documents/document-chat";
+import { DocumentFilename } from "@/components/documents/document-filename";
+import { MarkdownRenderer } from "@/components/ai/markdown-renderer";
 import {
   listDocuments,
   getDocument,
@@ -18,6 +20,10 @@ import {
   generateQuiz,
   type Document,
   type DocumentDetail,
+  type DocumentCard as FlashcardData,
+  type QuizQuestion,
+  type DocumentSource,
+  type GenerateContentResponse,
 } from "@/lib/document-service";
 
 const typeColors: Record<string, string> = {
@@ -80,11 +86,11 @@ function DocumentCard({ doc, onSelect, onDelete, onFavorite, onRetry }: {
           <div className={`flex h-10 w-10 items-center justify-center rounded text-xs font-bold ${typeColors[doc.file_type] || "bg-muted text-muted-foreground"}`}>
             {doc.file_type.toUpperCase()}
           </div>
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{doc.original_name}</p>
+          <div className="min-w-0 flex-1">
+            <DocumentFilename name={doc.original_name} />
             <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
               <span>{formatSize(doc.file_size)}</span>
-              {doc.page_count > 0 && <span>&middot; {doc.page_count}p</span>}
+              {doc.page_count > 0 && <span>&middot; {doc.page_count} pages</span>}
               <span>&middot; {formatDate(doc.created_at)}</span>
             </div>
           </div>
@@ -138,17 +144,43 @@ function DocumentCard({ doc, onSelect, onDelete, onFavorite, onRetry }: {
 function DocumentViewer({ doc, onBack }: { doc: DocumentDetail; onBack: () => void }) {
   const [activeTab, setActiveTab] = useState<"chat" | "actions">("chat");
 
-  const [actionError, setActionError] = useState<string | null>(null);
+  type ActionKind = "summarize" | "notes" | "flashcards" | "quiz";
+  interface ActionState {
+    status: "idle" | "generating" | "success" | "error";
+    result: GenerateContentResponse | null;
+  }
+  const [actions, setActions] = useState<Record<ActionKind, ActionState>>({
+    summarize: { status: "idle", result: null },
+    notes: { status: "idle", result: null },
+    flashcards: { status: "idle", result: null },
+    quiz: { status: "idle", result: null },
+  });
 
-  const handleAction = async (action: () => Promise<unknown>) => {
+  const runAction = async (kind: ActionKind, fn: () => Promise<GenerateContentResponse>) => {
+    setActions((prev) => ({ ...prev, [kind]: { status: "generating", result: prev[kind].result } }));
     try {
-      setActionError(null);
-      await action();
+      const result = await fn();
+      setActions((prev) => ({ ...prev, [kind]: { status: "success", result } }));
     } catch {
-      // Student-safe copy only; backend detail stays in logs.
-      setActionError("Couldn't complete that action. Please try again.");
+      setActions((prev) => ({ ...prev, [kind]: { status: "error", result: prev[kind].result } }));
     }
   };
+
+  const retryAction = (kind: ActionKind) => {
+    if (kind === "summarize") runAction(kind, () => summarizeDocument(doc.id));
+    else if (kind === "notes") runAction(kind, () => generateNotes(doc.id));
+    else if (kind === "flashcards") runAction(kind, () => generateFlashcards(doc.id));
+    else runAction(kind, () => generateQuiz(doc.id));
+  };
+
+  const generatingLabels: Record<ActionKind, string> = {
+    summarize: "Reading document…",
+    notes: "Generating summary…",
+    flashcards: "Building flashcards from your notes…",
+    quiz: "Building quiz from your notes…",
+  };
+
+  const docReady = doc.status === "indexed" || doc.status === "processed";
 
   return (
     <div className="flex h-full flex-col">
@@ -159,10 +191,11 @@ function DocumentViewer({ doc, onBack }: { doc: DocumentDetail; onBack: () => vo
           </svg>
         </Button>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{doc.original_name}</p>
-          <p className="text-xs text-muted-foreground">
+          <DocumentFilename name={doc.original_name} />
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {doc.file_type.toUpperCase()} &middot; {formatSize(doc.file_size)}
             {doc.page_count > 0 && ` &middot; ${doc.page_count} pages`}
+            &middot; {doc.status === "indexed" || doc.status === "processed" ? "Ready" : doc.status}
           </p>
         </div>
         <div className="flex gap-1">
@@ -181,38 +214,73 @@ function DocumentViewer({ doc, onBack }: { doc: DocumentDetail; onBack: () => vo
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-y-auto">
         {activeTab === "chat" ? (
-          <DocumentChat documentId={doc.id} />
+          <DocumentChat documentId={doc.id} docTitle={doc.original_name} />
         ) : (
-          <div className="p-4">
-            {actionError && (
-              <div className="mb-3 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                {actionError}
+          <div className="mx-auto w-full max-w-3xl space-y-3 p-4">
+            {!docReady && (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-600">
+                {doc.status === "empty"
+                  ? "This document has no extractable text, so actions are unavailable."
+                  : "Document is still being processed. Actions will work when it's ready."}
               </div>
             )}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <ActionButton
-              label="Summarize"
-              icon="M4 6h16M4 12h16M4 18h7"
-              onClick={() => handleAction(() => summarizeDocument(doc.id))}
-            />
-            <ActionButton
-              label="Generate Notes"
-              icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              onClick={() => handleAction(() => generateNotes(doc.id))}
-            />
-            <ActionButton
-              label="Flashcards"
-              icon="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-              onClick={() => handleAction(() => generateFlashcards(doc.id))}
-            />
-            <ActionButton
-              label="Quiz"
-              icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-              onClick={() => handleAction(() => generateQuiz(doc.id))}
-            />
-          </div>
+                label="Summarize"
+                desc="Get the key ideas"
+                icon="M4 6h16M4 12h16M4 18h7"
+                disabled={!docReady}
+                loading={actions.summarize.status === "generating"}
+                onClick={() => runAction("summarize", () => summarizeDocument(doc.id))}
+              />
+              <ActionButton
+                label="Study Notes"
+                desc="Turn this into structured notes"
+                icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                disabled={!docReady}
+                loading={actions.notes.status === "generating"}
+                onClick={() => runAction("notes", () => generateNotes(doc.id))}
+              />
+              <ActionButton
+                label="Flashcards"
+                desc="Practice active recall"
+                icon="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                disabled={!docReady}
+                loading={actions.flashcards.status === "generating"}
+                onClick={() => runAction("flashcards", () => generateFlashcards(doc.id))}
+              />
+              <ActionButton
+                label="Quiz"
+                desc="Test what you know"
+                icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                disabled={!docReady}
+                loading={actions.quiz.status === "generating"}
+                onClick={() => runAction("quiz", () => generateQuiz(doc.id))}
+              />
+            </div>
+            {(["summarize", "notes", "flashcards", "quiz"] as ActionKind[]).map((kind) =>
+              actions[kind].status === "generating" ? (
+                <div key={`${kind}-loading`} className="flex items-center gap-2 rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+                  {generatingLabels[kind]}
+                </div>
+              ) : actions[kind].status === "error" ? (
+                <div key={`${kind}-error`} className="flex items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+                  <span className="text-destructive">Couldn&apos;t complete that action. Please try again.</span>
+                  <Button size="sm" variant="outline" onClick={() => retryAction(kind)}>
+                    Retry
+                  </Button>
+                </div>
+              ) : actions[kind].status === "success" && actions[kind].result ? (
+                <ActionResult
+                  key={`${kind}-result`}
+                  kind={kind}
+                  result={actions[kind].result as GenerateContentResponse}
+                />
+              ) : null,
+            )}
           </div>
         )}
       </div>
@@ -220,19 +288,220 @@ function DocumentViewer({ doc, onBack }: { doc: DocumentDetail; onBack: () => vo
   );
 }
 
-function ActionButton({ label, icon, onClick }: { label: string; icon: string; onClick: () => void }) {
+function ActionButton({ label, desc, icon, onClick, disabled, loading }: {
+  label: string;
+  desc: string;
+  icon: string;
+  onClick: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+}) {
   return (
     <motion.button
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
+      whileHover={disabled ? undefined : { scale: 1.01 }}
+      whileTap={disabled ? undefined : { scale: 0.99 }}
       onClick={onClick}
-      className="flex flex-col items-center gap-2 rounded-lg border bg-card p-4 text-sm transition-colors hover:bg-accent"
+      disabled={disabled || loading}
+      className="flex items-center gap-3 rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary/30 hover:bg-accent/50 disabled:cursor-not-allowed disabled:opacity-50"
     >
-      <svg className="h-6 w-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
-      </svg>
-      <span>{label}</span>
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+        {loading ? (
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        ) : (
+          <svg className="h-5 w-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d={icon} />
+          </svg>
+        )}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium">{label}</span>
+        <span className="block truncate text-xs text-muted-foreground">{loading ? "Working…" : desc}</span>
+      </span>
     </motion.button>
+  );
+}
+
+function SourcesLine({ sources }: { sources: DocumentSource[] }) {
+  if (!sources || sources.length === 0) return null;
+  return (
+    <div className="mt-3 border-t pt-2">
+      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Sources</p>
+      {sources.map((s, i) => (
+        <p key={i} className="mt-0.5 truncate text-xs text-muted-foreground">
+          {s.title}
+          {s.pages.length > 0 && (
+            <span> &middot; p.{s.pages.slice(0, 6).join(", p.")}{s.pages.length > 6 ? ` +${s.pages.length - 6} more` : ""}</span>
+          )}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function ActionResult({ kind, result }: {
+  kind: "summarize" | "notes" | "flashcards" | "quiz";
+  result: GenerateContentResponse;
+}) {
+  if (kind === "flashcards") {
+    return (
+      <div className="rounded-xl border bg-card p-4">
+        <p className="mb-3 text-sm font-semibold">Flashcards</p>
+        {result.cards.length > 0 ? (
+          <FlashcardDeck cards={result.cards} />
+        ) : (
+          <MarkdownRenderer content={result.content} />
+        )}
+        <SourcesLine sources={result.sources} />
+      </div>
+    );
+  }
+  if (kind === "quiz") {
+    return (
+      <div className="rounded-xl border bg-card p-4">
+        <p className="mb-3 text-sm font-semibold">Quiz</p>
+        {result.questions.length > 0 ? (
+          <QuizRunner questions={result.questions} />
+        ) : (
+          <MarkdownRenderer content={result.content} />
+        )}
+        <SourcesLine sources={result.sources} />
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <p className="mb-2 text-sm font-semibold">{kind === "summarize" ? "Summary" : "Study Notes"}</p>
+      <MarkdownRenderer content={result.content} />
+      <SourcesLine sources={result.sources} />
+    </div>
+  );
+}
+
+function FlashcardDeck({ cards }: { cards: FlashcardData[] }) {
+  const [index, setIndex] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const card = cards[Math.min(index, cards.length - 1)];
+  if (!card) return null;
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setFlipped((f) => !f)}
+        className="flex min-h-32 w-full flex-col items-center justify-center gap-2 rounded-lg bg-muted/50 px-4 py-6 text-center transition-colors hover:bg-muted"
+        aria-label={flipped ? "Show front" : "Show back"}
+      >
+        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          {flipped ? "Answer" : "Question"} &middot; {index + 1}/{cards.length}
+        </span>
+        <span className="text-sm">{flipped ? card.back || "(no answer)" : card.front}</span>
+        <span className="text-[11px] text-muted-foreground">Tap to flip</span>
+      </button>
+      <div className="mt-2 flex items-center justify-between">
+        <Button
+          size="sm" variant="outline"
+          disabled={index === 0}
+          onClick={() => { setIndex((i) => Math.max(0, i - 1)); setFlipped(false); }}
+        >
+          Previous
+        </Button>
+        <Button
+          size="sm" variant="outline"
+          disabled={index >= cards.length - 1}
+          onClick={() => { setIndex((i) => Math.min(cards.length - 1, i + 1)); setFlipped(false); }}
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function QuizRunner({ questions }: { questions: QuizQuestion[] }) {
+  const [index, setIndex] = useState(0);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [score, setScore] = useState(0);
+  const [done, setDone] = useState(false);
+  const q = questions[Math.min(index, questions.length - 1)];
+  if (!q) return null;
+
+  const checkAnswer = (choice: string) => {
+    if (picked !== null) return;
+    setPicked(choice);
+    if (choice.trim().toLowerCase() === q.answer.trim().toLowerCase()) {
+      setScore((s) => s + 1);
+    }
+  };
+
+  const next = () => {
+    if (index >= questions.length - 1) {
+      setDone(true);
+      return;
+    }
+    setIndex((i) => i + 1);
+    setPicked(null);
+  };
+
+  if (done) {
+    return (
+      <div className="rounded-lg bg-muted/50 px-4 py-6 text-center">
+        <p className="text-sm font-semibold">Score: {score}/{questions.length}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {score === questions.length ? "Perfect — nice work." : "Review the material and try again."}
+        </p>
+        <Button
+          size="sm" variant="outline" className="mt-3"
+          onClick={() => { setIndex(0); setPicked(null); setScore(0); setDone(false); }}
+        >
+          Retry quiz
+        </Button>
+      </div>
+    );
+  }
+
+  const isCorrect = picked !== null && picked.trim().toLowerCase() === q.answer.trim().toLowerCase();
+  return (
+    <div>
+      <p className="text-[11px] text-muted-foreground">Question {index + 1}/{questions.length}</p>
+      <p className="mt-1 text-sm font-medium">{q.question}</p>
+      <div className="mt-2 space-y-1.5">
+        {(q.options.length > 0 ? q.options : ["True", "False"]).map((opt) => {
+          const selected = picked === opt;
+          const isAnswer = opt.trim().toLowerCase() === q.answer.trim().toLowerCase();
+          return (
+            <button
+              key={opt}
+              type="button"
+              disabled={picked !== null && q.options.length === 0}
+              onClick={() => (q.options.length > 0 ? checkAnswer(opt) : setPicked(opt))}
+              className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                picked === null
+                  ? "hover:bg-accent"
+                  : selected && isCorrect
+                    ? "border-green-500/50 bg-green-500/10"
+                    : selected
+                      ? "border-destructive/50 bg-destructive/10"
+                      : isAnswer && q.options.length > 0
+                        ? "border-green-500/50 bg-green-500/10"
+                        : "opacity-70"
+              }`}
+            >
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+      {picked !== null && (
+        <div className="mt-2 rounded-lg bg-muted/50 px-3 py-2 text-xs">
+          <p className={isCorrect ? "font-medium text-green-600" : "font-medium text-destructive"}>
+            {isCorrect ? "Correct." : `Not quite. Answer: ${q.answer}`}
+          </p>
+          {q.explanation && <p className="mt-1 text-muted-foreground">{q.explanation}</p>}
+          <Button size="sm" variant="outline" className="mt-2" onClick={next}>
+            {index >= questions.length - 1 ? "See score" : "Next"}
+          </Button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -273,6 +542,15 @@ export function DocumentsPage() {
       });
       setUploadProgress(`Uploading 0/${unique.length}...`);
       setUploadError(null);
+      // Safe metadata only (never contents): diagnoses picker/size issues.
+      for (const f of unique) {
+        const sizeBytes = typeof f.size === "number" ? f.size : NaN;
+        console.debug(
+          `[documents] picked file=${JSON.stringify(f.name)} ` +
+            `sizeBytes=${sizeBytes} sizeMB=${Number.isFinite(sizeBytes) ? (sizeBytes / 1048576).toFixed(2) : "?"} ` +
+            `type=${JSON.stringify(f.type || "")}`,
+        );
+      }
       const results = await Promise.allSettled(
         unique.map(async (file, idx) => {
           setUploadProgress(`Uploading ${idx + 1}/${unique.length}: ${file.name}`);
@@ -308,6 +586,8 @@ export function DocumentsPage() {
     onError: (err: unknown) => {
       // Student-safe copy only; technical detail stays in logs.
       // Map the distinguishing failure so reports are diagnosable.
+      // NOTE: check message text BEFORE bare status codes: a 422 carrying
+      // "content mismatch" must not be misreported as a size error.
       console.error("[documents] Upload error:", err);
       const response =
         typeof err === "object" && err !== null && "response" in err
@@ -322,14 +602,17 @@ export function DocumentsPage() {
         msg = "Your session expired. Sign in again, then retry the upload.";
       } else if (status === 404) {
         msg = "Upload service not found. Restart Fixly and try again.";
-      } else if (status === 422 || text.includes("50mb") || text.includes("size")) {
+      } else if (text.includes("50mb") || (text.includes("size") && text.includes("exceed"))) {
         msg = "One or more files exceed the 50 MB limit.";
       } else if (
         text.includes("unsupported") ||
         text.includes("extension") ||
-        text.includes("does not match")
+        text.includes("does not match") ||
+        text.includes("empty file")
       ) {
-        msg = "Unsupported file type. Supported types: PDF, PNG, JPG, WEBP.";
+        msg = "That file couldn't be uploaded. Supported types: PDF, PNG, JPG, WEBP.";
+      } else if (status === 422) {
+        msg = "That file couldn't be uploaded. Check the file type and try again.";
       } else if (status !== undefined && status >= 500) {
         msg = "Fixly couldn't process the upload. Try again in a moment.";
       } else if (text.includes("timeout") || text.includes("timed out")) {
@@ -339,7 +622,11 @@ export function DocumentsPage() {
       } else {
         msg = "Couldn't upload these documents. Check the file type and try again.";
       }
-      setUploadError(msg);
+      // Developer-readable detail (status + backend code only, no internals).
+      const detail = status !== undefined || backendCode
+        ? `(error ${status ?? "network"}${backendCode ? ` · ${backendCode}` : ""})`
+        : null;
+      setUploadError(detail ? `${msg} ${detail}` : msg);
       setUploadProgress(null);
     },
   });

@@ -45,7 +45,10 @@ function renderInline(parts: (string | { bold?: string; code?: string; italic?: 
 }
 
 export function MarkdownRenderer({ content }: MarkdownRendererProps) {
-  const blocks = parseBlocks(content);
+  // Backend payloads can carry null/undefined content (failed or partial AI
+  // generations, legacy response shapes). Never let that crash the app:
+  // render nothing instead of throwing inside parseBlocks.
+  const blocks = parseBlocks(content ?? "");
 
   return <div className="space-y-3 leading-relaxed">{blocks.map(renderBlock)}</div>;
 }

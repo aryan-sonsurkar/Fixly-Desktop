@@ -62,17 +62,32 @@ export interface DocumentChatResponse {
   chunks_used: DocumentChunk[];
 }
 
+export interface DocumentCard {
+  front: string;
+  back: string;
+}
+
+export interface QuizQuestion {
+  question: string;
+  options: string[];
+  answer: string;
+  explanation: string;
+}
+
+export interface DocumentSource {
+  title: string;
+  pages: number[];
+  chunk_count: number;
+}
+
 export interface GenerateContentResponse {
-  message: {
-    id: string;
-    content: string;
-    role: string;
-    created_at: string;
-  };
-  conversation: {
-    id: string;
-    title: string;
-  };
+  document_id: string;
+  content_type: string;
+  content: string;
+  cards: DocumentCard[];
+  questions: QuizQuestion[];
+  sources: DocumentSource[];
+  generated_at: string;
 }
 
 export async function uploadDocument(file: File): Promise<Document> {

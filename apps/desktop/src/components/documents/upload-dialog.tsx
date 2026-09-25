@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Button } from "@fixly/ui";
+import { DocumentFilename } from "@/components/documents/document-filename";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface UploadDialogProps {
@@ -18,12 +19,34 @@ const ALLOWED_TYPES = [
 const ALLOWED_EXTENSIONS = ["pdf", "png", "jpg", "jpeg", "webp"];
 const MAX_SIZE_BYTES = 50 * 1024 * 1024;
 
+export type FileCheck = { ok: true } | { ok: false; reason: string };
+
+function fileExtension(name: string): string {
+  const parts = name.split(".");
+  return (parts.length > 1 ? parts.pop() : "")?.toLowerCase() ?? "";
+}
+
+/** Pure, unit-testable pre-upload validation. Never inspects file contents. */
+export function checkPickedFile(file: { name: string; type: string; size: unknown }): FileCheck {
+  const size = typeof file.size === "number" ? file.size : Number.NaN;
+  if (!isAllowedFile(file as File)) {
+    return { ok: false, reason: "type" };
+  }
+  if (!Number.isFinite(size) || size <= 0) {
+    return { ok: false, reason: "empty" };
+  }
+  if (size > MAX_SIZE_BYTES) {
+    return { ok: false, reason: "size" };
+  }
+  return { ok: true };
+}
+
+export { MAX_SIZE_BYTES };
+
 function isAllowedFile(file: File): boolean {
   // Tauri file metadata can carry a blank MIME type: fall back to extension.
   if (ALLOWED_TYPES.includes(file.type)) return true;
-  const parts = file.name.split(".");
-  const ext = (parts.length > 1 ? parts.pop() : "")?.toLowerCase() ?? "";
-  return ALLOWED_EXTENSIONS.includes(ext);
+  return ALLOWED_EXTENSIONS.includes(fileExtension(file.name));
 }
 
 function formatSize(bytes: number): string {
@@ -35,8 +58,7 @@ function formatSize(bytes: number): string {
 function getTypeLabel(file: File): string {
   if (file.type === "application/pdf") return "PDF";
   if (file.type.startsWith("image/")) return file.type.split("/")[1].toUpperCase();
-  const parts = file.name.split(".");
-  return (parts.length > 1 ? parts.pop() : "FILE")?.toUpperCase() ?? "FILE";
+  return fileExtension(file.name).toUpperCase() || "FILE";
 }
 
 export function UploadDialog({ open, onClose, onUpload }: UploadDialogProps) {
@@ -49,16 +71,15 @@ export function UploadDialog({ open, onClose, onUpload }: UploadDialogProps) {
   const addFiles = useCallback((incoming: File[]) => {
     const ok: File[] = [];
     for (const f of incoming) {
-      if (!isAllowedFile(f)) {
-        setRejected(`"${f.name}" isn't a supported file. PDF, PNG, JPG or WEBP up to 50 MB.`);
-        continue;
-      }
-      if (f.size > MAX_SIZE_BYTES) {
-        setRejected(`"${f.name}" is larger than 50 MB.`);
-        continue;
-      }
-      if (f.size === 0) {
-        setRejected(`"${f.name}" is empty.`);
+      const check = checkPickedFile(f);
+      if (!check.ok) {
+        if (check.reason === "size") {
+          setRejected(`"${f.name}" is larger than 50 MB.`);
+        } else if (check.reason === "empty") {
+          setRejected(`"${f.name}" is empty.`);
+        } else {
+          setRejected(`"${f.name}" isn't a supported file. PDF, PNG, JPG or WEBP up to 50 MB.`);
+        }
         continue;
       }
       ok.push(f);
@@ -147,7 +168,7 @@ export function UploadDialog({ open, onClose, onUpload }: UploadDialogProps) {
                   {getTypeLabel(file)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="truncate text-sm font-medium">{file.name}</p>
+                  <DocumentFilename name={file.name} />
                   <p className="text-xs text-muted-foreground">{formatSize(file.size)}</p>
                 </div>
                 <button

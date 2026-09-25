@@ -107,9 +107,26 @@ function serializeHeaders(headers: Record<string, unknown>): Record<string, stri
   return result;
 }
 
-export async function createTauriAdapter(): Promise<typeof axios.defaults.adapter> {
-  const { fetch } = await import("@tauri-apps/plugin-http");
+type FetchLike = (
+  url: string,
+  init?: { method?: string; headers?: Record<string, string>; body?: BodyInit | null; signal?: AbortSignal | null },
+) => Promise<Response>;
 
+let cachedPluginFetch: FetchLike | null | undefined;
+
+/** Lazily resolve the Tauri HTTP plugin fetch; null outside Tauri. Cached. */
+async function getPluginFetch(): Promise<FetchLike | null> {
+  if (cachedPluginFetch !== undefined) return cachedPluginFetch;
+  try {
+    const { fetch } = await import("@tauri-apps/plugin-http");
+    cachedPluginFetch = fetch as unknown as FetchLike;
+  } catch {
+    cachedPluginFetch = null;
+  }
+  return cachedPluginFetch;
+}
+
+export async function createTauriAdapter(): Promise<typeof axios.defaults.adapter> {
   return async (config: InternalAxiosRequestConfig): Promise<AxiosResponse> => {
     await ensureBackendPort();
     const url = `${getBaseUrl()}${config.url || ""}`;
@@ -125,9 +142,10 @@ export async function createTauriAdapter(): Promise<typeof axios.defaults.adapte
     let body: BodyInit | undefined;
     if (config.data && method !== "GET" && method !== "HEAD") {
       if (isFormData) {
-        // Multipart upload: drop any manually set Content-Type so the browser/runtime
-        // generates the boundary. Manually setting "multipart/form-data" without a boundary
-        // or JSON-stringifying FormData breaks uploads in packaged builds.
+        // Multipart upload: drop any Content-Type axios merged in (the JSON
+        // instance default, or dispatchRequest's urlencoded fallback) so the
+        // transport generates the correct multipart boundary. Any explicit
+        // multipart value without a boundary breaks uploads in every build.
         body = config.data;
         const contentTypeKey = Object.keys(headers).find(
           (k) => k.toLowerCase() === "content-type",
@@ -138,7 +156,7 @@ export async function createTauriAdapter(): Promise<typeof axios.defaults.adapte
       }
     }
 
-    let response;
+    let response: Response | undefined;
     // Custom adapters must enforce axios timeout themselves: abort the
     // request after config.timeout so hung requests surface as explicit
     // timeout errors instead of hanging forever.
@@ -147,52 +165,85 @@ export async function createTauriAdapter(): Promise<typeof axios.defaults.adapte
     const timer = timeoutMs > 0 && controller
       ? setTimeout(() => controller.abort(new Error(`Request timed out after ${timeoutMs}ms: ${config.url || ""}`)), timeoutMs)
       : null;
-    try {
-      if (isFormData && typeof window !== "undefined" && typeof window.fetch === "function") {
-        // Native webview fetch streams FormData with automatic multipart/form-data boundary.
-        // This avoids plugin-http IPC buffer conversion (which strips the boundary in Chromium
-        // and serializes entire files into massive JSON arrays).
-        try {
-          response = await window.fetch(url, {
-            method,
-            headers,
-            body: config.data as FormData,
-            signal: controller?.signal,
-          });
-        } catch (err) {
-          if (controller?.signal.aborted) throw err;
-          // Fall back to plugin-http fetch if window.fetch fails
-          response = await fetch(url, {
-            method,
-            headers,
-            body,
-            signal: controller?.signal,
-          });
-        }
-      } else {
-        response = await fetch(url, {
-          method,
-          headers,
-          body,
-          signal: controller?.signal,
-        });
+    // Transport priority: native fetch (browser AND webview generate correct
+    // multipart boundaries) → Tauri plugin fetch (no-CORS Rust client) →
+    // global fetch fallback. Never send FormData through a transport that
+    // forces a boundary-less Content-Type.
+    const nativeFetch: FetchLike | null =
+      typeof window !== "undefined" && typeof window.fetch === "function"
+        ? window.fetch.bind(window)
+        : null;
+    const init = { method, headers, body, signal: controller?.signal ?? null };
+    // Try each available transport in order until one returns a response.
+    // Order per payload: FormData prefers native fetch (only it generates a
+    // correct multipart boundary); JSON prefers the Tauri plugin (CORS-free
+    // Rust client, preserving long-standing behavior and tests). A transport
+    // that throws (missing runtime, network) falls through to the next one;
+    // user aborts always propagate immediately. A cross-realm AbortSignal
+    // (rejected by brand check) is retried once without the signal.
+    const isSignalBrandError = (e: unknown) =>
+      e instanceof Error && e.message.includes("AbortSignal");
+    const runTransport = async (
+      kind: "native" | "plugin" | "global",
+      useSignal: boolean,
+    ): Promise<Response | null> => {
+      const attempt = useSignal ? init : { ...init, signal: null };
+      if (kind === "native" && nativeFetch) return nativeFetch(url, attempt);
+      if (kind === "plugin") {
+        const pluginFetch = await getPluginFetch();
+        if (pluginFetch) return pluginFetch(url, attempt);
+        return null;
       }
-    } catch (error) {
-      // The Tauri fetch wrapper rejects with a plain (non-Error) value on
-      // network-level failures (often the raw Rust error string); normalize it
+      if (kind === "global" && typeof globalThis.fetch === "function") {
+        return globalThis.fetch(url, attempt as RequestInit);
+      }
+      return null;
+    };
+    const order: Array<"native" | "plugin" | "global"> = isFormData
+      ? ["native", "plugin", "global"]
+      : ["plugin", "native", "global"];
+    let lastError: unknown = new Error("No HTTP transport available");
+    for (const kind of order) {
+      try {
+        const result = await runTransport(kind, true);
+        if (result) {
+          response = result;
+          break;
+        }
+      } catch (err) {
+        if (controller?.signal.aborted) throw err;
+        if (isSignalBrandError(err)) {
+          try {
+            const retry = await runTransport(kind, false);
+            if (retry) {
+              response = retry;
+              break;
+            }
+          } catch (err2) {
+            if (controller?.signal.aborted) throw err2;
+            lastError = err2;
+          }
+        } else {
+          lastError = err;
+        }
+      }
+    }
+    if (!response) {
+      // Normalize plain (non-Error) rejections — the Tauri fetch wrapper
+      // rejects with the raw Rust error string on network-level failures —
       // so interceptors/UI always see an Error with the real reason.
-      throw error instanceof Error
-        ? error
+      throw lastError instanceof Error
+        ? lastError
         : new Error(
-            typeof error === "string"
-              ? error
-              : typeof error === "object" && error !== null && "message" in error
-                ? String((error as { message: unknown }).message)
+            typeof lastError === "string"
+              ? lastError
+              : typeof lastError === "object" && lastError !== null && "message" in lastError
+                ? String((lastError as { message: unknown }).message)
                 : "Network request failed",
           );
-    } finally {
-      if (timer) clearTimeout(timer);
     }
+    // Transport succeeded: clear the timeout timer before response handling.
+    if (timer) clearTimeout(timer);
 
     const responseText = await response.text();
     let data: unknown;
@@ -246,16 +297,16 @@ const apiClient = axios.create({
   },
 });
 
-const isTauri = isTauriRuntime();
-
-if (isTauri) {
-  createTauriAdapter().then((adapter) => {
-    apiClient.defaults.adapter = adapter;
-    logger.info("Using Tauri HTTP plugin adapter (CORS bypass)");
-  }).catch((err) => {
-    logger.error("Tauri HTTP plugin unavailable, using default adapter:", err);
-  });
-}
+// Install the fetch-based adapter in every environment (Tauri webview AND
+// plain browser). It is transport-correct for both JSON and multipart
+// payloads, unlike axios's default XHR adapter combined with a global JSON
+// Content-Type (which corrupts FormData and forces boundary-less fallbacks).
+createTauriAdapter().then((adapter) => {
+  apiClient.defaults.adapter = adapter;
+  logger.info("Using fetch-based HTTP adapter");
+}).catch((err) => {
+  logger.error("HTTP adapter unavailable, using default adapter:", err);
+});
 
 let isRefreshing = false;
 let pendingRequests: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = [];
@@ -289,8 +340,36 @@ function isDefinitiveAuthRejection(error: unknown): boolean {
   return error instanceof AxiosError && !!error.response && error.response.status >= 400 && error.response.status < 500;
 }
 
+/**
+ * Guard against axios's default JSON Content-Type destroying FormData.
+ *
+ * axios's transformRequest converts FormData to a JSON string whenever the
+ * merged headers contain `application/json` (our instance default). That
+ * runs BEFORE any adapter, so the Tauri adapter would only ever receive
+ * `"{}"` and the backend would 422 on the missing `file` part. Stripping
+ * the header here lets every transport (browser XHR, webview fetch, Tauri
+ * adapter) generate the correct multipart boundary instead.
+ */
+export function stripJsonContentTypeForFormData(config: {
+  data?: unknown;
+  headers?: { delete?: (name: string) => void } & Record<string, unknown>;
+}): void {
+  if (typeof FormData === "undefined" || !(config.data instanceof FormData)) return;
+  const headers = config.headers;
+  if (!headers) return;
+  if (typeof headers.delete === "function") {
+    headers.delete("Content-Type");
+    headers.delete("content-type");
+  } else {
+    for (const key of Object.keys(headers)) {
+      if (key.toLowerCase() === "content-type") delete headers[key];
+    }
+  }
+}
+
 apiClient.interceptors.request.use(
   async (config) => {
+    stripJsonContentTypeForFormData(config);
     const token = await getAccessToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
