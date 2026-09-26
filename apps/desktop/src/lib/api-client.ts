@@ -311,9 +311,15 @@ createTauriAdapter().then((adapter) => {
 let isRefreshing = false;
 let pendingRequests: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = [];
 
-async function refreshTokens(): Promise<string | null> {
+type RefreshOutcome =
+  | { ok: true; token: string }
+  | { ok: false; definitive: boolean };
+
+async function refreshTokens(): Promise<RefreshOutcome> {
   const refreshToken = await getRefreshToken();
-  if (!refreshToken) return null;
+  // No stored refresh token: the session cannot be restored, so the caller
+  // must route back to sign-in (same as before).
+  if (!refreshToken) return { ok: false, definitive: true };
 
   try {
     const response = await apiClient.post("/api/v1/auth/refresh", {
@@ -321,15 +327,16 @@ async function refreshTokens(): Promise<string | null> {
     });
     const { access_token, refresh_token: newRefreshToken } = response.data;
     await setTokens({ accessToken: access_token, refreshToken: newRefreshToken });
-    return access_token;
+    return { ok: true, token: access_token };
   } catch (error) {
     // Only destroy the saved session when the server definitively rejected the
     // refresh token (4xx). Transient failures (backend still starting, network
-    // blip) must NOT wipe valid stored tokens.
+    // blip, 5xx) must NOT wipe valid stored tokens.
     if (isDefinitiveAuthRejection(error)) {
       await clearTokens();
+      return { ok: false, definitive: true };
     }
-    return null;
+    return { ok: false, definitive: false };
   }
 }
 
@@ -408,18 +415,25 @@ apiClient.interceptors.response.use(
         }
 
         isRefreshing = true;
-        const newToken = await refreshTokens();
+        const outcome = await refreshTokens();
         isRefreshing = false;
 
-        if (newToken) {
-          pendingRequests.forEach((p) => p.resolve(newToken));
+        if (outcome.ok) {
+          pendingRequests.forEach((p) => p.resolve(outcome.token));
           pendingRequests = [];
-          config.headers.Authorization = `Bearer ${newToken}`;
+          config.headers.Authorization = `Bearer ${outcome.token}`;
           return apiClient(config);
         }
 
         pendingRequests.forEach((p) => p.reject(new Error("Refresh failed")));
         pendingRequests = [];
+        // Only route to sign-in when the server definitively rejected the
+        // session (bad/expired refresh token). A transient refresh failure
+        // (network blip, backend restarting, 5xx) must NOT log the user out:
+        // the stored tokens are still valid for a later retry.
+        if (!outcome.definitive) {
+          return Promise.reject(error);
+        }
         // AuthContext clears local state; ProtectedRoute then redirects through
         // the memory router. Reloading here remounts AuthProvider before async
         // token deletion completes and can restart the same expiry cycle.
