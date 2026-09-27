@@ -113,3 +113,65 @@ def test_parse_structured_list_edge_cases():
     assert parse('```json\n[{"a": 1}]\n```') == [{"a": 1}]
     assert parse('{"not": "a list"}') == []
     assert parse("[1, 2") == []
+
+
+@pytest.mark.asyncio
+async def test_process_never_persists_indexed_status(monkeypatch):
+    """Live DB check `documents_status_check` rejects status 'indexed'.
+
+    Both the embeddings-success and embeddings-unavailable paths must persist
+    "processed" (both render Ready client-side). Regression for process 500s.
+    """
+    import os
+
+    svc = DocumentService(access_token="tok")
+    doc = {"id": "d1", "user_id": "u1", "original_name": "DBMS Notes.pdf",
+           "file_type": "pdf", "status": "pending", "subject_id": None,
+           "storage_path": "/tmp/DBMS Notes.pdf"}
+    writes = []
+
+    async def fake_get_document(document_id, user_id):
+        return doc
+
+    async def fake_update(document_id, user_id, updates):
+        writes.append(dict(updates))
+        return {}
+
+    async def fake_process_pdf(document_id, user_id, file_path):
+        return {"document_id": document_id, "page_count": 1, "chunk_count": 1,
+                "has_text": True, "total_tokens": 10, "processing_time_ms": 5,
+                "metadata": {}}
+
+    async def fake_log_session(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(svc.repository, "get_document", fake_get_document)
+    monkeypatch.setattr(svc.repository, "update_document", fake_update)
+    monkeypatch.setattr(svc.pdf_service, "process_pdf", fake_process_pdf)
+    monkeypatch.setattr(svc.study_service, "log_session", fake_log_session)
+    monkeypatch.setattr(os.path, "exists", lambda p: True)
+
+    for embeddings_available, reindexed in ((False, 0), (True, 3)):
+        writes.clear()
+
+        async def fake_get_chunks(document_id, user_id):
+            return _chunks()
+
+        monkeypatch.setattr(svc.embedding_service, "is_available",
+                            lambda: embeddings_available)
+        monkeypatch.setattr(svc.repository, "get_chunks", fake_get_chunks)
+        monkeypatch.setattr(svc.rag_service, "reindex_document",
+                            _reindexed(reindexed))
+
+        out = await svc.process_document("d1", "u1")
+
+        statuses = [w["status"] for w in writes if "status" in w]
+        assert "indexed" not in statuses
+        assert statuses[-1] == "processed"
+        assert out["embeddings_indexed"] == reindexed
+
+
+def _reindexed(n):
+    async def fake_reindex(user_id, document_id, chunks):
+        return n
+    return fake_reindex

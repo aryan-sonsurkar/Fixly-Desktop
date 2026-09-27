@@ -9,6 +9,35 @@ from app.repositories.auth_repository import AuthRepository
 
 logger = get_logger(__name__)
 
+# Client-library markers for Supabase being unreachable or transiently broken
+# (supabase_auth AuthRetryableError/AuthUnknownError, httpx connect/timeout
+# errors, HTTP 5xx). These must NEVER become 401: the desktop client treats a
+# 401 on /auth/refresh as definitive session death and wipes stored tokens.
+_TRANSIENT_MARKERS = (
+    "connect", "timeout", "timed out", "network", "unreachable",
+    "temporarily unavailable", "bad gateway", "service unavailable",
+    "gateway timeout", "dns", "refused", "reset by peer",
+    "502", "503", "504",
+)
+_TRANSIENT_TYPES = frozenset({
+    "AuthRetryableError", "AuthUnknownError", "ConnectError", "ConnectTimeout",
+    "ReadTimeout", "WriteTimeout", "PoolTimeout", "TimeoutException",
+    "NetworkError", "NewConnectionError", "MaxRetryError",
+})
+
+
+def _is_transient_supabase_failure(exc: Exception) -> bool:
+    """True when Supabase failed transiently (not a real auth rejection)."""
+    status = getattr(exc, "status", None)
+    if status is None:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+    if isinstance(status, int) and status >= 500:
+        return True
+    if type(exc).__name__ in _TRANSIENT_TYPES:
+        return True
+    text = f"{type(exc).__name__}: {exc}".lower()
+    return any(m in text for m in _TRANSIENT_MARKERS)
+
 
 class AuthService:
     def __init__(self, access_token: str | None = None) -> None:
@@ -100,6 +129,11 @@ class AuthService:
         except AuthenticationError:
             raise
         except Exception as e:
+            if _is_transient_supabase_failure(e):
+                # Supabase unreachable/transient: re-raise untouched so the
+                # endpoint returns 5xx. The desktop client only wipes stored
+                # tokens on 4xx; a 5xx keeps the session for a later retry.
+                raise
             logger.error("Token refresh failed: %s", e)
             raise AuthenticationError("Session expired. Please sign in again.")
 

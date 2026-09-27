@@ -145,9 +145,13 @@ class DocumentService:
                 logger.warning("Embedding generation failed (non-fatal): %s", e)
             result["embeddings_indexed"] = embeddings_indexed
 
-            # indexed = text + searchable; processed = text only (search degraded).
+            # Live Supabase check `documents_status_check` accepts pending /
+            # processing / processed / empty / failed but NOT "indexed", so a
+            # successful embedding run must still persist "processed".
+            # (Owner note: widen the constraint if the indexed distinction is
+            # ever surfaced in UI; until then both mean Ready client-side.)
             await self.repository.update_document(document_id, user_id, {
-                "status": "indexed" if embeddings_indexed > 0 else "processed",
+                "status": "processed",
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             })
 

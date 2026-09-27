@@ -2,8 +2,58 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.services.auth_service import AuthService
+from app.core.exceptions import AuthenticationError
+from app.services.auth_service import AuthService, _is_transient_supabase_failure
 from app.services.planner_service import PlannerService
+
+
+class _DefinitiveRejectionError(Exception):
+    """Mimics supabase_auth AuthApiError for invalid_grant (HTTP 400)."""
+
+    def __init__(self) -> None:
+        super().__init__("invalid_grant: Invalid Refresh Token")
+        self.status = 400
+        self.code = "invalid_grant"
+
+
+class _ConnectFailureError(Exception):
+    """Mimics httpx.ConnectError when Supabase is unreachable."""
+
+
+class _ServerFailureError(Exception):
+    """Mimics supabase_auth AuthApiError for HTTP 503."""
+
+    def __init__(self) -> None:
+        super().__init__("service unavailable")
+        self.status = 503
+
+
+@pytest.mark.asyncio
+async def test_refresh_maps_definitive_rejection_to_session_expired() -> None:
+    service = AuthService()
+    service.repository.refresh_token = AsyncMock(side_effect=_DefinitiveRejectionError())
+
+    with pytest.raises(AuthenticationError, match="Session expired"):
+        await service.refresh_token("dead-token")
+
+
+@pytest.mark.asyncio
+async def test_refresh_reraises_transient_failures_untouched() -> None:
+    service = AuthService()
+    for failure in (_ConnectFailureError("connection refused"),
+                    _ServerFailureError(),
+                    Exception("AuthRetryableError: caused by ConnectError")):
+        service.repository.refresh_token = AsyncMock(side_effect=failure)
+        with pytest.raises(type(failure)):
+            await service.refresh_token("good-token")
+
+
+def test_transient_discriminator_matrix() -> None:
+    assert _is_transient_supabase_failure(_ConnectFailureError("connection refused")) is True
+    assert _is_transient_supabase_failure(_ServerFailureError()) is True
+    assert _is_transient_supabase_failure(_DefinitiveRejectionError()) is False
+    assert _is_transient_supabase_failure(AuthenticationError("x")) is False
+    assert _is_transient_supabase_failure(ValueError("timeout contacting upstream")) is True
 
 
 @pytest.mark.asyncio
