@@ -1,0 +1,4 @@
+a79174ac29bd6ff5b02621326924694642ec445672c82ae84942180e82d63225  Fixly_1.0.10_x64-setup.exe
+# Official CI artifact; also downloadable at:
+# https://github.com/aryan-sonsurkar/Fixly-Updates/releases/download/v1.0.10/Fixly_1.0.10_x64-setup.nsis.zip
+# Minisign .sig: same URL with .sig appended

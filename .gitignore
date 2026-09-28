@@ -82,3 +82,9 @@ apps/backend/build_log.txt
 
 # Output directories
 graphify-out/
+
+# Tester packages: installer binaries are too large for Git (>100MB hard
+# limit). Docs/checksums/samples commit; binaries stay local only.
+testing/**/*.exe
+testing/**/*.msi
+testing/**/*.nsis.zip
