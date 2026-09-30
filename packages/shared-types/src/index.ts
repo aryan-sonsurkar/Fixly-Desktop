@@ -240,3 +240,89 @@ export interface PaginatedResponse<T> {
   page_size: number;
   total_pages: number;
 }
+
+export type PlannerActionType =
+  | "create_task"
+  | "schedule_task"
+  | "create_study_session"
+  | "reschedule_task"
+  | "prioritize_task";
+
+export interface CreateTaskActionPayload {
+  action: "create_task";
+  action_id: string;
+  title: string;
+  description?: string;
+  priority: Priority;
+  due_date?: string | null;
+  estimated_minutes?: number | null;
+  subject_id?: string | null;
+}
+
+export interface ScheduleTaskActionPayload {
+  action: "schedule_task";
+  action_id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  priority: Priority;
+  type: string;
+  task_id?: string | null;
+}
+
+export interface CreateStudySessionActionPayload {
+  action: "create_study_session";
+  action_id: string;
+  title: string;
+  duration_minutes: number;
+  scheduled_time?: string | null;
+  subject_id?: string | null;
+  priority?: Priority;
+}
+
+export interface RescheduleTaskActionPayload {
+  action: "reschedule_task";
+  action_id: string;
+  title: string;
+  new_start_time: string;
+  new_end_time?: string | null;
+  task_id?: string | null;
+  reason?: string;
+}
+
+export interface PrioritizeTaskActionPayload {
+  action: "prioritize_task";
+  action_id: string;
+  title: string;
+  priority: Priority;
+  task_id?: string | null;
+  reason?: string;
+}
+
+export type PlannerAction =
+  | CreateTaskActionPayload
+  | ScheduleTaskActionPayload
+  | CreateStudySessionActionPayload
+  | RescheduleTaskActionPayload
+  | PrioritizeTaskActionPayload;
+
+export interface PlanScheduleItem {
+  title: string;
+  description: string;
+  start_time: string;
+  end_time: string;
+  priority: Priority;
+  type: string;
+}
+
+export interface CanonicalPlanResponse {
+  plan_type: string;
+  explanation: string;
+  actions: PlannerAction[];
+  schedule_items?: PlanScheduleItem[] | null;
+  content: string;
+  conversation_id: string;
+  generated_at: string;
+  context_summary?: Record<string, unknown> | null;
+}
+

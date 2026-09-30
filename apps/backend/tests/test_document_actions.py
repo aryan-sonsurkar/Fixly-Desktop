@@ -175,3 +175,15 @@ def _reindexed(n):
     async def fake_reindex(user_id, document_id, chunks):
         return n
     return fake_reindex
+
+
+@pytest.mark.asyncio
+async def test_flashcards_string_items_become_front_only_cards(monkeypatch):
+    """Bare string arrays must render as a deck, never raw JSON."""
+    svc, gen = _service(monkeypatch, _doc(), _chunks())
+    gen.response = '["1NF means atomic cells.", "2NF needs full dependency."]'
+    out = await svc.generate_document_content("u1", "d1", "flashcards", count=2)
+    assert len(out["cards"]) == 2
+    assert out["cards"][0]["front"] == "1NF means atomic cells."
+    assert out["cards"][0]["back"] == ""
+    assert out["cards"][1]["front"] == "2NF needs full dependency."

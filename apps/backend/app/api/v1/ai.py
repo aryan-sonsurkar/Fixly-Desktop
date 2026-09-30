@@ -24,7 +24,13 @@ from app.schemas.ai import (
     ProviderDetailResponse,
     RegenerateRequest,
 )
-from app.schemas.planner import DailyBriefingResponse, PlanResponse, RevisionPlanRequest
+from app.schemas.planner import (
+    DailyBriefingResponse,
+    ExecuteActionRequest,
+    ExecuteActionResponse,
+    PlanResponse,
+    RevisionPlanRequest,
+)
 from app.services.ai_service import AIService
 from app.services.planner_service import PlannerService
 
@@ -274,11 +280,25 @@ async def revision_plan(
     return await service.generate_revision_plan(current_user.id, body.subject_ids)
 
 
+@router.post("/plan/execute-action", response_model=ExecuteActionResponse)
+async def execute_action(
+    body: ExecuteActionRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> dict[str, Any]:
+    service = PlannerService(access_token=current_user.access_token)
+    return await service.execute_action(
+        user_id=current_user.id,
+        action_data={"action": body.action, "action_id": body.action_id, **body.parameters},
+        idempotency_key=body.idempotency_key,
+    )
+
+
 @router.get("/plans")
 async def list_plans(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> list[dict[str, Any]]:
     service = AIService(access_token=current_user.access_token)
+    planner_svc = PlannerService(access_token=current_user.access_token)
     convs = await service.list_conversations(current_user.id)
     plans = []
     for conv in convs:
@@ -290,12 +310,18 @@ async def list_plans(
                 assistant_msg = next((m for m in reversed(msgs) if m.get("role") == "assistant"), None)
                 if assistant_msg:
                     plan_type = "daily" if title == "Daily Plan" else "weekly" if title == "Weekly Plan" else "revision"
+                    raw_content = assistant_msg.get("content", "")
+                    parsed = planner_svc.parse_and_validate_stored_plan(raw_content)
                     plans.append({
                         "plan_type": plan_type,
-                        "content": assistant_msg.get("content", ""),
+                        "explanation": parsed["explanation"],
+                        "actions": parsed["actions"],
+                        "schedule_items": parsed["schedule_items"],
+                        "content": parsed["content"],
                         "conversation_id": conv["id"],
                         "generated_at": str(conv.get("updated_at", "")),
                     })
             except Exception:
                 continue
     return plans
+

@@ -23,6 +23,38 @@ logger = get_logger(__name__)
 ALLOWED_TYPES = {"pdf", "png", "jpg", "jpeg", "webp"}
 IMAGE_TYPES = {"png", "jpg", "jpeg", "webp"}
 
+
+def _skip_balanced(s: str, i: int) -> int:
+    """Index just past the balanced {...} block starting at s[i].
+
+    String-aware (braces inside JSON strings don't count). Returns i when
+    the block never closes (truncated tail).
+    """
+    if i >= len(s) or s[i] != "{":
+        return i
+    depth = 0
+    in_str = False
+    esc = False
+    for j in range(i, len(s)):
+        ch = s[j]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return j + 1
+    return i
+
 UPLOAD_DIR = os.environ.get("FIXLY_UPLOAD_DIR") or os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
     "uploads",
@@ -331,11 +363,19 @@ class DocumentService:
         if prompt_type in structured_types:
             parsed = self._parse_structured_list(content)
             if prompt_type == "flashcards":
-                result["cards"] = [
-                    {"front": str(i.get("front", "")), "back": str(i.get("back", ""))}
-                    for i in parsed
-                    if isinstance(i, dict) and (i.get("front") or i.get("back"))
-                ][:20]
+                cards: list[dict[str, str]] = []
+                for i in parsed:
+                    if isinstance(i, dict) and (i.get("front") or i.get("back")):
+                        cards.append({
+                            "front": str(i.get("front", "")),
+                            "back": str(i.get("back", "")),
+                        })
+                    elif isinstance(i, str) and i.strip():
+                        # Model returned bare study points instead of Q/A
+                        # objects. Keep them as front-only cards; the deck
+                        # renders "(no answer)" backs rather than raw JSON.
+                        cards.append({"front": i.strip(), "back": ""})
+                result["cards"] = cards[:20]
             else:
                 result["questions"] = [
                     {
@@ -371,7 +411,13 @@ class DocumentService:
 
     @staticmethod
     def _parse_structured_list(content: str) -> list[Any]:
-        """Lenient JSON-array extraction for flashcards/quiz output."""
+        """Lenient JSON-array extraction for flashcards/quiz output.
+
+        Recovers complete items from truncated model output (token cap can
+        cut the array mid-object): after a full-array parse fails, every
+        balanced top-level {...} block is parsed individually and the valid
+        ones are kept, so 3 finished cards still render instead of raw JSON.
+        """
         import json as _json
         import re as _re
 
@@ -385,9 +431,41 @@ class DocumentService:
                 s = m.group(0)
         try:
             data = _json.loads(s)
+            return data if isinstance(data, list) else []
         except Exception:
+            pass
+        start = s.find("[")
+        if start < 0:
             return []
-        return data if isinstance(data, list) else []
+        items: list[Any] = []
+        i = start + 1
+        n = len(s)
+        while i < n:
+            # skip separators/whitespace between items
+            while i < n and s[i] in " \t\r\n,":
+                i += 1
+            if i >= n or s[i] != "{":
+                # end of array or unrecoverable tail (e.g. truncated object)
+                if i < n and s[i] == "]":
+                    break
+                # skip one truncated/invalid object: advance past its opening
+                # brace depth so a single broken item can't poison the rest
+                if i < n and s[i] == "{":
+                    i = _skip_balanced(s, i)
+                    continue
+                i += 1
+                continue
+            j = _skip_balanced(s, i)
+            if j <= i:
+                break
+            try:
+                obj = _json.loads(s[i:j])
+            except Exception:
+                i = j
+                continue
+            items.append(obj)
+            i = j
+        return [o for o in items if isinstance(o, dict)]
 
     async def get_document_detail(self, document_id: str, user_id: str) -> dict[str, Any]:
         doc = await self.repository.get_document(document_id, user_id)

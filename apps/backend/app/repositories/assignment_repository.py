@@ -41,7 +41,10 @@ class AssignmentRepository:
             if key == "user_id" or value is None or value == "":
                 continue
             if key == "search":
-                query = query.text_search("title", value)
+                # Substring match (not text_search): text_search emits a
+                # tsquery that breaks on spaces AND returns a builder
+                # without .order()/.range(), 500ing every search listing.
+                query = query.ilike("title", f"%{value}%")
             elif key == "tags":
                 if isinstance(value, list) and value:
                     query = query.contains("tags", value)
