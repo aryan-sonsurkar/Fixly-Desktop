@@ -130,7 +130,15 @@ class AIService:
         message: str,
         conversation_id: str | None = None,
         stream: bool = False,
+        temperature: float | None = None,
     ) -> dict[str, Any]:
+        """Chat completion with persistence.
+
+        temperature overrides the user's configured sampling temperature
+        when provided (e.g. structured-output callers pass 0.0 for
+        determinism). Callers must hardcode the value; it is never taken
+        from model output or message text.
+        """
         conv: dict[str, Any] | None
         is_new_conv = not conversation_id
         if not conversation_id:
@@ -144,7 +152,8 @@ class AIService:
 
         settings_data = await self._get_settings(user_id)
         preferred = str(settings_data.get("preferred_provider", "auto"))
-        temperature = float(settings_data.get("temperature", 0.7))
+        if temperature is None:
+            temperature = float(settings_data.get("temperature", 0.7))
         max_tokens_count = int(settings_data.get("max_tokens", 2048))
         system_prompt_override = settings_data.get("system_prompt")
         academic_context_enabled = bool(settings_data.get("academic_context", True))
@@ -525,6 +534,42 @@ class AIService:
                 if history:
                     conv_messages = [{"role": m["role"], "content": m["content"]} for m in history[-6:]]
 
+                # P0.2 course relevance: if the message names one of the
+                # student's courses, inject that course's bounded context
+                # instead of relying on the whole-workspace dump alone.
+                # Generic messages resolve to missing and inject nothing.
+                # Subjects reuse: WorkspaceContext already fetched the
+                # user-scoped list above, so detection adds zero queries
+                # for generic messages; only a found course triggers the
+                # bounded assignments/documents fetch.
+                source_parts: list[str] = []
+                try:
+                    from app.services.academic_context import AcademicContextService
+
+                    known = workspace_data.get("subjects")
+                    known_subjects = known if isinstance(known, list) else None
+                    academic = AcademicContextService(access_token=self.access_token)
+                    mention = await academic.detect_course_mention(
+                        user_id, current_message, subjects=known_subjects)
+                    if mention.get("status") == "found":
+                        course_ctx = await academic.get_course_context(
+                            user_id, mention["subject"]["id"],
+                            subjects=known_subjects)
+                        block = AcademicContextService.format_course_context_block(course_ctx)
+                        if block:
+                            source_parts.append(block)
+                    elif mention.get("status") == "ambiguous":
+                        names = ", ".join(
+                            c.get("name", "") for c in mention.get("candidates", []))
+                        source_parts.append(
+                            "[COURSE]\nThe student's question matches more than "
+                            f"one of their courses: {names}. Do not answer for a "
+                            "specific course yet. First ask the student to pick "
+                            "one of these exact course names, then wait for "
+                            "their reply.\n[/COURSE]")
+                except Exception as e:
+                    logger.warning("Course context injection failed: %s", e)
+
                 ctx_result = await self.context_engine.assemble_context(
                     user_id=user_id,
                     message=current_message,
@@ -534,7 +579,6 @@ class AIService:
                     conversation_id=conversation_id,
                 )
                 # Inject engine context into system prompt
-                source_parts = []
                 for source in ctx_result.get("sources", []):
                     stype = source.get("type", "")
                     content = source.get("content", "")

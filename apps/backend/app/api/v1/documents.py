@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
 from app.dependencies.auth import CurrentUser, get_current_user
 from app.schemas.document import (
@@ -37,10 +37,11 @@ async def get_recent_documents(
 @router.post("/upload", response_model=DocumentResponse)
 async def upload_document(
     file: UploadFile = File(...),
+    subject_id: str | None = Form(default=None),
     current_user: CurrentUser = Depends(get_current_user),
 ) -> dict[str, Any]:
     service = DocumentService(access_token=current_user.access_token)
-    return await service.upload_document(current_user.id, file)
+    return await service.upload_document(current_user.id, file, subject_id=subject_id)
 
 
 @router.post("/{document_id}/process")

@@ -90,9 +90,14 @@ export interface GenerateContentResponse {
   generated_at: string;
 }
 
-export async function uploadDocument(file: File): Promise<Document> {
+export async function uploadDocument(file: File, subjectId?: string | null): Promise<Document> {
   const formData = new FormData();
   formData.append("file", file);
+  // Optional course association (P0.2 academic context). Server validates
+  // ownership; omitted entirely when unset.
+  if (subjectId) {
+    formData.append("subject_id", subjectId);
+  }
   // Never set Content-Type manually: the HTTP layer generates the multipart
   // boundary. A manual header (or JSON-encoding the FormData) breaks uploads.
   // Generous timeout: large PDFs stream slowly through the Tauri IPC bridge.

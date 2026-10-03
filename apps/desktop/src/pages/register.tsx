@@ -121,7 +121,16 @@ export function RegisterPage() {
       navigate("/dashboard", { replace: true });
     } catch (err) {
       logger.error("Failed to restore profile", err);
-      setError("Could not restore this profile. Please create a new account.");
+      // Distinguish a dead session from a transient outage: only a server
+      // rejection means the saved profile is unusable. Network-level
+      // failures (no response) must not tell the user to abandon the
+      // profile — the stored session is still valid for a later retry.
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === undefined) {
+        setError("Couldn't reach Fixly. Check your connection, then tap your saved profile to try again.");
+      } else {
+        setError("Could not restore this profile. Please create a new account.");
+      }
     }
   };
 

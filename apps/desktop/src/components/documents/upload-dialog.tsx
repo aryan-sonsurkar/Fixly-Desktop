@@ -1,12 +1,14 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, Button } from "@fixly/ui";
 import { DocumentFilename } from "@/components/documents/document-filename";
+import { getSubjects } from "@/lib/profile-service";
+import type { Subject } from "@fixly/shared-types";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface UploadDialogProps {
   open: boolean;
   onClose: () => void;
-  onUpload: (files: File[]) => Promise<void>;
+  onUpload: (files: File[], subjectId: string | null) => Promise<void>;
 }
 
 const ALLOWED_TYPES = [
@@ -66,7 +68,26 @@ export function UploadDialog({ open, onClose, onUpload }: UploadDialogProps) {
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [rejected, setRejected] = useState<string | null>(null);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [subjectId, setSubjectId] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Optional course association (P0.2). Failure to load the list must not
+  // block uploading: the dialog simply offers no course choice.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    getSubjects()
+      .then((list) => {
+        if (!cancelled) setSubjects(Array.isArray(list) ? list : []);
+      })
+      .catch(() => {
+        if (!cancelled) setSubjects([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   const addFiles = useCallback((incoming: File[]) => {
     const ok: File[] = [];
@@ -109,8 +130,9 @@ export function UploadDialog({ open, onClose, onUpload }: UploadDialogProps) {
     if (files.length === 0) return;
     setUploading(true);
     try {
-      await onUpload(files);
+      await onUpload(files, subjectId || null);
       setFiles([]);
+      setSubjectId("");
       onClose();
     } finally {
       setUploading(false);
@@ -120,6 +142,7 @@ export function UploadDialog({ open, onClose, onUpload }: UploadDialogProps) {
   const handleClose = () => {
     if (!uploading) {
       setFiles([]);
+      setSubjectId("");
       onClose();
     }
   };
@@ -149,6 +172,28 @@ export function UploadDialog({ open, onClose, onUpload }: UploadDialogProps) {
             </div>
             <input ref={inputRef} type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden" onChange={handleFileSelect} />
           </div>
+
+          {subjects.length > 0 && (
+            <div className="flex items-center gap-2">
+              <label htmlFor="upload-subject" className="shrink-0 text-xs text-muted-foreground">
+                Course (optional)
+              </label>
+              <select
+                id="upload-subject"
+                value={subjectId}
+                onChange={(e) => setSubjectId(e.target.value)}
+                disabled={uploading}
+                className="h-8 min-w-0 flex-1 rounded-lg border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+              >
+                <option value="">No course</option>
+                {subjects.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <AnimatePresence>
             {rejected && (

@@ -74,6 +74,13 @@ class FixlyLocalProvider(AIProvider):
     _shared_llama: Any | None = None
     _shared_load_error: str | None = None
     _load_lock = threading.Lock()
+    # llama.cpp's shared context is NOT thread-safe: concurrent
+    # create_chat_completion calls corrupt engine state and kill the
+    # backend process (Loop 12 forensic: two concurrent chats both reset
+    # ~40s in, server socket dead). One lock serializes ALL inference
+    # across generate/generate_stream; requests queue instead of crashing.
+    # Never await while holding it; release via try/finally (`with`).
+    _inference_lock = threading.Lock()
 
     def __init__(self) -> None:
         self.model_path = _find_model()
@@ -126,61 +133,57 @@ class FixlyLocalProvider(AIProvider):
                 raise RuntimeError("Fixly AI is currently unavailable. Please try again in a moment.")
             capped = min(max_tokens, MAX_TOKENS_CAP)
             budgeted = _truncate_to_budget(messages)
-            try:
-                out = llama.create_chat_completion(
-                    messages=budgeted,
-                    temperature=temperature,
-                    max_tokens=capped,
-                )
-                choices = out.get("choices", [])
-                if choices:
-                    text = str(choices[0].get("message", {}).get("content", "") or "").strip()
-                    if text:
-                        return text
-                    # Tiny model sometimes returns empty on long system prompts — retry with shorter context
-                    short_msgs = [m for m in budgeted if m["role"] != "system"]
-                    if short_msgs:
-                        short_msgs.insert(0, {
-                            "role": "system",
-                            "content": "You are Fixly AI, a helpful academic assistant.",
-                        })
-                        try:
-                            out2 = llama.create_chat_completion(
-                                messages=short_msgs,
-                                temperature=0.8,
-                                max_tokens=capped,
-                            )
-                            c2 = out2.get("choices", [])
-                            if c2:
-                                t2 = str(c2[0].get("message", {}).get("content", "") or "").strip()
-                                if t2:
-                                    return t2
-                        except Exception:
-                            pass
-                    return text
-                return ""
-            except Exception as e:
-                logger.error("Fixly Local generate failed: %s", e)
-                raise
+            # Serialized: concurrent llama calls crash the engine (see lock note).
+            with FixlyLocalProvider._inference_lock:
+                return self._generate_locked(llama, budgeted, temperature, capped)
 
         return await asyncio.to_thread(_sync)
 
-    async def generate_stream(
-        self,
-        messages: list[dict[str, str]],
-        temperature: float = 0.7,
-        max_tokens: int = 1024,
-    ) -> AsyncGenerator[str, None]:
-        import asyncio
+    def _generate_locked(self, llama: Any, budgeted: list[dict[str, str]],
+                         temperature: float, capped: int) -> str:
+        """Single non-streaming inference; caller must hold _inference_lock."""
+        try:
+            out = llama.create_chat_completion(
+                messages=budgeted,
+                temperature=temperature,
+                max_tokens=capped,
+            )
+            choices = out.get("choices", [])
+            if choices:
+                text = str(choices[0].get("message", {}).get("content", "") or "").strip()
+                if text:
+                    return text
+                # Tiny model sometimes returns empty on long system prompts — retry with shorter context
+                short_msgs = [m for m in budgeted if m["role"] != "system"]
+                if short_msgs:
+                    short_msgs.insert(0, {
+                        "role": "system",
+                        "content": "You are Fixly AI, a helpful academic assistant.",
+                    })
+                    try:
+                        out2 = llama.create_chat_completion(
+                            messages=short_msgs,
+                            temperature=0.8,
+                            max_tokens=capped,
+                        )
+                        c2 = out2.get("choices", [])
+                        if c2:
+                            t2 = str(c2[0].get("message", {}).get("content", "") or "").strip()
+                            if t2:
+                                return t2
+                    except Exception:
+                        pass
+                return text
+            return ""
+        except Exception as e:
+            logger.error("Fixly Local generate failed: %s", e)
+            raise
 
-        def _sync_gen() -> Iterator[str]:
-            llama = self._load_llama()
-            if llama is None:
-                raise RuntimeError("Fixly AI is currently unavailable. Please try again in a moment.")
-            capped = min(max_tokens, MAX_TOKENS_CAP)
-            budgeted = _truncate_to_budget(messages)
+    def _stream_locked(self, llama: Any, budgeted: list[dict[str, str]],
+                       temperature: float, capped: int) -> Iterator[str]:
+        """Streaming inference body; caller must hold _inference_lock."""
 
-            def _stream_from(msgs: list[dict[str, str]]) -> Iterator[str]:
+        def _stream_from(msgs: list[dict[str, str]]) -> Iterator[str]:
                 # Try streaming, fallback to single yield if not supported
                 try:
                     stream = llama.create_chat_completion(
@@ -211,21 +214,42 @@ class FixlyLocalProvider(AIProvider):
                 if choices:
                     yield str(choices[0].get("message", {}).get("content", ""))
 
-            yielded_any = False
-            for tok in _stream_from(budgeted):
-                yielded_any = True
-                yield tok
-            if not yielded_any:
-                # Tiny model sometimes returns empty on long prompts — retry short
-                logger.info("Fixly Local stream empty, retrying with short context")
-                short_msgs = [m for m in budgeted if m.get("role") != "system"]
-                if short_msgs:
-                    short_msgs.insert(0, {
-                        "role": "system",
-                        "content": "You are Fixly AI, a helpful academic assistant.",
-                    })
-                    for tok in _stream_from(short_msgs):
-                        yield tok
+        yielded_any = False
+        for tok in _stream_from(budgeted):
+            yielded_any = True
+            yield tok
+        if not yielded_any:
+            # Tiny model sometimes returns empty on long prompts — retry short
+            logger.info("Fixly Local stream empty, retrying with short context")
+            short_msgs = [m for m in budgeted if m.get("role") != "system"]
+            if short_msgs:
+                short_msgs.insert(0, {
+                    "role": "system",
+                    "content": "You are Fixly AI, a helpful academic assistant.",
+                })
+                for tok in _stream_from(short_msgs):
+                    yield tok
+
+    async def generate_stream(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: int = 1024,
+    ) -> AsyncGenerator[str, None]:
+        import asyncio
+
+        def _sync_gen() -> Iterator[str]:
+            llama = self._load_llama()
+            if llama is None:
+                raise RuntimeError("Fixly AI is currently unavailable. Please try again in a moment.")
+            capped = min(max_tokens, MAX_TOKENS_CAP)
+            budgeted = _truncate_to_budget(messages)
+            # Serialized for the whole stream (see lock note): the lock is
+            # held across yields on this producer thread and released when
+            # generation completes or raises. Abandoned streams still run to
+            # completion (pre-existing behavior), now without crashing peers.
+            with FixlyLocalProvider._inference_lock:
+                yield from self._stream_locked(llama, budgeted, temperature, capped)
 
         # Bridge sync generator to async via thread queue.
         # Stream errors are re-raised (not masked) so the API returns an

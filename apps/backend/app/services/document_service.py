@@ -4,6 +4,7 @@ import re as _re
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+from uuid import UUID
 
 from app.core.exceptions import NotFoundError, ValidationError
 from app.core.logging import get_logger
@@ -16,6 +17,7 @@ from app.services.ocr_service import OCRService
 from app.services.pdf_service import PDFService
 from app.services.rag_service import RAGService
 from app.services.study_service import StudyService
+from app.services.subject_service import SubjectService
 from app.services.vector_store import VectorStore
 
 logger = get_logger(__name__)
@@ -72,16 +74,35 @@ class DocumentService:
         self.context_service = ContextService(access_token=access_token)
         self.ai_service = AIService(access_token=access_token)
         self.study_service = StudyService(access_token=access_token)
+        self.subject_service = SubjectService(access_token=access_token)
         self.embedding_service = EmbeddingService()
         self.vector_store = VectorStore()
         self.rag_service = RAGService()
         os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-    async def upload_document(self, user_id: str, file: Any) -> dict[str, Any]:
+    async def _resolve_subject_id(self, user_id: str, subject_id: str | None) -> str | None:
+        """Validate an optional subject link against the caller's own subjects.
+
+        Returns the normalized id, or None to leave the document unlinked.
+        Malformed ids and subjects belonging to other users are rejected
+        without revealing whether they exist.
+        """
+        if not subject_id:
+            return None
+        try:
+            subject_uuid = str(UUID(str(subject_id)))
+        except (ValueError, AttributeError, TypeError):
+            raise ValidationError("Invalid subject reference")
+        await self.subject_service.get_subject(subject_uuid, user_id)
+        return subject_uuid
+
+    async def upload_document(self, user_id: str, file: Any, subject_id: str | None = None) -> dict[str, Any]:
         filename = file.filename or ""
         ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         if ext not in ALLOWED_TYPES:
             raise ValidationError(f"Unsupported file type: {ext}. Allowed: {', '.join(sorted(ALLOWED_TYPES))}")
+
+        linked_subject = await self._resolve_subject_id(user_id, subject_id)
 
         content = await file.read()
         max_size = 50 * 1024 * 1024
@@ -112,6 +133,7 @@ class DocumentService:
             "file_size": len(content),
             "status": "pending",
             "storage_path": file_path,
+            "subject_id": linked_subject,
         })
 
         logger.info("Uploaded document %s for user %s: %s", doc["id"], user_id, file.filename)
@@ -500,6 +522,8 @@ class DocumentService:
             raise NotFoundError("Document not found")
         if not updates:
             return doc
+        if "subject_id" in updates and updates["subject_id"] is not None:
+            updates["subject_id"] = await self._resolve_subject_id(user_id, updates["subject_id"])
         return await self.repository.update_document(document_id, user_id, updates)
 
     async def delete_document(self, document_id: str, user_id: str) -> None:

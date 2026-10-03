@@ -35,8 +35,15 @@ def executor():
 
 
 class TestToolRegistration:
-    def test_all_22_tools_registered(self, executor):
-        assert len(executor._handlers) == 22
+    def test_all_26_tools_registered(self, executor):
+        assert len(executor._handlers) == 26
+        for name in (
+            "get_student_context",
+            "get_course_context",
+            "get_upcoming_deadlines",
+            "get_knowledge_gaps",
+        ):
+            assert name in executor._handlers, f"Missing handler for {name}"
 
     def test_all_registry_tools_have_handlers(self, executor):
         from app.services.tool_registry import ToolRegistry

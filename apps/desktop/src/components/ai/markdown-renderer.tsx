@@ -46,8 +46,10 @@ function renderInline(parts: (string | { bold?: string; code?: string; italic?: 
 
 export function MarkdownRenderer({ content }: MarkdownRendererProps) {
   // Backend payloads can carry null/undefined content (failed or partial AI
-  // generations, legacy response shapes). Never let that crash the app:
-  // render nothing instead of throwing inside parseBlocks.
+  // generations, legacy response shapes). Non-string payloads (objects,
+  // numbers) would crash parseBlocks or React rendering. Never let that
+  // crash the app: render nothing instead of throwing.
+  if (typeof content !== "string") return <div className="space-y-3 leading-relaxed" />;
   const blocks = parseBlocks(content ?? "");
 
   return <div className="space-y-3 leading-relaxed">{blocks.map(renderBlock)}</div>;

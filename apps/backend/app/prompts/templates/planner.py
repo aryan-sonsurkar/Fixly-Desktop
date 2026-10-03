@@ -14,18 +14,19 @@ Create a {plan_type} study plan using the student's real workload. Consider thes
 Upcoming deadlines:
 {deadlines}
 
-Return ONLY valid JSON with this exact shape, without markdown fences or preamble:
-{{
+Return ONLY valid JSON with this exact shape, without markdown fences or preamble.
+Use single curly braces for all JSON objects. Never double them:
+{
   "explanation": "A concise, motivating explanation of what the student should focus on first and why based on deadlines and workload.",
   "actions": [
-    {{"action": "create_study_session", "title": "...", "duration_minutes": 45, "priority": "high"}},
-    {{"action": "create_task", "title": "...", "description": "...", "priority": "medium", "estimated_minutes": 30}},
-    {{"action": "schedule_task", "title": "...", "start_time": "YYYY-MM-DDTHH:MM:SSZ", "end_time": "YYYY-MM-DDTHH:MM:SSZ", "priority": "high", "type": "study"}}
+    {"action": "create_study_session", "title": "...", "duration_minutes": 45, "priority": "high"},
+    {"action": "create_task", "title": "...", "description": "...", "priority": "medium", "estimated_minutes": 30},
+    {"action": "schedule_task", "title": "...", "start_time": "YYYY-MM-DDTHH:MM:SSZ", "end_time": "YYYY-MM-DDTHH:MM:SSZ", "priority": "high", "type": "study"}
   ],
   "schedule_items": [
-    {{"title": "...", "description": "...", "start_time": "YYYY-MM-DDTHH:MM:SSZ", "end_time": "YYYY-MM-DDTHH:MM:SSZ", "priority": "high", "type": "study"}}
+    {"title": "...", "description": "...", "start_time": "YYYY-MM-DDTHH:MM:SSZ", "end_time": "YYYY-MM-DDTHH:MM:SSZ", "priority": "high", "type": "study"}
   ]
-}}
+}
 Rules:
 - Supported actions: "create_study_session" (with title, duration_minutes, priority), "create_task" (with title, description, priority, estimated_minutes), "schedule_task" (with title, start_time, end_time, priority, type), "reschedule_task" (with title, new_start_time, reason), "prioritize_task" (with title, priority, reason).
 - "priority" must be exactly one of: low, medium, high, urgent.

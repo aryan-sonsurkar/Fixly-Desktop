@@ -66,4 +66,25 @@ describe("DocumentChat", () => {
       expect(chatWithDocument).toHaveBeenCalledTimes(2);
     });
   });
+
+  it.each([
+    ["null message", { message: null }],
+    ["missing fields", { message: {} }],
+    ["object content", { message: { id: "m9", content: { text: "x" }, created_at: null } }],
+    ["numeric content", { message: { id: "m9", content: 42, created_at: "bad-date" } }],
+  ])("malformed payload (%s) never crashes render", async (_label, payload) => {
+    (chatWithDocument as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ...payload,
+      conversation: { id: "c9" },
+      chunks_used: [],
+    });
+    render(<DocumentChat documentId="d1" />);
+    fireEvent.click(screen.getByText("Summarize this chapter"));
+    await waitFor(() => {
+      // Component stays alive and interactive after a malformed payload:
+      // the composer is still present (a React render crash would unmount it).
+      expect(screen.getByPlaceholderText("Ask about this document...")).toBeTruthy();
+    });
+    expect(document.body.textContent).not.toContain("[object Object]");
+  });
 });

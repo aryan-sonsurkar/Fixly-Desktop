@@ -79,11 +79,22 @@ export function DocumentChat({ documentId, docTitle, conversationId, onConversat
             .slice(0, 5)
         : undefined;
 
+      const rawMsg = (result.message ?? {}) as {
+        id?: unknown;
+        content?: unknown;
+        created_at?: unknown;
+      };
+      // Defensive: backend message shapes vary (null content, missing
+      // fields, non-string payloads). Coerce everything the renderer
+      // touches so a malformed payload can never crash React.
       const assistantMsg: Message = {
-        id: result.message.id,
+        id: typeof rawMsg.id === "string" && rawMsg.id ? rawMsg.id : `srv-${Date.now()}`,
         role: "assistant",
-        content: result.message.content,
-        created_at: result.message.created_at,
+        content: typeof rawMsg.content === "string" ? rawMsg.content : "",
+        created_at:
+          typeof rawMsg.created_at === "string" && rawMsg.created_at
+            ? rawMsg.created_at
+            : new Date().toISOString(),
         citations,
       };
       setMessages((prev) => [...prev, assistantMsg]);

@@ -286,3 +286,34 @@ class ToolRegistry:
             auth_level=AuthLevel.AUTO,
             example="How many points do I have today?",
         ))
+        self.register(ToolDefinition(
+            name="get_student_context",
+            description="Bounded overview of academic state: courses, assignments, dates, documents",
+            category=ToolCategory.ACADEMIC,
+            auth_level=AuthLevel.AUTO,
+            example="What is on my plate right now?",
+        ))
+        self.register(ToolDefinition(
+            name="get_course_context",
+            description="Bounded context for one course: assignments, documents, dates, topics",
+            category=ToolCategory.ACADEMIC,
+            auth_level=AuthLevel.AUTO,
+            required_params=["subject_ref"],
+            example="What do I have for DBMS?",
+        ))
+        self.register(ToolDefinition(
+            name="get_upcoming_deadlines",
+            description="Upcoming assignment deadlines sorted by date",
+            category=ToolCategory.ACADEMIC,
+            auth_level=AuthLevel.AUTO,
+            optional_params=["days", "limit"],
+            example="What is due in the next two weeks?",
+        ))
+        self.register(ToolDefinition(
+            name="get_knowledge_gaps",
+            description="Concept mastery gaps (not implemented yet; always reports unavailable)",
+            category=ToolCategory.ACADEMIC,
+            auth_level=AuthLevel.AUTO,
+            optional_params=["subject_ref"],
+            example="What are my weak topics in DBMS?",
+        ))

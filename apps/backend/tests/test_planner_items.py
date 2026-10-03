@@ -359,3 +359,147 @@ async def test_prioritize_without_match_rejects_instead_of_creating():
         with pytest.raises(FixlyValidationError, match="No matching task"):
             await svc.execute_action("u1", action, idempotency_key="probe-prio-no-match")
         mock_create.assert_not_called()
+
+
+# ── Loop 10: structured-output reliability ───────────────────
+
+def test_doubled_braces_salvaged_to_canonical():
+    """Tiny-model echo of doubled example braces still yields typed actions."""
+    svc = _svc()
+    content = (
+        '{"explanation": "Focus on DBMS first.", "actions": ['
+        '{{"action": "create_study_session", "title": "DBMS normalization", '
+        '"duration_minutes": 45, "priority": "high", '
+        '"scheduled_time": "2026-10-02T18:00:00Z"}}, '
+        '{{"action": "create_task", "title": "DBMS worksheet", "description": "Problems 1-5", '
+        '"priority": "high", "estimated_minutes": 30}}], "schedule_items": []}'
+    )
+    result = svc.validate_and_parse_plan_output(content)
+    assert len(result["actions"]) == 2
+    assert result["actions"][0]["action"] == "create_study_session"
+    assert result["actions"][1]["action"] == "create_task"
+    assert not result["content"].startswith("{")
+    # schedule synthesized from actions keeps timeline + cards consistent
+    assert len(result["schedule_items"]) >= 1
+
+
+def test_truncated_output_salvaged_without_invention():
+    """Cut-off generation is closed structurally; items still validated."""
+    svc = _svc()
+    full = json.dumps({
+        "explanation": "Tonight: DBMS first.",
+        "actions": [
+            {"action": "create_study_session", "title": "DBMS normalization",
+             "duration_minutes": 45, "priority": "high"},
+            {"action": "create_task", "title": "DBMS worksheet",
+             "description": "Problems 1-5", "priority": "high", "estimated_minutes": 30},
+        ],
+        "schedule_items": [],
+    })
+    truncated = full[: full.index('"DBMS worksheet"') + 10]  # cut mid-string
+    result = svc.validate_and_parse_plan_output(truncated)
+    assert len(result["actions"]) >= 1
+    assert result["actions"][0]["title"] == "DBMS normalization"
+    # the cut-off fragment contributes no fabricated action
+    assert all(a["title"] != "DBMS worksheet" or a["action"] == "create_task"
+               for a in result["actions"])
+
+
+def test_valid_envelope_without_actions_returns_honest_prose():
+    """Parsed JSON with zero usable items + prose explanation -> PROSE, not 422."""
+    svc = _svc()
+    payload = json.dumps({
+        "explanation": "Start with DBMS Revision tonight, then 20 minutes of Mathematics.",
+        "actions": [],
+        "schedule_items": [],
+    })
+    result = svc.validate_and_parse_plan_output(payload)
+    assert result["actions"] == [] and result["schedule_items"] == []
+    assert result["content"] == "Start with DBMS Revision tonight, then 20 minutes of Mathematics."
+    assert not result["content"].startswith("{")
+    assert not result["explanation"].startswith("{")
+
+
+def test_prose_fallback_never_returns_json_looking_content():
+    """Explanation that itself looks like JSON must still raise, never display raw JSON."""
+    svc = _svc()
+    payload = json.dumps({
+        "explanation": '{"actions": []}',
+        "actions": [],
+        "schedule_items": [],
+    })
+    with pytest.raises(FixlyValidationError):
+        svc.validate_and_parse_plan_output(payload)
+
+
+def test_repair_helpers_are_content_preserving():
+    svc = _svc()
+    assert svc._repair_doubled_braces('{"a": 1}') == '{"a": 1}'
+    assert svc._repair_doubled_braces('{{"a": 1}}') == '{"a": 1}'
+    assert svc._repair_truncation('{"a": 1}') == '{"a": 1}'
+    assert svc._repair_truncation('{"a": {"b": [1, 2') == '{"a": {"b": [1, 2]}}'
+    # braces inside strings do not confuse the closer
+    assert svc._repair_truncation('{"t": "a}b"') == '{"t": "a}b"}'
+
+
+@pytest.mark.asyncio
+async def test_generate_daily_plan_uses_deterministic_temperature():
+    """Planner pins temperature=0.0; settings sampling must not leak into plans."""
+    svc = _svc()
+    svc.context = AsyncMock()
+    svc.context.gather = AsyncMock(return_value={
+        "profile": {}, "subjects": [], "assignments": {"total": 0},
+        "pomodoro": {}, "email": {}})
+    svc.ai_repo = AsyncMock()
+    svc.ai_repo.create_conversation = AsyncMock(return_value={"id": "conv-1"})
+    canned = json.dumps({
+        "explanation": "Do DBMS first.",
+        "actions": [{"action": "create_study_session", "title": "DBMS",
+                     "duration_minutes": 45, "priority": "high"}],
+        "schedule_items": [],
+    })
+    svc.ai_service = AsyncMock()
+    svc.ai_service.chat = AsyncMock(return_value={"message": {"content": canned}})
+    with patch("app.services.planner_service.PromptManager") as mock_pm:
+        mock_pm.return_value.build = AsyncMock(return_value="plan prompt")
+        plan = await svc.generate_daily_plan("u1")
+    _, kwargs = svc.ai_service.chat.await_args
+    assert kwargs.get("temperature") == 0.0
+    assert len(plan["actions"]) == 1
+    assert plan["actions"][0]["title"] == "DBMS"
+
+
+@pytest.mark.asyncio
+async def test_chat_temperature_override_reaches_provider():
+    """AIService.chat honors an explicit temperature; default stays settings-driven."""
+    from unittest.mock import MagicMock
+
+    from app.services.ai_service import AIService
+
+    def _svc_ai():
+        svc = AIService(access_token=None)
+        svc.repository = AsyncMock()
+        svc.repository.create_conversation = AsyncMock(return_value={"id": "c1"})
+        svc.repository.create_message = AsyncMock(return_value={"id": "m1"})
+        svc.repository.get_messages = AsyncMock(return_value=[])
+        svc.repository.get_message_count = AsyncMock(return_value=9)
+        svc.repository.get_conversation = AsyncMock(return_value={"id": "c1", "title": "Q"})
+        svc._get_settings = AsyncMock(return_value={})
+        svc._format_messages = AsyncMock(return_value=[{"role": "user", "content": "hi"}])
+        provider = MagicMock()
+        provider.name = "fixly-local"
+        provider.generate = AsyncMock(return_value="hello")
+        svc._resolve_provider = AsyncMock(return_value=provider)
+        svc.memory_service = MagicMock()
+        svc.memory_service.extract_memories = MagicMock(return_value=[])
+        return svc, provider
+
+    svc, provider = _svc_ai()
+    await svc.chat("u1", "hi", None, temperature=0.0)
+    _, temp, _ = provider.generate.await_args.args
+    assert temp == 0.0
+
+    svc2, provider2 = _svc_ai()
+    await svc2.chat("u1", "hi")
+    _, temp2, _ = provider2.generate.await_args.args
+    assert temp2 == 0.7

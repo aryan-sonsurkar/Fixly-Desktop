@@ -130,6 +130,97 @@ class ToolExecutor:
                 ),
             )
 
+    async def execute_async(
+        self,
+        tool_name: str,
+        user_id: str,
+        parameters: dict[str, Any],
+        access_token: str | None = None,
+    ) -> ToolResult:
+        """Async variant honoring the same authorization and audit flow.
+
+        Supports both sync and async handlers: coroutine results are
+        awaited. Handlers receive (user_id, parameters, ctx) where ctx
+        carries the caller's access token for user-scoped data access.
+        Existing sync handlers keep working unchanged through
+        execute(); new async handlers (P0.2 academic tools) require this.
+        """
+        import inspect
+
+        from app.services.tool_handlers import ToolHandlerContext
+
+        auth_result = self.authorizer.check_authorization(
+            tool_name, user_id, parameters
+        )
+
+        if not auth_result.allowed:
+            audit = self.authorizer.record_execution(
+                user_id, tool_name, parameters,
+                auth_result.classification, "denied", auth_result.reason,
+            )
+            return ToolResult(
+                success=False,
+                tool_name=tool_name,
+                error=f"Authorization denied: {auth_result.reason}",
+                audit_entry=audit,
+            )
+
+        if auth_result.requires_confirmation:
+            return ToolResult(
+                success=False,
+                tool_name=tool_name,
+                error="confirmation_required",
+                audit_entry=self.authorizer.record_execution(
+                    user_id, tool_name, parameters,
+                    auth_result.classification, "awaiting_confirmation",
+                ),
+            )
+
+        handler = self._handlers.get(tool_name)
+        if handler is None:
+            return ToolResult(
+                success=False,
+                tool_name=tool_name,
+                error="no_handler_registered",
+                audit_entry=self.authorizer.record_execution(
+                    user_id, tool_name, parameters,
+                    auth_result.classification, "failed", "no_handler",
+                ),
+            )
+
+        start = time.time()
+        try:
+            ctx = ToolHandlerContext(access_token=access_token)
+            result = handler(user_id, parameters, ctx)
+            if inspect.isawaitable(result):
+                result = await result
+            elapsed = (time.time() - start) * 1000
+
+            audit = self.authorizer.record_execution(
+                user_id, tool_name, parameters,
+                auth_result.classification, "executed",
+            )
+            return ToolResult(
+                success=True,
+                tool_name=tool_name,
+                result=result,
+                audit_entry=audit,
+                execution_time_ms=elapsed,
+            )
+        except Exception as e:
+            elapsed = (time.time() - start) * 1000
+            logger.error("Tool execution failed: %s - %s", tool_name, e)
+            return ToolResult(
+                success=False,
+                tool_name=tool_name,
+                error=str(e),
+                execution_time_ms=elapsed,
+                audit_entry=self.authorizer.record_execution(
+                    user_id, tool_name, parameters,
+                    auth_result.classification, "failed", str(e),
+                ),
+            )
+
     def rollback(self, audit_id: str, user_id: str) -> ToolResult:
         """Attempt to rollback a previous tool execution."""
         entries = self.authorizer.get_audit_log(user_id)

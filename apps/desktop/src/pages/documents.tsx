@@ -194,7 +194,7 @@ function DocumentViewer({ doc, onBack }: { doc: DocumentDetail; onBack: () => vo
           <DocumentFilename name={doc.original_name} />
           <p className="mt-0.5 text-xs text-muted-foreground">
             {doc.file_type.toUpperCase()} &middot; {formatSize(doc.file_size)}
-            {doc.page_count > 0 && ` &middot; ${doc.page_count} pages`}
+            {doc.page_count > 0 && ` · ${doc.page_count} pages`}
             &middot; {doc.status === "indexed" || doc.status === "processed" ? "Ready" : doc.status}
           </p>
         </div>
@@ -531,7 +531,7 @@ export function DocumentsPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   const uploadMutation = useMutation({
-    mutationFn: async (files: File[]) => {
+    mutationFn: async ({ files, subjectId }: { files: File[]; subjectId: string | null }) => {
       // Drop exact duplicates already queued in this batch.
       const seen = new Set<string>();
       const unique = files.filter((f) => {
@@ -554,7 +554,7 @@ export function DocumentsPage() {
       const results = await Promise.allSettled(
         unique.map(async (file, idx) => {
           setUploadProgress(`Uploading ${idx + 1}/${unique.length}: ${file.name}`);
-          const doc = await uploadDocument(file);
+          const doc = await uploadDocument(file, subjectId);
           setUploadProgress(`Processing ${idx + 1}/${unique.length}: ${file.name}`);
           try {
             await processDocument(doc.id);
@@ -751,7 +751,7 @@ export function DocumentsPage() {
       <UploadDialog
         open={uploadOpen}
         onClose={() => setUploadOpen(false)}
-        onUpload={(files) => uploadMutation.mutateAsync(files)}
+        onUpload={(files, subjectId) => uploadMutation.mutateAsync({ files, subjectId })}
       />
 
       {uploadProgress && (

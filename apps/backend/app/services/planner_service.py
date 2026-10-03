@@ -135,6 +135,78 @@ class PlannerService:
 
         return norm
 
+    @staticmethod
+    def _repair_doubled_braces(raw: str) -> str:
+        """Collapse model-echoed doubled braces ({{ -> {, }} -> }).
+
+        The planner prompt shows single-brace JSON; tiny models sometimes
+        echo doubled braces anyway. Purely structural and only adopted when
+        the repaired text actually parses (validated downstream per item).
+        """
+        if "{{" not in raw and "}}" not in raw:
+            return raw
+        return raw.replace("{{", "{").replace("}}", "}")
+
+    @staticmethod
+    def _repair_truncation(raw: str) -> str:
+        """Close unbalanced trailing brackets from cut-off generation.
+
+        Appends only the missing closers in correct nesting order; never
+        adds content. Braces inside double-quoted strings are ignored.
+        The result must still parse AND pass per-item validation to be used.
+        """
+        stack: list[str] = []
+        in_string = False
+        escaped = False
+        for ch in raw:
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif ch == "\\":
+                    escaped = True
+                elif ch == '"':
+                    in_string = False
+                continue
+            if ch == '"':
+                in_string = True
+            elif ch in "{[":
+                stack.append(ch)
+            elif ch == "}" and stack and stack[-1] == "{":
+                stack.pop()
+            elif ch == "]" and stack and stack[-1] == "[":
+                stack.pop()
+        if in_string:
+            raw += '"'
+        closers = {"{": "}", "[": "]"}
+        return raw + "".join(closers[o] for o in reversed(stack))
+
+    def _parse_plan_json(self, raw: str) -> Any:
+        """Parse planner JSON with deterministic structural repairs.
+
+        Attempt order: as-extracted, de-doubled braces, truncation-closed.
+        Repairs never invent content; every item still passes strict
+        per-item validation afterwards. Raises FixlyValidationError only
+        when nothing parses.
+        """
+        candidates = [raw]
+        dedoubled = self._repair_doubled_braces(raw)
+        if dedoubled != raw:
+            candidates.append(dedoubled)
+        closed = self._repair_truncation(raw)
+        if closed != raw:
+            candidates.append(closed)
+        last_err: Exception | None = None
+        for i, candidate in enumerate(candidates):
+            try:
+                if i > 0:
+                    logger.info("Planner: structural repair attempt %d in use", i)
+                return json.loads(candidate)
+            except json.JSONDecodeError as e:
+                last_err = e
+        raise FixlyValidationError(
+            detail=f"AI response is not valid JSON: {last_err}"
+        )
+
     def _validate_schedule_items(self, content: str) -> list[dict[str, Any]]:
         """Validate legacy or direct schedule items payload."""
         raw = self._extract_json(content)
@@ -264,12 +336,7 @@ class PlannerService:
             }
 
         raw = self._extract_json(content)
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError as e:
-            raise FixlyValidationError(
-                detail=f"AI response is not valid JSON: {e}"
-            )
+        data = self._parse_plan_json(raw)
 
         if not isinstance(data, (dict, list)):
             raise FixlyValidationError(
@@ -324,6 +391,22 @@ class PlannerService:
             validated_schedule = self._synthesize_schedule_from_actions(validated_actions)
 
         if not validated_actions and not validated_schedule:
+            if (
+                isinstance(raw_explanation, str)
+                and raw_explanation.strip()
+                and not self._looks_like_json(raw_explanation)
+            ):
+                # PROSE state: valid JSON envelope, but no usable structured
+                # items — return the model's own prose guidance as a text
+                # plan instead of failing. No fake cards, no invented IDs.
+                prose = raw_explanation.strip()
+                logger.info("Planner: no valid actions; returning prose plan")
+                return {
+                    "explanation": prose,
+                    "actions": [],
+                    "schedule_items": [],
+                    "content": prose,
+                }
             raise FixlyValidationError(
                 detail="AI response contains no usable schedule items or actions"
             )
@@ -527,7 +610,7 @@ class PlannerService:
         prompt = await PromptManager(access_token=self.access_token).build(
             PromptType.PLANNER, user_id, **prompt_kwargs
         )
-        result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
+        result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False, temperature=0.0)
 
         content = result["message"]["content"]
         try:
@@ -599,7 +682,7 @@ class PlannerService:
         prompt = await PromptManager(access_token=self.access_token).build(
             PromptType.PLANNER, user_id, **prompt_kwargs
         )
-        result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
+        result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False, temperature=0.0)
 
         content = result["message"]["content"]
         try:
@@ -670,7 +753,7 @@ class PlannerService:
         prompt = await PromptManager(access_token=self.access_token).build(
             PromptType.PLANNER, user_id, **prompt_kwargs
         )
-        result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False)
+        result = await self.ai_service.chat(user_id, prompt, conv["id"], stream=False, temperature=0.0)
 
         content = result["message"]["content"]
         try:

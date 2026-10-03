@@ -52,6 +52,12 @@ def _get_email_service(ctx: ToolHandlerContext):
     return EmailService(access_token=ctx.access_token)
 
 
+def _get_academic_context_service(ctx: ToolHandlerContext):
+    from app.services.academic_context import AcademicContextService
+
+    return AcademicContextService(access_token=ctx.access_token)
+
+
 def _get_notification_service(ctx: ToolHandlerContext):
     from app.services.notification_service import NotificationService
 
@@ -586,3 +592,54 @@ def handle_send_reminder(user_id: str, params: dict[str, Any], ctx: ToolHandlerC
         "when": when,
         "created": True,
     }
+
+
+# ---------------------------------------------------------------------------
+# ACADEMIC CONTEXT tools (P0.2 — async: run via execute_async)
+# ---------------------------------------------------------------------------
+
+
+async def handle_get_student_context(
+    user_id: str, params: dict[str, Any], ctx: ToolHandlerContext
+) -> dict[str, Any]:
+    """Bounded overview of the student's academic state."""
+    from app.schemas.academic_tools import StudentContextInput, StudentContextResponse
+
+    StudentContextInput(**(params or {}))
+    svc = _get_academic_context_service(ctx)
+    data = await svc.get_student_context(user_id)
+    return StudentContextResponse(**data).model_dump()
+
+
+async def handle_get_course_context(
+    user_id: str, params: dict[str, Any], ctx: ToolHandlerContext
+) -> dict[str, Any]:
+    """Bounded academic context for one course."""
+    from app.schemas.academic_tools import CourseContextInput, CourseContextResponse
+
+    cleaned = CourseContextInput(**(params or {}))
+    svc = _get_academic_context_service(ctx)
+    data = await svc.get_course_context(user_id, cleaned.subject_ref)
+    return CourseContextResponse(**data).model_dump()
+
+
+async def handle_get_upcoming_deadlines(
+    user_id: str, params: dict[str, Any], ctx: ToolHandlerContext
+) -> dict[str, Any]:
+    """Upcoming assignment deadlines, sorted by date."""
+    from app.schemas.academic_tools import DeadlinesInput, DeadlinesResponse
+
+    cleaned = DeadlinesInput(**(params or {}))
+    svc = _get_academic_context_service(ctx)
+    data = await svc.get_upcoming_deadlines(user_id, days=cleaned.days, limit=cleaned.limit)
+    return DeadlinesResponse(**data).model_dump()
+
+
+async def handle_get_knowledge_gaps(
+    user_id: str, params: dict[str, Any], ctx: ToolHandlerContext
+) -> dict[str, Any]:
+    """Honest stub: concept-mastery tracking is not implemented yet."""
+    from app.schemas.academic_tools import KnowledgeGapsInput, KnowledgeGapsResponse
+
+    cleaned = KnowledgeGapsInput(**(params or {}))
+    return KnowledgeGapsResponse(subject_ref=cleaned.subject_ref).model_dump()
