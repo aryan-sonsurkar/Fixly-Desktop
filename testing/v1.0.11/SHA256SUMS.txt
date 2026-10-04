@@ -1,0 +1,5 @@
+25a7a15d2258a5800f35ec3f0e2f97b05fe3816973049d9ab2dee5c7b3567698  Fixly_1.0.11_x64-setup.nsis.zip
+# Official v1.0.11 artifacts:
+# https://github.com/aryan-sonsurkar/Fixly-Updates/releases/download/v1.0.11/Fixly_1.0.11_x64-setup.nsis.zip
+# (plus .sig, MSI + zips, portable EXE, latest.json — see the draft release.)
+# Installer binary stays local-only (gitignored).

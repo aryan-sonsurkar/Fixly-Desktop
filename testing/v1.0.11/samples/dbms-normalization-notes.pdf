@@ -1,0 +1,51 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 1478 >>
+stream
+BT /F1 12 Tf 72 740 Td (DBMS Normalization - Class Notes [messy but mine]) Tj ET
+BT /F1 12 Tf 72 718 Td () Tj ET
+BT /F1 12 Tf 72 696 Td (1NF: no repeating groups. each cell atomic. PK must exist.) Tj ET
+BT /F1 12 Tf 72 674 Td (Students[id, name, phones] BAD if phones = '98200, 98111' in one cell.) Tj ET
+BT /F1 12 Tf 72 652 Td () Tj ET
+BT /F1 12 Tf 72 630 Td (2NF: 1NF + no partial dependency. only matters with COMPOSITE pk.) Tj ET
+BT /F1 12 Tf 72 608 Td (Enroll[sid, cid, sname, grade]: sname depends only on sid => partial!) Tj ET
+BT /F1 12 Tf 72 586 Td (fix: Students[sid, sname] + Enroll[sid, cid, grade].) Tj ET
+BT /F1 12 Tf 72 564 Td () Tj ET
+BT /F1 12 Tf 72 542 Td (3NF: 2NF + no transitive dependency. non-key must not depend on non-key.) Tj ET
+BT /F1 12 Tf 72 520 Td (Emp[id, dept, dept_city]: dept_city depends on dept, not id => transitive!) Tj ET
+BT /F1 12 Tf 72 498 Td (fix: Emp[id, dept] + Dept[dept, dept_city].) Tj ET
+BT /F1 12 Tf 72 476 Td () Tj ET
+BT /F1 12 Tf 72 454 Td (Students table example: Students[sid, name, hostel, warden].) Tj ET
+BT /F1 12 Tf 72 432 Td (warden depends on hostel, hostel depends on sid => NOT 3NF.) Tj ET
+BT /F1 12 Tf 72 410 Td (fix: Students[sid, name, hostel] + Hostels[hostel, warden].) Tj ET
+BT /F1 12 Tf 72 388 Td () Tj ET
+BT /F1 12 Tf 72 366 Td (exam tip: they always ask to convert Enroll or Emp tables. watch for) Tj ET
+BT /F1 12 Tf 72 344 Td (partial vs transitive - partial needs composite key, transitive doesn't.) Tj ET
+
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000311 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1841
+%%EOF
