@@ -18,7 +18,16 @@ const assignmentSchema = z.object({
   priority: z.enum(["low", "medium", "high", "urgent"]),
   status: z.enum(["pending", "in_progress", "completed", "overdue", "cancelled"]),
   due_date: z.string().optional(),
-  estimated_study_time: z.coerce.number().min(1).max(1440).optional(),
+  // Empty input arrives as "" — coerce would turn that into 0 and fail
+  // min(1), silently blocking submit. Treat blank as absent instead.
+  estimated_study_time: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? undefined : v),
+    z.coerce
+      .number({ invalid_type_error: "Est. time must be a number" })
+      .min(1, "Est. time must be at least 1 minute")
+      .max(1440, "Est. time can't exceed 1440 minutes")
+      .optional(),
+  ),
   tags: z.string().optional(),
   notes: z.string().optional(),
   is_pinned: z.boolean().optional(),
@@ -221,6 +230,9 @@ export function AssignmentFormDialog({
             <div className="space-y-2">
               <Label htmlFor="estimated_study_time">Est. Time (min)</Label>
               <Input id="estimated_study_time" type="number" min={1} max={1440} placeholder="60" {...form.register("estimated_study_time")} />
+              {form.formState.errors.estimated_study_time && (
+                <p className="text-xs text-destructive">{form.formState.errors.estimated_study_time.message}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="tags">Tags</Label>
