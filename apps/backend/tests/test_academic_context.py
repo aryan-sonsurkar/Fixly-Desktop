@@ -5,29 +5,42 @@ ambiguity/missing), course context contents + bounds, upcoming deadlines,
 empty states, and relevance (no unrelated data).
 """
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 
 from app.services.academic_context import AcademicContextService
 
 DBMS_ID = "11111111-2222-3333-4444-555555555555"
 
+# Fixture dates float relative to today so horizon assertions hold no
+# matter when the suite runs (fixed calendar dates rotted once real time
+# passed them). a1 is near (+3d), a2 is far (+30d), a3 is an old completed
+# item that must stay excluded.
+_FIXTURE_TODAY = datetime.now(timezone.utc).date()
+
+
+def _due(days: int) -> str:
+    return (_FIXTURE_TODAY + timedelta(days=days)).isoformat() + "T21:00:00Z"
+
+
+ASSIGNMENTS = [
+    {"id": "a1", "user_id": "u1", "title": "DBMS normalization worksheet",
+     "status": "pending", "priority": "high", "due_date": _due(3),
+     "subject_id": DBMS_ID},
+    {"id": "a2", "user_id": "u1", "title": "DSU trees problem set",
+     "status": "pending", "priority": "medium", "due_date": _due(30),
+     "subject_id": "s-dsu"},
+    {"id": "a3", "user_id": "u1", "title": "Old physics lab",
+     "status": "completed", "priority": "low", "due_date": _due(-270),
+     "subject_id": "s-phy"},
+]
+
 SUBJECTS = [
     {"id": DBMS_ID, "user_id": "u1", "name": "Database Management Systems"},
     {"id": "s-dsu", "user_id": "u1", "name": "Data Structures"},
     {"id": "s-dbms-lab", "user_id": "u1", "name": "DBMS Lab"},
     {"id": "s-phy", "user_id": "u1", "name": "Physics"},
-]
-
-ASSIGNMENTS = [
-    {"id": "a1", "user_id": "u1", "title": "DBMS normalization worksheet",
-     "status": "pending", "priority": "high", "due_date": "2026-10-05T21:00:00Z",
-     "subject_id": DBMS_ID},
-    {"id": "a2", "user_id": "u1", "title": "DSU trees problem set",
-     "status": "pending", "priority": "medium", "due_date": "2026-10-20T21:00:00Z",
-     "subject_id": "s-dsu"},
-    {"id": "a3", "user_id": "u1", "title": "Old physics lab",
-     "status": "completed", "priority": "low", "due_date": "2026-01-05T21:00:00Z",
-     "subject_id": "s-phy"},
 ]
 
 DOCS = [
@@ -157,7 +170,7 @@ async def test_course_context_relevant_only(monkeypatch):
     assert out["subject"]["id"] == DBMS_ID
     assert [a["title"] for a in out["assignments"]] == ["DBMS normalization worksheet"]
     assert [d["name"] for d in out["documents"]] == ["dbms-notes.pdf"]
-    assert out["upcoming_dates"] == ["2026-10-05"]
+    assert out["upcoming_dates"] == [ASSIGNMENTS[0]["due_date"][:10]]
     assert "First Normal Form" in out["topic_signals"]
     assert "Second Normal Form" in out["topic_signals"]
     # no physics/DSU leakage
@@ -580,7 +593,7 @@ async def test_course_block_sections_ordered_and_clean(monkeypatch):
     order = ["Course:", "Upcoming:", "Assignments:", "Documents:", "Topics:", "Grounding:"]
     positions = [first.index(h) for h in order]
     assert positions == sorted(positions)
-    assert "2026-10-05" in first  # dates from persisted data
+    assert ASSIGNMENTS[0]["due_date"][:10] in first  # dates from persisted data
     assert "DBMS normalization worksheet" in first
     assert "dbms-notes.pdf" in first
     assert "First Normal Form" in first
