@@ -131,6 +131,7 @@ class AIService:
         conversation_id: str | None = None,
         stream: bool = False,
         temperature: float | None = None,
+        system_prompt_type: PromptType | None = None,
     ) -> dict[str, Any]:
         """Chat completion with persistence.
 
@@ -138,6 +139,9 @@ class AIService:
         when provided (e.g. structured-output callers pass 0.0 for
         determinism). Callers must hardcode the value; it is never taken
         from model output or message text.
+        system_prompt_type selects an alternate registered system prompt
+        (e.g. the experimental Focus Companion tone). Defaults to the
+        standard assistant prompt; existing callers are unaffected.
         """
         conv: dict[str, Any] | None
         is_new_conv = not conversation_id
@@ -175,6 +179,7 @@ class AIService:
         formatted = await self._format_messages(
             history, user_id, system_prompt_override, academic_context_enabled, conversation_memory,
             current_message=message, document_ids=[], conversation_id=conversation_id,
+            system_prompt_type=system_prompt_type or PromptType.SYSTEM,
         )
 
         response_text = await provider.generate(formatted, temperature, max_tokens_count)
@@ -277,7 +282,10 @@ class AIService:
         user_id: str,
         message: str,
         conversation_id: str | None = None,
+        system_prompt_type: PromptType | None = None,
     ) -> AsyncGenerator[str, None]:
+        """Streaming chat. system_prompt_type mirrors chat(): alternate
+        registered system prompt or the standard one when omitted."""
         is_new_conv = not conversation_id
         if not conversation_id:
             conv = await self.repository.create_conversation(user_id, message[:80])
@@ -308,6 +316,7 @@ class AIService:
         formatted = await self._format_messages(
             history, user_id, system_prompt_override, academic_context_enabled, conversation_memory,
             current_message=message, document_ids=[], conversation_id=conversation_id,
+            system_prompt_type=system_prompt_type or PromptType.SYSTEM,
         )
 
         accumulated = ""
@@ -476,6 +485,7 @@ class AIService:
         current_message: str | None = None,
         document_ids: list[str] | None = None,
         conversation_id: str | None = None,
+        system_prompt_type: PromptType = PromptType.SYSTEM,
     ) -> list[dict[str, str]]:
         messages: list[dict[str, str]] = []
 
@@ -508,7 +518,7 @@ class AIService:
                 kwargs = {}
 
         try:
-            system_content = await self.prompt_manager.build(PromptType.SYSTEM, user_id, **kwargs)
+            system_content = await self.prompt_manager.build(system_prompt_type, user_id, **kwargs)
         except Exception as e:
             logger.warning("System prompt build failed, using minimal prompt: %s", e)
             system_content = "You are Fixly AI, a helpful academic assistant."

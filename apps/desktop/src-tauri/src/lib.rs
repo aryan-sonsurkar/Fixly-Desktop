@@ -191,9 +191,10 @@ fn get_backend_port(state: tauri::State<'_, Arc<Mutex<BackendState>>>) -> Result
 // ---------------------------------------------------------------------------
 
 fn get_fixly_backend_install_path(app: Option<&AppHandle>) -> Option<std::path::PathBuf> {
+    let exe_name = backend_file_name();
     if let Some(handle) = app {
         if let Ok(resource_dir) = handle.path().resource_dir() {
-            let p = resource_dir.join("backend").join("backend.exe");
+            let p = resource_dir.join("backend").join(exe_name);
             if p.exists() {
                 return p.canonicalize().ok().or(Some(p));
             }
@@ -203,7 +204,7 @@ fn get_fixly_backend_install_path(app: Option<&AppHandle>) -> Option<std::path::
                 .join("..")
                 .join("Fixly")
                 .join("backend")
-                .join("backend.exe");
+                .join(exe_name);
             if p.exists() {
                 return p.canonicalize().ok().or(Some(p));
             }
@@ -249,7 +250,10 @@ fn kill_fixly_orphans(fixly_backend_path: Option<&std::path::Path>) {
     for (pid, proc_info) in sys.processes() {
         let Some(exe) = proc_info.exe() else { continue };
         let is_exact = exe == target_canonical.as_path();
-        let is_fixly_backend = proc_info.name() == "backend.exe"
+        // Process image name is platform-specific (`backend.exe` on
+        // Windows, extensionless `backend` elsewhere).
+        let want_name = if cfg!(target_os = "windows") { "backend.exe" } else { "backend" };
+        let is_fixly_backend = proc_info.name() == want_name
             && exe.to_string_lossy().contains("Fixly")
             && exe
                 .canonicalize()
@@ -260,9 +264,14 @@ fn kill_fixly_orphans(fixly_backend_path: Option<&std::path::Path>) {
         }
         let pid_u32 = pid.as_u32();
         if !proc_info.kill() {
-            let _ = std::process::Command::new("taskkill")
-                .args(["/PID", &pid_u32.to_string(), "/F"])
-                .output();
+            // Last-resort OS kill. sysinfo's kill() suffices on Unix;
+            // taskkill exists only on Windows.
+            #[cfg(target_os = "windows")]
+            {
+                let _ = std::process::Command::new("taskkill")
+                    .args(["/PID", &pid_u32.to_string(), "/F"])
+                    .output();
+            }
         }
     }
 }
@@ -429,6 +438,10 @@ fn health_check(port: u16) -> Result<(), String> {
 // ---------------------------------------------------------------------------
 
 fn find_backend_exe(app: &AppHandle) -> Option<std::path::PathBuf> {
+    // PyInstaller emits `backend.exe` on Windows and extensionless `backend`
+    // elsewhere. The bundled resource keeps the platform's own file name
+    // (see tauri.linux.conf.json overlay for Linux).
+    let exe_name = backend_file_name();
     #[cfg(debug_assertions)]
     {
         let dev_exe = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -436,18 +449,28 @@ fn find_backend_exe(app: &AppHandle) -> Option<std::path::PathBuf> {
             .join("..")
             .join("backend")
             .join("dist")
-            .join("backend.exe");
+            .join(exe_name);
         if dev_exe.exists() {
             return Some(dev_exe);
         }
     }
 
     let resource_dir = app.path().resource_dir().ok()?;
-    let exe_path = resource_dir.join("backend").join("backend.exe");
+    let exe_path = resource_dir.join("backend").join(exe_name);
     if exe_path.exists() {
         return Some(exe_path);
     }
     None
+}
+
+/// Platform's backend executable file name. Windows-only concern;
+/// everywhere else the PyInstaller onefile bundle has no extension.
+fn backend_file_name() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "backend.exe"
+    } else {
+        "backend"
+    }
 }
 
 fn find_python() -> Option<String> {

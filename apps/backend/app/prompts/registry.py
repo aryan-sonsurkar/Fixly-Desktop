@@ -27,6 +27,7 @@ class PromptType(str, Enum):
     WEEKLY_REVIEW = "weekly_review"
     INSIGHTS = "insights"
     SMART_COMMANDS = "smart_commands"
+    COMPANION = "companion"
 
 
 @dataclass
