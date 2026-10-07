@@ -3,6 +3,8 @@
   "_comment": "EXPERIMENTAL Linux overlay for the Focus Companion beta build. Merged on top of tauri.conf.json via `tauri build --config tauri.linux.conf.json`. Windows release behavior is untouched: base config keeps nsis/msi targets and the backend.exe resource.",
   "bundle": {
     "targets": ["appimage"],
+    "category": "Productivity",
+    "createUpdaterArtifacts": false,
     "resources": {
       "../../backend/dist/backend": "backend/backend",
       "../../backend/.env.default": "backend/.env.default",

@@ -9,6 +9,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * - Speech-to-text uses the built-in Web Speech recognition API where the
  *   runtime provides it (Chromium/WebView2 may, others usually don't; it also
  *   needs network). Absence is normal: typed input always remains.
+ * - Linux note (WebKitGTK WebView): SpeechRecognition is not provided, so STT
+ *   reports unsupported and the type-to-chat fallback stays. speechSynthesis
+ *   exists but WebKitGTK ships no voices by default, so TTS may be silent;
+ *   both cases are graceful no-ops, never errors.
  * - Nothing here ever throws for missing APIs. Text interaction is never
  *   gated behind voice. Voice is never mandatory.
  */

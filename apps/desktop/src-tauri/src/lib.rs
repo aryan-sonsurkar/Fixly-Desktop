@@ -214,7 +214,7 @@ fn get_fixly_backend_install_path(app: Option<&AppHandle>) -> Option<std::path::
         let p = std::path::PathBuf::from(local)
             .join("Fixly")
             .join("backend")
-            .join("backend.exe");
+            .join(exe_name);
         if p.exists() {
             return p.canonicalize().ok().or(Some(p));
         }
@@ -225,9 +225,29 @@ fn get_fixly_backend_install_path(app: Option<&AppHandle>) -> Option<std::path::
             .join("Local")
             .join("Fixly")
             .join("backend")
-            .join("backend.exe");
+            .join(exe_name);
         if p.exists() {
             return p.canonicalize().ok().or(Some(p));
+        }
+    }
+    // Linux fallback: XDG data dir (no installer registry to consult).
+    // cfg-gated so the Windows binary and its lookup order are untouched.
+    #[cfg(not(target_os = "windows"))]
+    {
+        let data_home = std::env::var("XDG_DATA_HOME")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .map(std::path::PathBuf::from)
+            .or_else(|| {
+                std::env::var("HOME")
+                    .ok()
+                    .map(|h| std::path::PathBuf::from(h).join(".local").join("share"))
+            });
+        if let Some(base) = data_home {
+            let p = base.join("Fixly").join("backend").join(exe_name);
+            if p.exists() {
+                return p.canonicalize().ok().or(Some(p));
+            }
         }
     }
     None
