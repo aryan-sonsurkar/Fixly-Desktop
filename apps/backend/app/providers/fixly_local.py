@@ -21,6 +21,8 @@ CANDIDATE_DIRS = [
     os.path.join(os.path.dirname(sys.executable), "..", "models") if getattr(sys, "frozen", False) else "",
     os.path.join(os.path.expanduser("~"), "AppData", "Local", "Fixly", "models"),
     os.path.join(os.path.expanduser("~"), ".cache", "fixly", "models"),
+    # XDG data dir (Linux installed/ tester layouts).
+    os.path.join(os.path.expanduser("~"), ".local", "share", "Fixly", "models"),
 ]
 
 def _find_model() -> str | None:

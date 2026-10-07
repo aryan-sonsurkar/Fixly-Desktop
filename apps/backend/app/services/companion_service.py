@@ -54,7 +54,9 @@ def rank_candidates(
     """
     excluded = set(exclude_keys or [])
     today = datetime.now(timezone.utc).date()
-    scored: list[tuple[tuple, dict[str, Any]]] = []
+    # (overdue, fits_window, urgency, priority_weight, est_sort, title)
+    score_key = tuple[bool, bool, int, int, int, str]
+    scored: list[tuple[score_key, dict[str, Any]]] = []
     for cand in candidates:
         key = str(cand.get("key", ""))
         if not key or key in excluded:
@@ -83,25 +85,31 @@ def rank_candidates(
             "estimated_minutes": est_int,
             "fits_window": fits,
         }
-        scored.append((overdue, fits, urgency,
-                       _PRIORITY_WEIGHT.get(priority, 20),
-                       est_sort,
-                       str(entry.get("title", "")), entry))
+        key_tuple: score_key = (
+            overdue,
+            fits,
+            urgency,
+            _PRIORITY_WEIGHT.get(priority, 20),
+            est_sort,
+            str(entry.get("title", "")),
+        )
+        scored.append((key_tuple, entry))
     if available_minutes is not None and scored:
-        any_fits = any(item[1] for item in scored)
+        any_fits = any(item[0][1] for item in scored)
     else:
         any_fits = True
     if available_minutes is None or any_fits:
         scored.sort(key=lambda item: (
-            not item[0], not item[1], -item[2], -item[3], item[4], item[5],
+            not item[0][0], not item[0][1],
+            -item[0][2], -item[0][3], item[0][4], item[0][5],
         ))
     else:
         # Window given but nothing fits: shortest estimate wins (capped
         # downstream), keeping overdue dominance. Urgency still breaks ties.
         scored.sort(key=lambda item: (
-            not item[0], item[4], -item[2], -item[3], item[5],
+            not item[0][0], item[0][4], -item[0][2], -item[0][3], item[0][5],
         ))
-    return [entry for *_, entry in scored]
+    return [entry for _, entry in scored]
 
 
 def to_action(ranked: dict[str, Any], available_minutes: int | None,

@@ -2,8 +2,8 @@ from app.api.v1.academic import router as academic_router
 from app.api.v1.ai import router as ai_router
 from app.api.v1.assignments import router as assignments_router
 from app.api.v1.auth import router as auth_router
-from app.api.v1.copilot import router as copilot_router
 from app.api.v1.companion import router as companion_router
+from app.api.v1.copilot import router as copilot_router
 from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.documents import router as documents_router
 from app.api.v1.email import router as email_router

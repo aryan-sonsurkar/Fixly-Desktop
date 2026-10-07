@@ -4,23 +4,29 @@ import os as _os
 
 block_cipher = None
 
-# llama-cpp-python loads its native engine (llama.dll, ggml-*.dll, mtmd.dll)
-# via ctypes from <package>/lib at runtime. PyInstaller's dependency scan
-# cannot see ctypes loads, so collect the DLLs explicitly. Without these the
+# llama-cpp-python loads its native engine (llama.dll, ggml-*.dll, mtmd.dll
+# on Windows; libllama.so, libggml-*.so on Linux) via ctypes from
+# <package>/lib at runtime. PyInstaller's dependency scan cannot see ctypes
+# loads, so collect the shared libraries explicitly. Without these the
 # frozen backend imports llama_cpp fine but Llama() construction fails.
 _llama_binaries: list[tuple[str, str]] = []
 try:
     import llama_cpp as _lc
 
     _lc_lib = _os.path.join(_os.path.dirname(_lc.__file__), "lib")
-    for _dll in sorted(_glob.glob(_os.path.join(_lc_lib, "*.dll"))):
-        _llama_binaries.append((_dll, "llama_cpp/lib"))
+    for _pat in ("*.dll", "*.so"):
+        for _lib in sorted(_glob.glob(_os.path.join(_lc_lib, _pat))):
+            _llama_binaries.append((_lib, "llama_cpp/lib"))
 except Exception:
     pass
 
+# Spec-file directory (portable: never hardcode a developer machine path).
+# SPECPATH is provided by PyInstaller: the directory containing this spec.
+_SPECD = SPECPATH
+
 a = Analysis(
     ['run_backend.py'],
-    pathex=[r'C:\Users\Aryan Sonsurkar\OneDrive\Documents\GitHub\Fixly-Desktop\apps\backend'],
+    pathex=[_SPECD],
     binaries=_llama_binaries,
     datas=[],
     hiddenimports=[
@@ -47,6 +53,7 @@ a = Analysis(
         'app.prompts.templates.assignment',
         'app.prompts.templates.briefing',
         'app.prompts.templates.coding',
+        'app.prompts.templates.companion',
         'app.prompts.templates.daily_mission',
         'app.prompts.templates.email',
         'app.prompts.templates.insights',
@@ -80,6 +87,7 @@ a = Analysis(
         'app.schemas.email',
         'app.schemas.notification',
         'app.schemas.planner',
+        'app.schemas.companion',
         'app.schemas.pomodoro',
         'app.schemas.profile',
         'app.schemas.search',
@@ -91,6 +99,7 @@ a = Analysis(
         'app.services.command_service',
         'app.services.context_service',
         'app.services.copilot_service',
+        'app.services.companion_service',
         'app.services.dashboard_service',
         'app.services.document_service',
         'app.services.email_service',
