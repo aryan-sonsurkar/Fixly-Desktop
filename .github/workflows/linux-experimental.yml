@@ -1,0 +1,309 @@
+# Linux experimental build — Focus Companion (Arch x86_64 tester).
+#
+# SCOPE GUARANTEES (do not weaken):
+# - Triggers ONLY on `feature/linux-focus-companion` (+ manual dispatch).
+#   Never on `main`, never on tags -> cannot start a production release.
+# - NEVER creates a GitHub Release, NEVER writes latest.json/updater metadata,
+#   NEVER touches the Fixly-Updates mirror. The artifact is exposed ONLY as a
+#   CI workflow artifact for the tester.
+# - The desktop bundle is unsigned (no TAURI_SIGNING_* secrets referenced).
+#
+# Build flow mirrors `.github/workflows/release.yml` gates, then:
+#   PyInstaller (Linux onefile `backend`) -> Tauri AppImage (x86_64)
+# `src-tauri/tauri.linux.conf.json` is auto-merged by Tauri on Linux
+# (official platform-specific config); Windows `tauri.conf.json` is untouched.
+
+name: Linux Experimental
+
+on:
+  push:
+    branches: [feature/linux-focus-companion]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-build:
+    name: Build Linux AppImage (experimental)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      actions: write
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/backend/requirements-dev.txt
+
+      - name: Install Tauri Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl wget file \
+            libssl-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libfuse2 \
+            xvfb
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm --filter @fixly/shared-types build && pnpm --filter @fixly/shared-utils build && pnpm --filter @fixly/ui build
+
+      # ---- Quality gates (same set as the Windows release pipeline) ----
+
+      - name: Lint desktop
+        run: pnpm --filter @fixly/desktop lint
+
+      - name: Type check desktop
+        run: pnpm --filter @fixly/desktop typecheck
+
+      - name: Test desktop
+        run: pnpm --filter @fixly/desktop test
+
+      - name: Lint backend
+        working-directory: apps/backend
+        run: pip install -r requirements-dev.txt && ruff check app/
+
+      - name: Type check backend
+        working-directory: apps/backend
+        run: mypy app/ || echo "mypy not strictly enforced"
+
+      - name: Test backend
+        working-directory: apps/backend
+        run: pytest tests/ -q
+
+      # ---- Linux backend bundle (PyInstaller onefile `backend`, no ext) ----
+
+      - name: Download bundled model (public Hugging Face, no auth)
+        run: |
+          mkdir -p apps/backend/models
+          MODEL="apps/backend/models/qwen2-0.5b-instruct-q4_k_m.gguf"
+          if [ -f "$MODEL" ] && [ "$(wc -c < "$MODEL")" -gt 300000000 ]; then
+            echo "Model already present, skipping download"
+          else
+            curl -fsSL --retry 3 -o "$MODEL" "https://huggingface.co/Qwen/Qwen2-0.5B-Instruct-GGUF/resolve/main/qwen2-0_5b-instruct-q4_k_m.gguf"
+          fi
+          ls -lh "$MODEL"
+          test "$(wc -c < "$MODEL")" -gt 300000000
+
+      - name: Download bundled embedding model (public Hugging Face, no auth)
+        run: |
+          EMB="apps/backend/models/embeddings/all-MiniLM-L6-v2"
+          if [ -f "$EMB/config.json" ] && [ -f "$EMB/model.safetensors" ]; then
+            echo "Embedding model already present, skipping download"
+          else
+            pip install "huggingface_hub>=0.23"
+            python -c "from huggingface_hub import snapshot_download; snapshot_download('sentence-transformers/all-MiniLM-L6-v2', local_dir='$EMB', local_dir_use_symlinks=False)"
+          fi
+          ls -lh "$EMB"
+          test -f "$EMB/config.json"
+          test -f "$EMB/model.safetensors"
+
+      - name: Build backend (PyInstaller, Linux)
+        working-directory: apps/backend
+        run: |
+          # CPU-only torch first: sentence-transformers pulls torch; the
+          # default index serves a multi-GB CUDA wheel. CPU wheel is enough
+          # for MiniLM embeddings and keeps this job lean. Windows installs
+          # are untouched (requirements.txt itself is not modified here).
+          pip install --index-url https://download.pytorch.org/whl/cpu torch
+          pip install -r requirements.txt
+          pip install pyinstaller
+          pyinstaller backend.spec --noconfirm
+
+      - name: Verify backend bundle exists
+        run: |
+          ls -lh apps/backend/dist/backend
+          test -f apps/backend/dist/backend
+          test -f apps/backend/models/qwen2-0.5b-instruct-q4_k_m.gguf
+          test -f apps/backend/models/embeddings/all-MiniLM-L6-v2/config.json
+
+      - name: Verify native AI runtime inside frozen backend (fail fast)
+        working-directory: apps/backend
+        run: |
+          python - << 'PYEOF'
+          from PyInstaller.archive.readers import CArchiveReader
+          arc = CArchiveReader("dist/backend")
+          names = list(arc.toc)
+          so_libs = sorted(n for n in names if n.startswith("llama_cpp/lib/") and n.endswith(".so"))
+          print("llama_cpp native libs in bundle:", so_libs)
+          if not any("libllama" in n for n in so_libs) or len(so_libs) < 3:
+              print("FROZEN BACKEND MISSING NATIVE LIBS")
+              raise SystemExit(1)
+          print("Frozen backend contains llama.cpp native libs")
+          PYEOF
+
+      - name: Backend smoke test (frozen binary boots + /health 200)
+        working-directory: apps/backend
+        run: |
+          ./dist/backend 0 > /tmp/fixly-backend-smoke.log 2>&1 &
+          BACKEND_PID=$!
+          echo "backend pid: $BACKEND_PID"
+          PORT=""
+          for i in $(seq 1 60); do
+            PORT=$(grep -oP 'FIXLY_PORT:\K[0-9]+' /tmp/fixly-backend-smoke.log | head -1 || true)
+            if [ -n "$PORT" ]; then break; fi
+            sleep 3
+          done
+          echo "detected port: ${PORT:-NONE}"
+          test -n "$PORT"
+          for i in $(seq 1 40); do
+            if curl -fsS "http://127.0.0.1:${PORT}/health" | head -c 300; then
+              echo ""
+              echo "HEALTH OK"
+              break
+            fi
+            sleep 3
+            if [ "$i" = "40" ]; then echo "HEALTH CHECK FAILED"; tail -50 /tmp/fixly-backend-smoke.log; kill "$BACKEND_PID" || true; exit 1; fi
+          done
+          kill "$BACKEND_PID" || true
+          wait "$BACKEND_PID" 2>/dev/null || true
+          echo "backend smoke PASS"
+
+      # ---- Tauri desktop (AppImage, unsigned, no updater artifacts) ----
+
+      - name: Resource-union shim (Windows backend.exe entry)
+        run: |
+          # Tauri merges tauri.linux.conf.json INTO tauri.conf.json. Scalar
+          # keys (targets, createUpdaterArtifacts) are overridden, but the
+          # `resources` MAP unions — so the Windows-only
+          # `backend/backend.exe` entry persists and the bundler validates
+          # every entry. Copying the Linux binary under the Windows name
+          # satisfies validation under EITHER merge semantic without touching
+          # the Windows config. Cost: one duplicate file in dist/ only.
+          cp apps/backend/dist/backend apps/backend/dist/backend.exe
+          ls -lh apps/backend/dist/
+
+      - name: Cargo check
+        working-directory: apps/desktop/src-tauri
+        run: cargo check
+
+      - name: Cargo test (platform-safe unit tests)
+        working-directory: apps/desktop/src-tauri
+        run: cargo test
+
+      - name: Build frontend dist
+        run: pnpm --filter @fixly/desktop build:ci
+
+      - name: Build Tauri AppImage (experimental, unsigned)
+        working-directory: apps/desktop
+        # Plain `tauri build`: on Linux the tauri.linux.conf.json overlay is
+        # auto-merged (targets=appimage, extensionless backend resource,
+        # createUpdaterArtifacts=false). No --config flag needed.
+        run: pnpm exec tauri build
+
+      - name: List bundle output + checksums
+        run: |
+          echo "=== Tauri bundle ==="
+          find apps/desktop/src-tauri/target/release/bundle -maxdepth 3 | head -40
+          APPIMAGE="$(find apps/desktop/src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -1)"
+          echo "APPIMAGE=$APPIMAGE"
+          test -n "$APPIMAGE"
+          ls -lh "$APPIMAGE"
+          sha256sum "$APPIMAGE" | tee "$APPIMAGE.sha256"
+          echo "=== updater-metadata guard: no latest.json may exist ==="
+          if find apps/desktop/src-tauri/target/release/bundle -name 'latest.json' | grep -q .; then
+            echo "UNEXPECTED latest.json in bundle — failing to protect production updater metadata"
+            exit 1
+          fi
+          echo "No updater metadata emitted (as required)"
+
+      - name: Secret scan (bundle must not contain private material)
+        run: |
+          python3 - << 'PYEOF'
+          import pathlib, re, sys
+          root = pathlib.Path("apps/desktop/src-tauri/target/release/bundle")
+          forbidden = [
+              (re.compile(r"TAURI_SIGNING_PRIVATE_KEY"), "signing private key material"),
+              (re.compile(r"supabase_service_role", re.I), "service-role key"),
+              (re.compile(r"BEGIN.*PRIVATE KEY"), "private key block"),
+          ]
+          violations = []
+          for p in root.rglob("*"):
+              if p.is_file() and p.suffix in (".json", ".sig"):
+                  try:
+                      t = p.read_text(encoding="utf-8", errors="ignore")
+                      for pat, label in forbidden:
+                          if pat.search(t):
+                              violations.append(f"{p}: {label}")
+                  except Exception:
+                      pass
+          if violations:
+              print("SECRET SCAN FAILED:", file=sys.stderr)
+              for v in violations:
+                  print(f"  VIOLATION: {v}", file=sys.stderr)
+              sys.exit(1)
+          print("Secret scan PASS")
+          PYEOF
+
+      - name: GUI smoke test under Xvfb (best-effort, non-blocking)
+        continue-on-error: true
+        run: |
+          APPIMAGE="$(find apps/desktop/src-tauri/target/release/bundle/appimage -name '*.AppImage' | head -1)"
+          chmod +x "$APPIMAGE"
+          # EXTRACT_AND_RUN bypasses FUSE (unavailable on hosted runners).
+          APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a "$APPIMAGE" > /tmp/fixly-gui-smoke.log 2>&1 &
+          GUI_PID=$!
+          echo "gui pid: $GUI_PID"
+          ALIVE=0
+          for i in $(seq 1 30); do
+            sleep 5
+            if kill -0 "$GUI_PID" 2>/dev/null && pgrep -f "fixly-desktop|Fixly" > /dev/null; then
+              ALIVE=$((ALIVE+1))
+            fi
+            if [ "$ALIVE" -ge 6 ]; then break; fi
+          done
+          echo "alive samples: $ALIVE"
+          tail -40 /tmp/fixly-gui-smoke.log || true
+          kill "$GUI_PID" || true
+          pkill -f "fixly-desktop" || true
+          test "$ALIVE" -ge 3 && echo "GUI SMOKE PASS (process survived)" || { echo "GUI smoke inconclusive (see log artifact)"; exit 1; }
+
+      - name: Upload Linux AppImage (experimental)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fixly-Linux-AppImage-x64
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+            apps/desktop/src-tauri/target/release/bundle/appimage/*.sha256
+          compression-level: 0
+
+      - name: Upload smoke logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fixly-Linux-smoke-logs
+          path: |
+            /tmp/fixly-backend-smoke.log
+            /tmp/fixly-gui-smoke.log
+          compression-level: 0
+          if-no-files-found: warn
