@@ -1,6 +1,5 @@
 {
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
-  "_comment": "EXPERIMENTAL Linux overlay for the Focus Companion beta build. Merged on top of tauri.conf.json via `tauri build --config tauri.linux.conf.json`. Windows release behavior is untouched: base config keeps nsis/msi targets and the backend.exe resource.",
   "bundle": {
     "targets": ["appimage"],
     "category": "Productivity",
