@@ -20,6 +20,49 @@ try:
 except Exception:
     pass
 
+# ONNX embedding runtime (onnxruntime + tokenizers) is imported LAZILY
+# inside embedding_service (so importing the module never requires the
+# native engine). PyInstaller's static scan cannot see lazy imports, so
+# collect them explicitly — otherwise the frozen backend boots fine but
+# crashes on the first embed call. Same trap class as the llama DLLs.
+_onnx_datas: list = []
+_onnx_binaries: list = []
+_onnx_hidden: list[str] = []
+try:
+    from PyInstaller.utils.hooks import collect_all as _collect_all
+
+    for _pkg in ("onnxruntime", "tokenizers"):
+        _d, _b, _h = _collect_all(_pkg)
+        _onnx_datas += _d
+        _onnx_binaries += _b
+        _onnx_hidden += _h
+except Exception:
+    pass
+try:
+    # Native extensions (*.pyd / *.so) that modulegraph cannot resolve as
+    # hiddenimports. Glob them explicitly so the frozen runtime can actually
+    # import onnxruntime/tokenizers (same trap class as the llama DLLs).
+    # Works on Windows (*.pyd/*.dll) and Linux (*.so) alike.
+    import importlib.util as _ilu
+
+    _seen_bin = {_b[0] for _b in _onnx_binaries}
+    for _pkg in ("onnxruntime", "tokenizers"):
+        _fspec = _ilu.find_spec(_pkg)
+        if not _fspec or not _fspec.origin:
+            continue
+        _pkgdir = _os.path.dirname(_fspec.origin)
+        _site = _os.path.dirname(_pkgdir)
+        for _root, _dirs, _files in _os.walk(_pkgdir):
+            for _fn in _files:
+                if _fn.endswith((".pyd", ".dll", ".so", ".dylib")):
+                    _full = _os.path.join(_root, _fn)
+                    if _full not in _seen_bin:
+                        _seen_bin.add(_full)
+                        _dest = _os.path.dirname(_os.path.relpath(_full, _site))
+                        _onnx_binaries.append((_full, _dest))
+except Exception:
+    pass
+
 # Spec-file directory (portable: never hardcode a developer machine path).
 # SPECPATH is provided by PyInstaller: the directory containing this spec.
 _SPECD = SPECPATH
@@ -27,8 +70,8 @@ _SPECD = SPECPATH
 a = Analysis(
     ['run_backend.py'],
     pathex=[_SPECD],
-    binaries=_llama_binaries,
-    datas=[],
+    binaries=_llama_binaries + _onnx_binaries,
+    datas=_onnx_datas,
     hiddenimports=[
         'pypdf',
         'cryptography',
@@ -130,7 +173,16 @@ a = Analysis(
         'llama_cpp.llama',
         'llama_cpp._internals',
         'diskcache',
-    ],
+        # numpy rides along via its own hook once in the graph (needed by
+        # onnxruntime/tokenizers at runtime).
+        'numpy',
+        # Top-level packages: modulegraph cannot resolve these from the lazy
+        # function-body imports in embedding_service, so list them directly
+        # (their pure-python submodules then follow statically; native
+        # extensions come from the explicit glob above).
+        'onnxruntime',
+        'tokenizers',
+    ] + _onnx_hidden,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -141,19 +193,23 @@ a = Analysis(
         'pytest', 'mypy', 'ruff', 'setuptools', 'pip', 'wheel',
         'playwright', 'sounddevice', 'soundfile', 'faster_whisper',
         'moviepy', 'pillow', 'ImageIO', 'gtts', 'edge_tts', 'kokoro',
-        'phonemizer_fork', 'playsound', 'onnxruntime',
-        'tokenizers', 'joblib', 'sympy',
+        'phonemizer_fork', 'playsound',
+        # NOTE: 'onnxruntime', 'tokenizers', 'flatbuffers' and 'protobuf' were
+        # removed from this list — they are the ONNX embedding runtime now
+        # (see hiddenimports + explicit collect above). Excludes win over
+        # hiddenimports, so listing them here silently drops them again.
+        'joblib', 'sympy',
         'pygments', 'rich', 'apscheduler', 'psutil', 'tenacity',
         'addict', 'av', 'babel', 'bottle', 'cloudpathlib', 'clr_loader',
         'csvw', 'ctranslate2', 'curated_tokenizers', 'curated_transformers',
         'dbgpu', 'decorator', 'defusedxml', 'dlinfo', 'docopt',
-        'en_core_web_sm', 'espeakng_loader', 'filelock', 'flatbuffers',
+        'en_core_web_sm', 'espeakng_loader', 'filelock',
         'fonttools', 'fpdf2', 'fsspec', 'greenlet', 'hf_xet',
         'huggingface_hub', 'imageio_ffmpeg', 'isodate',
         'jsonschema', 'jsonschema_specifications', 'language_tags',
         'loguru', 'misaki', 'mpmath', 'networkx', 'num2words',
         'nvidia_ml_py', 'pefile', 'phonemizer_fork', 'playwright',
-        'proglog', 'protobuf', 'proxy_tools', 'pycparser',
+        'proglog', 'proxy_tools', 'pycparser',
         'pyee', 'pyinstaller', 'pyinstaller_hooks_contrib',
         'pywin32_ctypes', 'pyyaml', 'rapidfuzz', 'rdflib', 'referencing',
         'requests', 'rfc3986', 'rpds_py', 'shellingham', 'six',

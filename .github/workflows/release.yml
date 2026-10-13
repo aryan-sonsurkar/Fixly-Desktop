@@ -88,15 +88,18 @@ jobs:
       - name: Download bundled embedding model (public Hugging Face, no auth)
         run: |
           EMB="apps/backend/models/embeddings/all-MiniLM-L6-v2"
-          if [ -f "$EMB/config.json" ] && [ -f "$EMB/model.safetensors" ]; then
+          if [ -f "$EMB/model.onnx" ] && [ "$(wc -c < "$EMB/model.onnx")" -gt 50000000 ]; then
             echo "Embedding model already present, skipping download"
           else
             pip install "huggingface_hub>=0.23"
-            python -c "from huggingface_hub import snapshot_download; snapshot_download('sentence-transformers/all-MiniLM-L6-v2', local_dir='$EMB', local_dir_use_symlinks=False)"
+            python -c "from huggingface_hub import snapshot_download; snapshot_download('Xenova/all-MiniLM-L6-v2', local_dir='$EMB', local_dir_use_symlinks=False, allow_patterns=['onnx/model.onnx', 'tokenizer.json', 'tokenizer_config.json', 'vocab.txt', 'config.json', 'special_tokens_map.json'])"
+            cp "$EMB/onnx/model.onnx" "$EMB/model.onnx"
+            rm -rf "$EMB/onnx"
           fi
           ls -lh "$EMB"
           test -f "$EMB/config.json"
-          test -f "$EMB/model.safetensors"
+          test -f "$EMB/tokenizer.json"
+          test "$(wc -c < "$EMB/model.onnx")" -gt 50000000
 
       - name: Build backend (PyInstaller)
         working-directory: apps/backend
@@ -131,6 +134,14 @@ jobs:
               print("FROZEN BACKEND MISSING NATIVE LIBS:", missing)
               raise SystemExit(1)
           print("Frozen backend contains all llama.cpp native libs")
+          # ONNX embedding runtime is imported lazily: assert the explicit
+          # collect in backend.spec actually landed in the bundle, otherwise
+          # the exe boots but crashes on the first embed call.
+          for prefix in ("onnxruntime/", "tokenizers/"):
+              if not any(n.startswith(prefix) for n in names):
+                  print("FROZEN BACKEND MISSING:", prefix)
+                  raise SystemExit(1)
+          print("Frozen backend contains ONNX embedding runtime")
           PYEOF
 
       - name: Cargo check

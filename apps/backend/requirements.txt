@@ -9,6 +9,7 @@ email-validator>=2.2.0
 python-multipart
 cryptography>=44.0.0
 pypdf>=5.0.0
-sentence-transformers>=6.0.0
+onnxruntime>=1.20.0
+tokenizers>=0.21.0
 llama-cpp-python>=0.3.0; sys_platform == 'win32'
 llama-cpp-python>=0.3.0; sys_platform == 'linux'
