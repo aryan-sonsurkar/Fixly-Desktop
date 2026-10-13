@@ -65,6 +65,25 @@ jobs:
         working-directory: apps/backend
         run: mypy app/ || echo "mypy not strictly enforced"
 
+      # Embedding model BEFORE tests: the ONNX service is strictly offline
+      # (no runtime HF download, by design), so the suite needs the files
+      # present to exercise real embeddings instead of erroring.
+      - name: Download bundled embedding model (public Hugging Face, no auth)
+        run: |
+          EMB="apps/backend/models/embeddings/all-MiniLM-L6-v2"
+          if [ -f "$EMB/model.onnx" ] && [ "$(wc -c < "$EMB/model.onnx")" -gt 50000000 ]; then
+            echo "Embedding model already present, skipping download"
+          else
+            pip install "huggingface_hub>=0.23"
+            python -c "from huggingface_hub import snapshot_download; snapshot_download('Xenova/all-MiniLM-L6-v2', local_dir='$EMB', local_dir_use_symlinks=False, allow_patterns=['onnx/model.onnx', 'tokenizer.json', 'tokenizer_config.json', 'vocab.txt', 'config.json', 'special_tokens_map.json'])"
+            cp "$EMB/onnx/model.onnx" "$EMB/model.onnx"
+            rm -rf "$EMB/onnx"
+          fi
+          ls -lh "$EMB"
+          test -f "$EMB/config.json"
+          test -f "$EMB/tokenizer.json"
+          test "$(wc -c < "$EMB/model.onnx")" -gt 50000000
+
       - name: Test backend
         working-directory: apps/backend
         run: pytest tests/ -v
@@ -84,22 +103,6 @@ jobs:
           fi
           ls -lh "$MODEL"
           test "$(wc -c < "$MODEL")" -gt 300000000
-
-      - name: Download bundled embedding model (public Hugging Face, no auth)
-        run: |
-          EMB="apps/backend/models/embeddings/all-MiniLM-L6-v2"
-          if [ -f "$EMB/model.onnx" ] && [ "$(wc -c < "$EMB/model.onnx")" -gt 50000000 ]; then
-            echo "Embedding model already present, skipping download"
-          else
-            pip install "huggingface_hub>=0.23"
-            python -c "from huggingface_hub import snapshot_download; snapshot_download('Xenova/all-MiniLM-L6-v2', local_dir='$EMB', local_dir_use_symlinks=False, allow_patterns=['onnx/model.onnx', 'tokenizer.json', 'tokenizer_config.json', 'vocab.txt', 'config.json', 'special_tokens_map.json'])"
-            cp "$EMB/onnx/model.onnx" "$EMB/model.onnx"
-            rm -rf "$EMB/onnx"
-          fi
-          ls -lh "$EMB"
-          test -f "$EMB/config.json"
-          test -f "$EMB/tokenizer.json"
-          test "$(wc -c < "$EMB/model.onnx")" -gt 50000000
 
       - name: Build backend (PyInstaller)
         working-directory: apps/backend
