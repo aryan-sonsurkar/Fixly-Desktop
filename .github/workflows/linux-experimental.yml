@@ -167,8 +167,13 @@ jobs:
           # ONNX embedding runtime is imported lazily: assert the explicit
           # collect in backend.spec actually landed in the bundle, otherwise
           # the exe boots but crashes on the first embed call.
+          # NOTE: CArchive TOC uses backslashes on Windows, forward slashes
+          # on Linux — normalize before matching.
+          normed = [n.replace("\\", "/") for n in names]
           for prefix in ("onnxruntime/", "tokenizers/"):
-              if not any(n.startswith(prefix) for n in names):
+              hits = sorted(n for n in normed if n.startswith(prefix))
+              print(f"{prefix}: {len(hits)} entries")
+              if not hits:
                   print("FROZEN BACKEND MISSING:", prefix)
                   raise SystemExit(1)
           print("Frozen backend contains ONNX embedding runtime")
