@@ -9,6 +9,11 @@ block_cipher = None
 # <package>/lib at runtime. PyInstaller's dependency scan cannot see ctypes
 # loads, so collect the shared libraries explicitly. Without these the
 # frozen backend imports llama_cpp fine but Llama() construction fails.
+# GPU backends are dead weight: Fixly always runs CPU inference
+# (Llama() is constructed without n_gpu_layers everywhere). Source builds
+# on CUDA-equipped runners (e.g. GitHub windows-latest) otherwise smuggle
+# multi-GB CUDA/Vulkan DLLs into the bundle through the glob below.
+_GPU_BACKEND_HINTS = ("cuda", "cublas", "vulkan", "hip", "sycl", "kompute", "opencl", "clblast", "rpc")
 _llama_binaries: list[tuple[str, str]] = []
 try:
     import llama_cpp as _lc
@@ -16,6 +21,10 @@ try:
     _lc_lib = _os.path.join(_os.path.dirname(_lc.__file__), "lib")
     for _pat in ("*.dll", "*.so"):
         for _lib in sorted(_glob.glob(_os.path.join(_lc_lib, _pat))):
+            _base = _os.path.basename(_lib).lower()
+            if any(_h in _base for _h in _GPU_BACKEND_HINTS):
+                print(f"backend.spec: skipping GPU backend lib {_base}")
+                continue
             _llama_binaries.append((_lib, "llama_cpp/lib"))
 except Exception:
     pass

@@ -107,6 +107,12 @@ jobs:
       - name: Build backend (PyInstaller)
         working-directory: apps/backend
         run: |
+          # Force a CPU-only llama-cpp build: windows-latest runners ship a
+          # CUDA toolkit and source builds otherwise enable CUDA backends,
+          # whose multi-GB DLLs would ride into the installer. Fixly runs
+          # CPU inference exclusively (no n_gpu_layers anywhere), and the
+          # spec additionally refuses GPU backend libs by filename.
+          export CMAKE_ARGS="-DGGML_CUDA=OFF -DGGML_VULKAN=OFF"
           pip install -r requirements.txt
           pip install pyinstaller
           pyinstaller backend.spec --noconfirm
