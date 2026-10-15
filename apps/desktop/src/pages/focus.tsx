@@ -12,6 +12,14 @@ import type { Message } from "@/lib/ai-service";
 
 const SESSION_KEY = "fixly:focus-companion";
 const TIME_PRESETS = [5, 10, 15];
+// Visible session progress: suggested → active → practice → check.
+// Done/idle render their own views; no timers, no pressure — just place.
+const SESSION_STEPS = [
+  { key: "suggested", label: "Suggested" },
+  { key: "active", label: "Session" },
+  { key: "practice", label: "Practice" },
+  { key: "check", label: "Check" },
+] as const;
 
 interface SavedSession {
   conversationId: string | null;
@@ -229,23 +237,72 @@ export function FocusPage() {
         {state.action && state.step !== "idle" && (
           <div className="rounded-xl border bg-card p-4">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              {state.action.overdue ? "Overdue — start here" : "Up next"}
+              {state.step === "suggested"
+                ? state.action.overdue
+                  ? "Overdue — start here"
+                  : "Up next"
+                : state.step === "active"
+                  ? "In session — one thing at a time"
+                  : state.step === "practice"
+                    ? "Practice"
+                    : "Check in"}
               {minutes ? ` · ~${Math.min(state.action.suggested_minutes, minutes)} min` : ""}
             </p>
-            <p className="mt-1 text-base font-semibold">{state.action.title}</p>
+            <div className="mt-2 flex items-center gap-1.5" aria-label="Session progress">
+              {SESSION_STEPS.map((s, i) => {
+                const reached =
+                  SESSION_STEPS.findIndex((x) => x.key === state.step) >= i;
+                return (
+                  <span key={s.key} className="flex items-center gap-1.5">
+                    <span
+                      title={s.label}
+                      className={`h-1.5 w-6 rounded-full ${reached ? "bg-primary" : "bg-muted"}`}
+                    />
+                  </span>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-base font-semibold">{state.action.title}</p>
             {state.action.subject && (
               <p className="text-sm text-muted-foreground">{state.action.subject}</p>
             )}
             {state.action.reason && (
               <p className="mt-2 text-sm text-muted-foreground">{state.action.reason}</p>
             )}
+            {state.step === "practice" && (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Settle in. Work on this for
+                {minutes ? ` ~${Math.min(state.action.suggested_minutes, minutes)} min` : " a little while"}
+                . Small steps count — you can stop anytime.
+              </p>
+            )}
+            {state.step === "check" && (
+              <p className="mt-2 text-sm font-medium">Did that move forward?</p>
+            )}
             <div className="mt-3 flex flex-wrap gap-2">
               {state.step === "suggested" && (
                 <Button size="sm" onClick={() => dispatch({ type: "START" })}>Start</Button>
               )}
-              <Button size="sm" variant="outline" onClick={() => void handleDismiss()}>
-                Not now
-              </Button>
+              {state.step === "active" && (
+                <Button size="sm" onClick={() => dispatch({ type: "PRACTICE" })}>Guide me</Button>
+              )}
+              {state.step === "practice" && (
+                <>
+                  <Button size="sm" onClick={() => dispatch({ type: "CHECK" })}>Done practicing</Button>
+                  <Button size="sm" variant="outline" onClick={() => dispatch({ type: "BACK" })}>Back</Button>
+                </>
+              )}
+              {state.step === "check" && (
+                <>
+                  <Button size="sm" onClick={() => dispatch({ type: "COMPLETE" })}>Moved forward</Button>
+                  <Button size="sm" variant="outline" onClick={() => dispatch({ type: "BACK" })}>Back to it</Button>
+                </>
+              )}
+              {(state.step === "suggested" || state.step === "active") && (
+                <Button size="sm" variant="outline" onClick={() => void handleDismiss()}>
+                  Not now
+                </Button>
+              )}
               {voice.ttsSupported && lastAssistant && (
                 <Button size="sm" variant="outline" onClick={() => voice.speak(lastAssistant.content)}>
                   Read aloud

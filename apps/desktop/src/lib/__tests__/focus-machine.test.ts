@@ -71,4 +71,24 @@ describe("focus-machine micro-session", () => {
     expect(focusReducer(initialFocusState, { type: "START" })).toBe(initialFocusState);
     expect(focusReducer(initialFocusState, { type: "COMPLETE" }).step).toBe("done");
   });
+
+  it("back returns to the active step without losing the action", () => {
+    let s = suggested();
+    s = focusReducer(s, { type: "START" });
+    s = focusReducer(s, { type: "PRACTICE" });
+    expect(s.step).toBe("practice");
+    s = focusReducer(s, { type: "BACK" });
+    expect(s.step).toBe("active");
+    expect(s.action).toBe(ACTION);
+    s = focusReducer(s, { type: "PRACTICE" });
+    s = focusReducer(s, { type: "CHECK" });
+    expect(s.step).toBe("check");
+    s = focusReducer(s, { type: "BACK" });
+    expect(s.step).toBe("active");
+    expect(s.action).toBe(ACTION);
+  });
+
+  it("back without an action is a no-op", () => {
+    expect(focusReducer(initialFocusState, { type: "BACK" })).toBe(initialFocusState);
+  });
 });

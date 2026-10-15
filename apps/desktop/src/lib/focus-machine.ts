@@ -15,6 +15,7 @@ export type FocusEvent =
   | { type: "SUGGEST"; action: CompanionAction; minutes: number | null; conversationId?: string | null }
   | { type: "START" }
   | { type: "PRACTICE" }
+  | { type: "BACK" }
   | { type: "CHECK" }
   | { type: "COMPLETE" }
   | { type: "DISMISS" }
@@ -45,6 +46,9 @@ export function focusReducer(state: FocusState, event: FocusEvent): FocusState {
     case "PRACTICE":
       if (!state.action) return state;
       return { ...state, step: "practice" };
+    case "BACK":
+      if (!state.action) return state;
+      return { ...state, step: "active" };
     case "CHECK":
       if (!state.action) return state;
       return { ...state, step: "check" };
