@@ -32,7 +32,7 @@ def _resolve_version() -> str:
         version: str = json.loads(pkg_json.read_text(encoding="utf-8"))["version"]
         return version
     except (FileNotFoundError, KeyError, OSError):
-        return "1.0.13"
+        return "1.0.14"
 
 
 APP_VERSION = _resolve_version()
