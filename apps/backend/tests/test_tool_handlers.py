@@ -8,7 +8,7 @@ Proves the tool layer is actually wired and functional.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -67,96 +67,102 @@ class TestToolRegistration:
 
 
 class TestReadPDF:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_read_pdf
 
         mock_svc = MagicMock()
-        mock_svc.get_document_detail.return_value = {
+        mock_svc.get_document_detail = AsyncMock(
+            return_value={
             "title": "DBMS Notes",
             "chunks": [{"content": "Chapter 1: Normalization"}, {"content": "Chapter 2: Indexing"}],
         }
+        )
         with patch("app.services.tool_handlers._get_doc_service", return_value=mock_svc):
-            result = handle_read_pdf("u1", {"document_id": "doc1"}, ctx)
+            result = await handle_read_pdf("u1", {"document_id": "doc1"}, ctx)
 
         assert result["title"] == "DBMS Notes"
         assert "Chapter 1" in result["content"]
         assert result["chunk_count"] == 2
 
-    def test_missing_document_id(self, ctx):
+    async def test_missing_document_id(self, ctx):
         from app.services.tool_handlers import handle_read_pdf
 
-        result = handle_read_pdf("u1", {}, ctx)
+        result = await handle_read_pdf("u1", {}, ctx)
         assert "error" in result
 
-    def test_nonexistent_document(self, ctx):
+    async def test_nonexistent_document(self, ctx):
         from app.services.tool_handlers import handle_read_pdf
 
         mock_svc = MagicMock()
-        mock_svc.get_document_detail.return_value = None
+        mock_svc.get_document_detail = AsyncMock(return_value=None)
         with patch("app.services.tool_handlers._get_doc_service", return_value=mock_svc):
-            result = handle_read_pdf("u1", {"document_id": "nonexistent"}, ctx)
+            result = await handle_read_pdf("u1", {"document_id": "nonexistent"}, ctx)
         assert "error" in result
 
 
 class TestSearchDocuments:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_search_documents
 
         mock_svc = MagicMock()
-        mock_svc.semantic_search.return_value = {
+        mock_svc.semantic_search = AsyncMock(
+            return_value={
             "results": [{"content": "Normalisation reduces redundancy", "score": 0.9}],
             "total": 1,
         }
+        )
         with patch("app.services.tool_handlers._get_doc_service", return_value=mock_svc):
-            result = handle_search_documents("u1", {"query": "normalisation"}, ctx)
+            result = await handle_search_documents("u1", {"query": "normalisation"}, ctx)
 
         assert result["query"] == "normalisation"
         assert len(result["results"]) == 1
 
-    def test_missing_query(self, ctx):
+    async def test_missing_query(self, ctx):
         from app.services.tool_handlers import handle_search_documents
 
-        result = handle_search_documents("u1", {}, ctx)
+        result = await handle_search_documents("u1", {}, ctx)
         assert "error" in result
 
 
 class TestGetAssignment:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_get_assignment
 
         mock_svc = MagicMock()
-        mock_svc.get_assignment.return_value = {"id": "a1", "title": "DBMS HW"}
+        mock_svc.get_assignment = AsyncMock(return_value={"id": "a1", "title": "DBMS HW"})
         with patch("app.services.tool_handlers._get_assignment_service", return_value=mock_svc):
-            result = handle_get_assignment("u1", {"assignment_id": "a1"}, ctx)
+            result = await handle_get_assignment("u1", {"assignment_id": "a1"}, ctx)
         assert result["title"] == "DBMS HW"
 
-    def test_missing_id(self, ctx):
+    async def test_missing_id(self, ctx):
         from app.services.tool_handlers import handle_get_assignment
 
-        result = handle_get_assignment("u1", {}, ctx)
+        result = await handle_get_assignment("u1", {}, ctx)
         assert "error" in result
 
 
 class TestListAssignments:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_list_assignments
 
         mock_svc = MagicMock()
-        mock_svc.list_assignments.return_value = {
+        mock_svc.list_assignments = AsyncMock(
+            return_value={
             "assignments": [{"id": "a1"}, {"id": "a2"}],
             "total": 2,
         }
+        )
         with patch("app.services.tool_handlers._get_assignment_service", return_value=mock_svc):
-            result = handle_list_assignments("u1", {}, ctx)
+            result = await handle_list_assignments("u1", {}, ctx)
         assert result["total"] == 2
 
-    def test_with_status_filter(self, ctx):
+    async def test_with_status_filter(self, ctx):
         from app.services.tool_handlers import handle_list_assignments
 
         mock_svc = MagicMock()
-        mock_svc.list_assignments.return_value = {"assignments": [], "total": 0}
+        mock_svc.list_assignments = AsyncMock(return_value={"assignments": [], "total": 0})
         with patch("app.services.tool_handlers._get_assignment_service", return_value=mock_svc):
-            handle_list_assignments("u1", {"status": "pending"}, ctx)
+            await handle_list_assignments("u1", {"status": "pending"}, ctx)
         call_args = mock_svc.list_assignments.call_args
         # list_assignments(user_id, filters) - positional args
         filters = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("filters", call_args[1])
@@ -164,33 +170,37 @@ class TestListAssignments:
 
 
 class TestGetSchedule:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_get_schedule
 
         mock_svc = MagicMock()
-        mock_svc.list_assignments.return_value = {
+        mock_svc.list_assignments = AsyncMock(
+            return_value={
             "assignments": [{"title": "Exam"}],
             "total": 1,
         }
+        )
         with patch("app.services.tool_handlers._get_assignment_service", return_value=mock_svc):
-            result = handle_get_schedule("u1", {}, ctx)
+            result = await handle_get_schedule("u1", {}, ctx)
         assert result["total"] == 1
 
 
 class TestStudyScoring:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_study_scoring
 
         mock_svc = MagicMock()
-        mock_svc.get_statistics.return_value = {
+        mock_svc.get_statistics = AsyncMock(
+            return_value={
             "current_streak": 5,
             "longest_streak": 10,
             "total_points": 500,
             "today_points": 50,
             "total_hours": 20,
         }
+        )
         with patch("app.services.tool_handlers._get_study_service", return_value=mock_svc):
-            result = handle_study_scoring("u1", {}, ctx)
+            result = await handle_study_scoring("u1", {}, ctx)
         assert result["current_streak"] == 5
         assert result["total_points"] == 500
 
@@ -201,36 +211,38 @@ class TestStudyScoring:
 
 
 class TestCreateAssignment:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_create_assignment
 
         mock_svc = MagicMock()
-        mock_svc.create_assignment.return_value = {
+        mock_svc.create_assignment = AsyncMock(
+            return_value={
             "id": "a_new",
             "title": "New HW",
             "status": "pending",
             "due_date": "2026-09-20",
         }
+        )
         with patch("app.services.tool_handlers._get_assignment_service", return_value=mock_svc):
-            result = handle_create_assignment(
+            result = await handle_create_assignment(
                 "u1", {"title": "New HW", "deadline": "2026-09-20"}, ctx
             )
         assert result["assignment_id"] == "a_new"
         assert "Created" in result["message"]
 
-    def test_missing_title(self, ctx):
+    async def test_missing_title(self, ctx):
         from app.services.tool_handlers import handle_create_assignment
 
-        result = handle_create_assignment("u1", {}, ctx)
+        result = await handle_create_assignment("u1", {}, ctx)
         assert "error" in result
 
-    def test_validates_params(self, ctx):
+    async def test_validates_params(self, ctx):
         from app.services.tool_handlers import handle_create_assignment
 
         mock_svc = MagicMock()
-        mock_svc.create_assignment.return_value = {"id": "a1", "title": "X", "status": "pending"}
+        mock_svc.create_assignment = AsyncMock(return_value={"id": "a1", "title": "X", "status": "pending"})
         with patch("app.services.tool_handlers._get_assignment_service", return_value=mock_svc):
-            handle_create_assignment("u1", {"title": "X", "priority": "urgent"}, ctx)
+            await handle_create_assignment("u1", {"title": "X", "priority": "urgent"}, ctx)
         call_args = mock_svc.create_assignment.call_args
         # create_assignment(user_id, data)
         data = call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("data", {})
@@ -238,27 +250,27 @@ class TestCreateAssignment:
 
 
 class TestUpdateAssignment:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_update_assignment
 
         mock_svc = MagicMock()
-        mock_svc.update_assignment.return_value = {"id": "a1"}
+        mock_svc.update_assignment = AsyncMock(return_value={"id": "a1"})
         with patch("app.services.tool_handlers._get_assignment_service", return_value=mock_svc):
-            result = handle_update_assignment(
+            result = await handle_update_assignment(
                 "u1", {"assignment_id": "a1", "status": "completed"}, ctx
             )
         assert "updated_fields" in result
 
-    def test_missing_id(self, ctx):
+    async def test_missing_id(self, ctx):
         from app.services.tool_handlers import handle_update_assignment
 
-        result = handle_update_assignment("u1", {}, ctx)
+        result = await handle_update_assignment("u1", {}, ctx)
         assert "error" in result
 
-    def test_no_fields(self, ctx):
+    async def test_no_fields(self, ctx):
         from app.services.tool_handlers import handle_update_assignment
 
-        result = handle_update_assignment("u1", {"assignment_id": "a1"}, ctx)
+        result = await handle_update_assignment("u1", {"assignment_id": "a1"}, ctx)
         assert "error" in result
 
 
@@ -268,57 +280,59 @@ class TestUpdateAssignment:
 
 
 class TestDeleteAssignment:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_delete_assignment
 
         mock_svc = MagicMock()
+        mock_svc.delete_assignment = AsyncMock()
         with patch("app.services.tool_handlers._get_assignment_service", return_value=mock_svc):
-            result = handle_delete_assignment("u1", {"assignment_id": "a1"}, ctx)
+            result = await handle_delete_assignment("u1", {"assignment_id": "a1"}, ctx)
         mock_svc.delete_assignment.assert_called_once_with("a1", "u1")
         assert "deleted" in result["message"]
 
-    def test_missing_id(self, ctx):
+    async def test_missing_id(self, ctx):
         from app.services.tool_handlers import handle_delete_assignment
 
-        result = handle_delete_assignment("u1", {}, ctx)
+        result = await handle_delete_assignment("u1", {}, ctx)
         assert "error" in result
 
 
 class TestDeleteDocument:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_delete_document
 
         mock_svc = MagicMock()
+        mock_svc.delete_document = AsyncMock()
         with patch("app.services.tool_handlers._get_doc_service", return_value=mock_svc):
-            result = handle_delete_document("u1", {"document_id": "d1"}, ctx)
+            result = await handle_delete_document("u1", {"document_id": "d1"}, ctx)
         mock_svc.delete_document.assert_called_once_with("d1", "u1")
         assert "deleted" in result["message"]
 
-    def test_missing_id(self, ctx):
+    async def test_missing_id(self, ctx):
         from app.services.tool_handlers import handle_delete_document
 
-        result = handle_delete_document("u1", {}, ctx)
+        result = await handle_delete_document("u1", {}, ctx)
         assert "error" in result
 
 
 class TestClearConversation:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_clear_conversation
 
         mock_repo = MagicMock()
-        mock_repo.get_messages.return_value = [{"id": "m1"}, {"id": "m2"}]
-        mock_repo.delete_message.return_value = True
+        mock_repo.get_messages = AsyncMock(return_value=[{"id": "m1"}, {"id": "m2"}])
+        mock_repo.delete_message = AsyncMock(return_value=True)
         with patch("app.repositories.ai_repository.AIRepository", return_value=mock_repo):
-            result = handle_clear_conversation(
+            result = await handle_clear_conversation(
                 "u1", {"conversation_id": "c1"}, ctx
             )
         assert "cleared" in result["message"].lower()
         assert mock_repo.delete_message.call_count == 2
 
-    def test_missing_id(self, ctx):
+    async def test_missing_id(self, ctx):
         from app.services.tool_handlers import handle_clear_conversation
 
-        result = handle_clear_conversation("u1", {}, ctx)
+        result = await handle_clear_conversation("u1", {}, ctx)
         assert "error" in result
 
 
@@ -328,22 +342,22 @@ class TestClearConversation:
 
 
 class TestCreateStudyPlan:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_create_study_plan
 
         mock_svc = MagicMock()
-        mock_svc.get_statistics.return_value = {"current_streak": 3}
+        mock_svc.get_statistics = AsyncMock(return_value={"current_streak": 3})
         with patch("app.services.tool_handlers._get_study_service", return_value=mock_svc):
-            result = handle_create_study_plan(
+            result = await handle_create_study_plan(
                 "u1", {"subject": "DBMS", "duration_days": 5}, ctx
             )
         assert result["subject"] == "DBMS"
         assert len(result["daily_sessions"]) == 5
 
-    def test_missing_subject(self, ctx):
+    async def test_missing_subject(self, ctx):
         from app.services.tool_handlers import handle_create_study_plan
 
-        result = handle_create_study_plan("u1", {}, ctx)
+        result = await handle_create_study_plan("u1", {}, ctx)
         assert "error" in result
 
 
@@ -365,13 +379,13 @@ class TestAddToPlanner:
 
 
 class TestStartPomodoro:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_start_pomodoro
 
         mock_svc = MagicMock()
-        mock_svc.get_settings.return_value = {"short_break": 5}
+        mock_svc.get_settings = AsyncMock(return_value={"short_break": 5})
         with patch("app.services.tool_handlers._get_pomodoro_service", return_value=mock_svc):
-            result = handle_start_pomodoro(
+            result = await handle_start_pomodoro(
                 "u1", {"duration_minutes": 25, "task_description": "Revise DBMS"}, ctx
             )
         assert result["duration_minutes"] == 25
@@ -384,7 +398,7 @@ class TestStartPomodoro:
 
 
 class TestWebSearch:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_web_search
 
         mock_result = MagicMock()
@@ -393,21 +407,21 @@ class TestWebSearch:
         mock_result.snippet = "React 19 features..."
 
         mock_svc = MagicMock()
-        mock_svc.search.return_value = [mock_result]
+        mock_svc.search = AsyncMock(return_value=[mock_result])
         with patch("app.services.tool_handlers._get_web_service", return_value=mock_svc):
-            result = handle_web_search("u1", {"query": "React 19"}, ctx)
+            result = await handle_web_search("u1", {"query": "React 19"}, ctx)
         assert result["query"] == "React 19"
         assert len(result["results"]) == 1
 
-    def test_missing_query(self, ctx):
+    async def test_missing_query(self, ctx):
         from app.services.tool_handlers import handle_web_search
 
-        result = handle_web_search("u1", {}, ctx)
+        result = await handle_web_search("u1", {}, ctx)
         assert "error" in result
 
 
 class TestFetchURL:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_fetch_url
 
         mock_content = MagicMock()
@@ -415,15 +429,15 @@ class TestFetchURL:
         mock_content.content = "Full article content here"
 
         mock_svc = MagicMock()
-        mock_svc.fetch_url.return_value = mock_content
+        mock_svc.fetch_url = AsyncMock(return_value=mock_content)
         with patch("app.services.tool_handlers._get_web_service", return_value=mock_svc):
-            result = handle_fetch_url("u1", {"url": "https://example.com"}, ctx)
+            result = await handle_fetch_url("u1", {"url": "https://example.com"}, ctx)
         assert result["url"] == "https://example.com"
 
-    def test_missing_url(self, ctx):
+    async def test_missing_url(self, ctx):
         from app.services.tool_handlers import handle_fetch_url
 
-        result = handle_fetch_url("u1", {}, ctx)
+        result = await handle_fetch_url("u1", {}, ctx)
         assert "error" in result
 
 
@@ -456,50 +470,54 @@ class TestSaveOpportunity:
 
 
 class TestCreateFlashcards:
-    def test_with_document(self, ctx):
+    async def test_with_document(self, ctx):
         from app.services.tool_handlers import handle_create_flashcards
 
         mock_svc = MagicMock()
-        mock_svc.generate_document_content.return_value = {
+        mock_svc.generate_document_content = AsyncMock(
+            return_value={
             "content": [{"front": "Q1", "back": "A1"}]
         }
+        )
         with patch("app.services.tool_handlers._get_doc_service", return_value=mock_svc):
-            result = handle_create_flashcards(
+            result = await handle_create_flashcards(
                 "u1", {"topic": "Normalization", "document_id": "d1"}, ctx
             )
         assert len(result["flashcards"]) == 1
 
-    def test_without_document(self, ctx):
+    async def test_without_document(self, ctx):
         from app.services.tool_handlers import handle_create_flashcards
 
-        result = handle_create_flashcards("u1", {"topic": "Normalization"}, ctx)
+        result = await handle_create_flashcards("u1", {"topic": "Normalization"}, ctx)
         assert "note" in result
 
-    def test_missing_topic(self, ctx):
+    async def test_missing_topic(self, ctx):
         from app.services.tool_handlers import handle_create_flashcards
 
-        result = handle_create_flashcards("u1", {}, ctx)
+        result = await handle_create_flashcards("u1", {}, ctx)
         assert "error" in result
 
 
 class TestCreateQuiz:
-    def test_with_document(self, ctx):
+    async def test_with_document(self, ctx):
         from app.services.tool_handlers import handle_create_quiz
 
         mock_svc = MagicMock()
-        mock_svc.generate_document_content.return_value = {
+        mock_svc.generate_document_content = AsyncMock(
+            return_value={
             "content": [{"question": "Q1", "answer": "A1"}]
         }
+        )
         with patch("app.services.tool_handlers._get_doc_service", return_value=mock_svc):
-            result = handle_create_quiz(
+            result = await handle_create_quiz(
                 "u1", {"topic": "OS", "document_id": "d1", "difficulty": "hard"}, ctx
             )
         assert result["difficulty"] == "hard"
 
-    def test_missing_topic(self, ctx):
+    async def test_missing_topic(self, ctx):
         from app.services.tool_handlers import handle_create_quiz
 
-        result = handle_create_quiz("u1", {}, ctx)
+        result = await handle_create_quiz("u1", {}, ctx)
         assert "error" in result
 
 
@@ -528,16 +546,18 @@ class TestComposeEmail:
 
 
 class TestReadEmail:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_read_email
 
         mock_svc = MagicMock()
-        mock_svc.get_messages.return_value = {
+        mock_svc.get_messages = AsyncMock(
+            return_value={
             "messages": [{"id": "e1", "subject": "Exam", "from_address": "prof@uni.edu"}],
             "total": 1,
         }
+        )
         with patch("app.services.tool_handlers._get_email_service", return_value=mock_svc):
-            result = handle_read_email("u1", {}, ctx)
+            result = await handle_read_email("u1", {}, ctx)
         assert result["total"] == 1
 
 
@@ -547,22 +567,22 @@ class TestReadEmail:
 
 
 class TestSendReminder:
-    def test_success(self, ctx):
+    async def test_success(self, ctx):
         from app.services.tool_handlers import handle_send_reminder
 
         mock_svc = MagicMock()
-        mock_svc.notify.return_value = {"id": "n1"}
+        mock_svc.notify = AsyncMock(return_value={"id": "n1"})
         with patch("app.services.tool_handlers._get_notification_service", return_value=mock_svc):
-            result = handle_send_reminder(
+            result = await handle_send_reminder(
                 "u1", {"message": "Submit HW", "when": "tomorrow 9am"}, ctx
             )
         assert result["created"] is True
         mock_svc.notify.assert_called_once()
 
-    def test_missing_message(self, ctx):
+    async def test_missing_message(self, ctx):
         from app.services.tool_handlers import handle_send_reminder
 
-        result = handle_send_reminder("u1", {}, ctx)
+        result = await handle_send_reminder("u1", {}, ctx)
         assert "error" in result
 
 
@@ -573,8 +593,6 @@ class TestSendReminder:
 
 class TestExecutorIntegration:
     def test_execute_tool_via_executor(self, executor):
-        from app.services.tool_handlers import ToolHandlerContext
-
         mock_svc = MagicMock()
         mock_svc.get_settings.return_value = {"short_break": 5}
 

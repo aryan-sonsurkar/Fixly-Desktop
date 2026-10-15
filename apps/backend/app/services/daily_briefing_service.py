@@ -5,7 +5,12 @@ from typing import Any
 
 from app.core.logging import get_logger
 from app.repositories.ai_repository import AIRepository
-from app.schemas.planner import DailyBriefingResponse, GeneratedScheduleItem
+from app.schemas.planner import (
+    BriefingNextAction,
+    BriefingQuote,
+    DailyBriefingResponse,
+    GeneratedScheduleItem,
+)
 from app.services.ai_service import AIService
 from app.services.workspace_context import WorkspaceContext
 
@@ -220,7 +225,7 @@ class DailyBriefingService:
 
         next_action = None
         if items:
-            next_action = {"label": "Start Focus Session", "target": "pomodoro"}
+            next_action = BriefingNextAction(label="Start Focus Session", target="pomodoro")
 
         hour = now.hour
         greeting = (
@@ -237,8 +242,8 @@ class DailyBriefingService:
             date=date_str,
             greeting=greeting,
             summary=summary,
-            focus_items=items,
-            quote={"text": quote_text, "attribution": "Fixly AI"},
+            focus_items=[GeneratedScheduleItem(**item) for item in items],
+            quote=BriefingQuote(text=quote_text, attribution="Fixly AI"),
             motivation=motivation,
             next_action=next_action,
             ai_available=ai_available,

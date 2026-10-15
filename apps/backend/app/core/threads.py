@@ -1,16 +1,17 @@
 import asyncio
 import concurrent.futures
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from typing import Any
 
 _executor = concurrent.futures.ThreadPoolExecutor(max_workers=10, thread_name_prefix="fixly-db")
 
 
-async def run_in_thread(coro_fn: Callable[..., Awaitable[Any]], *args: Any) -> Any:
-    """Run blocking Supabase calls in a thread pool without creating new event loops.
+async def run_in_thread(coro_fn: Callable[..., Any], *args: Any) -> Any:
+    """Run blocking calls in a thread pool without creating new event loops.
 
     Uses a shared ThreadPoolExecutor to avoid per-call loop creation overhead.
-    coro_fn is awaited via asyncio.to_thread with executor to reuse threads.
+    Accepts sync or async callables: sync results are returned directly,
+    awaitables are driven to completion on a loop owned by the worker thread.
     """
     loop = asyncio.get_running_loop()
     # If coro_fn is async, wrap it to run in thread via sync execution
@@ -24,7 +25,7 @@ async def run_in_thread(coro_fn: Callable[..., Awaitable[Any]], *args: Any) -> A
             # Create new loop only if needed inside thread (rare) - reuse thread logic
             try:
                 loop_in_thread = _asyncio.new_event_loop()
-                return loop_in_thread.run_until_complete(result)  # type: ignore[arg-type]
+                return loop_in_thread.run_until_complete(result)
             finally:
                 try:
                     loop_in_thread.close()

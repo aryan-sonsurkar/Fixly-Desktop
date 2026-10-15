@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.dependencies.auth import CurrentUser, get_current_user
@@ -15,9 +17,9 @@ def _get_engine() -> WorkflowEngine:
 
 @router.post("")
 async def create_workflow(
-    body: dict,
+    body: dict[str, Any],
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     engine = _get_engine()
     wf = engine.create_workflow(
         user_id=current_user.id,
@@ -31,9 +33,9 @@ async def create_workflow(
 @router.post("/template/{template_name}")
 async def create_from_template(
     template_name: str,
-    body: dict | None = None,
+    body: dict[str, Any] | None = None,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     engine = _get_engine()
     try:
         wf = engine.create_from_template(
@@ -50,14 +52,14 @@ async def create_from_template(
 async def list_workflows(
     status: str | None = None,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     engine = _get_engine()
     wfs = engine.store.list_by_user(current_user.id, status=status)
     return [w.to_dict() for w in wfs]
 
 
 @router.get("/templates")
-async def list_templates():
+async def list_templates() -> Any:
     engine = _get_engine()
     return engine.list_templates()
 
@@ -66,7 +68,7 @@ async def list_templates():
 async def get_workflow(
     workflow_id: str,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     engine = _get_engine()
     wf = engine.store.get(workflow_id, current_user.id)
     if not wf:
@@ -78,7 +80,7 @@ async def get_workflow(
 async def execute_workflow(
     workflow_id: str,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     engine = _get_engine()
     wf = engine.store.get(workflow_id, current_user.id)
     if not wf:
@@ -94,7 +96,7 @@ async def execute_workflow(
 async def pause_workflow(
     workflow_id: str,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     engine = _get_engine()
     wf = engine.store.get(workflow_id, current_user.id)
     if not wf:
@@ -107,7 +109,7 @@ async def pause_workflow(
 async def resume_workflow(
     workflow_id: str,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     engine = _get_engine()
     wf = engine.store.get(workflow_id, current_user.id)
     if not wf:
@@ -120,7 +122,7 @@ async def resume_workflow(
 async def cancel_workflow(
     workflow_id: str,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     engine = _get_engine()
     wf = engine.store.get(workflow_id, current_user.id)
     if not wf:

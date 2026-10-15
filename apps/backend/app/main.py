@@ -6,7 +6,7 @@ import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 from starlette.requests import Request
@@ -19,6 +19,9 @@ from app.core.logging import get_logger, setup_logging
 from app.core.supabase import get_supabase_service
 from app.prompts.registry import init_registry
 
+if TYPE_CHECKING:
+    from app.services.proactive_engine import ProactiveEngine
+
 logger = get_logger(__name__)
 
 
@@ -26,7 +29,8 @@ def _resolve_version() -> str:
     """Read version from desktop package.json (single source of truth)."""
     try:
         pkg_json = Path(__file__).resolve().parents[2] / "desktop" / "package.json"
-        return json.loads(pkg_json.read_text(encoding="utf-8"))["version"]
+        version: str = json.loads(pkg_json.read_text(encoding="utf-8"))["version"]
+        return version
     except (FileNotFoundError, KeyError, OSError):
         return "1.0.13"
 
@@ -55,7 +59,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     decay_service = MemoryService()
     proactive_engine = ProactiveEngine()
 
-    async def _decay_loop():
+    async def _decay_loop() -> None:
         while True:
             await asyncio.sleep(6 * 3600)
             try:
@@ -65,7 +69,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             except Exception as e:
                 logger.warning("Background memory decay failed: %s", e)
 
-    async def _proactive_loop():
+    async def _proactive_loop() -> None:
         interval = 30 * 60  # 30 minutes
         quiet_start = 23  # 11 PM
         quiet_end = 7     # 7 AM
@@ -135,7 +139,8 @@ async def _run_proactive_checks(
             .execute()
         )
         data = resp.model_dump() if hasattr(resp, "model_dump") else dict(resp)
-        return data.get("data", [])
+        assignments: list[dict[str, Any]] = data.get("data", [])
+        return assignments
 
     def _fetch_study_streak(uid: str) -> dict[str, Any]:
         client = get_supabase_service()
@@ -294,7 +299,7 @@ from starlette.middleware.base import BaseHTTPMiddleware  # noqa: E402
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Any) -> Response:
-        response = await call_next(request)
+        response: Response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "0"
@@ -318,7 +323,8 @@ class HttpsRedirectMiddleware(BaseHTTPMiddleware):
             if proto == "http" and not is_loopback and not is_loopback_port:
                 url = str(request.url).replace("http://", "https://", 1)
                 return RedirectResponse(url, status_code=307)
-        return await call_next(request)
+        resp: Response = await call_next(request)
+        return resp
 
 
 app.add_middleware(HttpsRedirectMiddleware)
@@ -340,7 +346,8 @@ class BotProtectionMiddleware(BaseHTTPMiddleware):
             # Still allow but add delay; in prod you would integrate hCaptcha
             pass
         # Basic check: require user-agent for non-Tauri
-        return await call_next(request)
+        bot_resp: Response = await call_next(request)
+        return bot_resp
 
 
 app.add_middleware(BotProtectionMiddleware)

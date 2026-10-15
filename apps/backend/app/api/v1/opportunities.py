@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.dependencies.auth import CurrentUser, get_current_user
@@ -15,9 +17,9 @@ def _get_service() -> OpportunityService:
 
 @router.post("")
 async def save_opportunity(
-    body: dict,
+    body: dict[str, Any],
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         opp = svc.save(
@@ -38,7 +40,7 @@ async def save_opportunity(
 async def list_opportunities(
     status: str | None = None,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         opps = svc.list_saved(current_user.id, status=status)
@@ -50,9 +52,9 @@ async def list_opportunities(
 @router.put("/{opp_id}/status")
 async def update_status(
     opp_id: str,
-    body: dict,
+    body: dict[str, Any],
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         opp = svc.update_status(current_user.id, opp_id, body.get("status", "saved"))
@@ -67,7 +69,7 @@ async def update_status(
 async def delete_opportunity(
     opp_id: str,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         deleted = svc.delete(current_user.id, opp_id)

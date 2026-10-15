@@ -189,10 +189,7 @@ class RAGService:
         Loads chunks from the vector store (which stores chunk content)
         and applies TF-style scoring.
         """
-        conn = self.vector_store._thread_conn() if hasattr(self.vector_store, '_thread_conn') else None
-        if conn is None:
-            from app.services.vector_store import _thread_conn
-            conn = _thread_conn()
+        conn = self.vector_store._thread_conn()
 
         if document_id:
             cursor = conn.execute(

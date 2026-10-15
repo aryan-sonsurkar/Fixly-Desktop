@@ -5,6 +5,7 @@ Wires all tool handlers to the ToolExecutor at application startup.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from app.core.logging import get_logger
@@ -44,7 +45,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # Maps tool_name -> handler function
-HANDLER_MAP: dict[str, callable] = {
+HANDLER_MAP: dict[str, Callable[..., object]] = {
     "read_pdf": handle_read_pdf,
     "search_documents": handle_search_documents,
     "get_assignment": handle_get_assignment,

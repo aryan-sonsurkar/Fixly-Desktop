@@ -158,11 +158,12 @@ class ToolAuthorizer:
         error: str | None = None,
     ) -> AuditEntry:
         """Record a tool execution in the audit log."""
+        tool_def = self.registry.get(tool_name)
         entry = AuditEntry(
             id=f"audit_{uuid.uuid4().hex[:12]}",
             user_id=user_id,
             tool_name=tool_name,
-            auth_level=self.registry.get(tool_name).auth_level.value if self.registry.get(tool_name) else "unknown",
+            auth_level=tool_def.auth_level.value if tool_def else "unknown",
             safety_classification=classification.value,
             parameters=parameters,
             status=status,

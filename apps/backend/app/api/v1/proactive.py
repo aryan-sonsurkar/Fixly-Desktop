@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 
 from app.dependencies.auth import CurrentUser, get_current_user
@@ -15,7 +17,7 @@ _engine = ProactiveEngine()
 @router.get("/nudges")
 async def get_nudges(
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     nudges = _engine.get_nudges(current_user.id)
     return [n.to_dict() for n in nudges]
 
@@ -24,16 +26,16 @@ async def get_nudges(
 async def dismiss_nudge(
     nudge_id: str,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     dismissed = _engine.dismiss(current_user.id, nudge_id)
     return {"dismissed": dismissed}
 
 
 @router.post("/check-deadlines")
 async def check_deadlines(
-    body: dict,
+    body: dict[str, Any],
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     assignments = body.get("assignments", [])
     nudges = _engine.check_deadlines(current_user.id, assignments)
     return [n.to_dict() for n in nudges]

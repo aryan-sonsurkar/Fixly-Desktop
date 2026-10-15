@@ -28,15 +28,17 @@ _thread_local = threading.local()
 def _get_conn(db_path: str | None = None) -> sqlite3.Connection:
     effective_path = db_path or _OFFLINE_DB_PATH
     conn_attr = f"conn_{hash(effective_path)}"
-    if not hasattr(_thread_local, conn_attr) or getattr(_thread_local, conn_attr) is None:
+    existing: sqlite3.Connection | None = getattr(_thread_local, conn_attr, None)
+    if existing is None:
         if effective_path != ":memory:":
             os.makedirs(os.path.dirname(effective_path), exist_ok=True)
-        conn = sqlite3.connect(effective_path, timeout=10)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=5000")
-        conn.row_factory = sqlite3.Row
-        setattr(_thread_local, conn_attr, conn)
-    return getattr(_thread_local, conn_attr)
+        created = sqlite3.connect(effective_path, timeout=10)
+        created.execute("PRAGMA journal_mode=WAL")
+        created.execute("PRAGMA busy_timeout=5000")
+        created.row_factory = sqlite3.Row
+        setattr(_thread_local, conn_attr, created)
+        return created
+    return existing
 
 
 def _ensure_tables(db_path: str | None = None) -> None:

@@ -234,6 +234,6 @@ class ToolExecutor:
     def get_available_tools(self, intent: str | None = None) -> list[dict[str, Any]]:
         if intent:
             tool_names = self.authorizer.get_tool_suggestions(intent)
-            tools = [self.registry.get(n) for n in tool_names if self.registry.get(n)]
+            tools = [d for n in tool_names if (d := self.registry.get(n)) is not None]
             return [t.to_dict() for t in tools]
         return self.registry.list_all()

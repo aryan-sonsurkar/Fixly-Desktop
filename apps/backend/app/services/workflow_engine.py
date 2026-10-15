@@ -72,7 +72,7 @@ class WorkflowEngine:
         self,
         user_id: str,
         name: str,
-        steps: list[dict[str, str]],
+        steps: list[dict[str, Any]],
         description: str = "",
         metadata: dict[str, Any] | None = None,
     ) -> Workflow:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.dependencies.auth import CurrentUser, get_current_user
@@ -15,9 +17,9 @@ def _get_service() -> GoalsService:
 
 @router.post("")
 async def create_goal(
-    body: dict,
+    body: dict[str, Any],
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         goal = svc.create_goal(
@@ -36,7 +38,7 @@ async def create_goal(
 async def list_goals(
     status: str | None = None,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         goals = svc.get_goals(current_user.id, status=status)
@@ -48,9 +50,9 @@ async def list_goals(
 @router.put("/{goal_id}/progress")
 async def update_progress(
     goal_id: str,
-    body: dict,
+    body: dict[str, Any],
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         goal = svc.update_goal_progress(current_user.id, goal_id, body.get("progress", 0))
@@ -66,9 +68,9 @@ skills_router = APIRouter(prefix="/skills", tags=["skills"])
 
 @skills_router.post("")
 async def create_skill(
-    body: dict,
+    body: dict[str, Any],
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         skill = svc.add_skill(
@@ -86,7 +88,7 @@ async def create_skill(
 async def list_skills(
     category: str | None = None,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         skills = svc.get_skills(current_user.id, category=category)
@@ -100,9 +102,9 @@ roadmaps_router = APIRouter(prefix="/roadmaps", tags=["roadmaps"])
 
 @roadmaps_router.post("")
 async def create_roadmap(
-    body: dict,
+    body: dict[str, Any],
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         roadmap = svc.create_roadmap(
@@ -119,7 +121,7 @@ async def create_roadmap(
 @roadmaps_router.get("")
 async def list_roadmaps(
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         roadmaps = svc.get_roadmaps(current_user.id)

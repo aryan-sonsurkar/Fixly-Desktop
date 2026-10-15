@@ -10,7 +10,19 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from app.services.academic_context import AcademicContextService
+    from app.services.assignment_service import AssignmentService
+    from app.services.document_service import DocumentService
+    from app.services.email_service import EmailService
+    from app.services.goals_service import GoalsService
+    from app.services.memory_service import MemoryService
+    from app.services.notification_service import NotificationService
+    from app.services.pomodoro_service import PomodoroService
+    from app.services.study_service import StudyService
+    from app.services.web_retrieval import OpportunityService, WebRetrievalService
 
 logger = logging.getLogger(__name__)
 
@@ -22,67 +34,67 @@ class ToolHandlerContext:
     access_token: str | None = None
 
 
-def _get_doc_service(ctx: ToolHandlerContext):
+def _get_doc_service(ctx: ToolHandlerContext) -> DocumentService:
     from app.services.document_service import DocumentService
 
     return DocumentService(access_token=ctx.access_token)
 
 
-def _get_assignment_service(ctx: ToolHandlerContext):
+def _get_assignment_service(ctx: ToolHandlerContext) -> AssignmentService:
     from app.services.assignment_service import AssignmentService
 
     return AssignmentService(access_token=ctx.access_token)
 
 
-def _get_study_service(ctx: ToolHandlerContext):
+def _get_study_service(ctx: ToolHandlerContext) -> StudyService:
     from app.services.study_service import StudyService
 
     return StudyService(access_token=ctx.access_token)
 
 
-def _get_pomodoro_service(ctx: ToolHandlerContext):
+def _get_pomodoro_service(ctx: ToolHandlerContext) -> PomodoroService:
     from app.services.pomodoro_service import PomodoroService
 
     return PomodoroService(access_token=ctx.access_token)
 
 
-def _get_email_service(ctx: ToolHandlerContext):
+def _get_email_service(ctx: ToolHandlerContext) -> EmailService:
     from app.services.email_service import EmailService
 
     return EmailService(access_token=ctx.access_token)
 
 
-def _get_academic_context_service(ctx: ToolHandlerContext):
+def _get_academic_context_service(ctx: ToolHandlerContext) -> AcademicContextService:
     from app.services.academic_context import AcademicContextService
 
     return AcademicContextService(access_token=ctx.access_token)
 
 
-def _get_notification_service(ctx: ToolHandlerContext):
+def _get_notification_service(ctx: ToolHandlerContext) -> NotificationService:
     from app.services.notification_service import NotificationService
 
     return NotificationService(access_token=ctx.access_token)
 
 
-def _get_goals_service():
+def _get_goals_service() -> GoalsService:
     from app.services.goals_service import GoalsService
 
     return GoalsService()
 
 
-def _get_opportunity_service():
+def _get_opportunity_service() -> OpportunityService:
     from app.services.web_retrieval import OpportunityService
 
     return OpportunityService()
 
 
-def _get_web_service():
+def _get_web_service() -> WebRetrievalService:
     from app.services.web_retrieval import WebRetrievalService
 
     return WebRetrievalService()
 
 
-def _get_memory_service():
+def _get_memory_service() -> MemoryService:
     from app.services.memory_service import MemoryService
 
     return MemoryService()
@@ -93,14 +105,14 @@ def _get_memory_service():
 # ---------------------------------------------------------------------------
 
 
-def handle_read_pdf(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_read_pdf(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Read and extract content from an uploaded PDF document."""
     doc_id = params.get("document_id")
     if not doc_id:
         return {"error": "document_id is required"}
 
     svc = _get_doc_service(ctx)
-    doc = svc.get_document_detail(doc_id, user_id)
+    doc = await svc.get_document_detail(doc_id, user_id)
     if not doc:
         return {"error": "Document not found"}
 
@@ -114,7 +126,7 @@ def handle_read_pdf(user_id: str, params: dict[str, Any], ctx: ToolHandlerContex
     }
 
 
-def handle_search_documents(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_search_documents(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Semantic search across all uploaded documents."""
     query = params.get("query")
     if not query:
@@ -125,7 +137,7 @@ def handle_search_documents(user_id: str, params: dict[str, Any], ctx: ToolHandl
     strategy = params.get("strategy", "semantic")
 
     svc = _get_doc_service(ctx)
-    results = svc.semantic_search(
+    results = await svc.semantic_search(
         user_id=user_id,
         query=query,
         top_k=top_k,
@@ -140,20 +152,20 @@ def handle_search_documents(user_id: str, params: dict[str, Any], ctx: ToolHandl
     }
 
 
-def handle_get_assignment(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_get_assignment(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Retrieve assignment details from workspace."""
     assignment_id = params.get("assignment_id")
     if not assignment_id:
         return {"error": "assignment_id is required"}
 
     svc = _get_assignment_service(ctx)
-    assignment = svc.get_assignment(assignment_id, user_id)
+    assignment: dict[str, Any] = await svc.get_assignment(assignment_id, user_id)
     if not assignment:
         return {"error": "Assignment not found"}
     return assignment
 
 
-def handle_list_assignments(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_list_assignments(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """List all assignments with optional filters."""
     filters = {}
     if params.get("status"):
@@ -164,14 +176,14 @@ def handle_list_assignments(user_id: str, params: dict[str, Any], ctx: ToolHandl
     filters["page_size"] = params.get("page_size", 20)
 
     svc = _get_assignment_service(ctx)
-    result = svc.list_assignments(user_id, filters)
+    result = await svc.list_assignments(user_id, filters)
     return {
         "assignments": result.get("assignments", []),
         "total": result.get("total", 0),
     }
 
 
-def handle_get_schedule(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_get_schedule(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Retrieve current schedule and deadlines."""
     import datetime
 
@@ -184,22 +196,22 @@ def handle_get_schedule(user_id: str, params: dict[str, Any], ctx: ToolHandlerCo
         filters["due_after"] = today
         filters["due_before"] = today
     elif date_range == "week":
-        today = datetime.date.today()
-        end = today + datetime.timedelta(days=7)
-        filters["due_after"] = today.isoformat()
+        week_start = datetime.date.today()
+        end = week_start + datetime.timedelta(days=7)
+        filters["due_after"] = week_start.isoformat()
         filters["due_before"] = end.isoformat()
 
-    result = svc.list_assignments(user_id, filters)
+    result = await svc.list_assignments(user_id, filters)
     return {
         "schedule": result.get("assignments", []),
         "total": result.get("total", 0),
     }
 
 
-def handle_study_scoring(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_study_scoring(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """View study points and streak."""
     svc = _get_study_service(ctx)
-    stats = svc.get_statistics(user_id)
+    stats = await svc.get_statistics(user_id)
     return {
         "current_streak": stats.get("current_streak", 0),
         "longest_streak": stats.get("longest_streak", 0),
@@ -214,7 +226,7 @@ def handle_study_scoring(user_id: str, params: dict[str, Any], ctx: ToolHandlerC
 # ---------------------------------------------------------------------------
 
 
-def handle_create_assignment(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_create_assignment(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Create a new assignment in workspace."""
     title = params.get("title")
     if not title:
@@ -226,7 +238,7 @@ def handle_create_assignment(user_id: str, params: dict[str, Any], ctx: ToolHand
             data[key] = params[key]
 
     svc = _get_assignment_service(ctx)
-    assignment = svc.create_assignment(user_id, data)
+    assignment = await svc.create_assignment(user_id, data)
     return {
         "assignment_id": assignment.get("id"),
         "title": assignment.get("title"),
@@ -236,13 +248,13 @@ def handle_create_assignment(user_id: str, params: dict[str, Any], ctx: ToolHand
     }
 
 
-def handle_update_assignment(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_update_assignment(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Update assignment details."""
     assignment_id = params.get("assignment_id")
     if not assignment_id:
         return {"error": "assignment_id is required"}
 
-    data = {}
+    data: dict[str, Any] = {}
     for key in ("title", "deadline", "status", "priority", "description"):
         if key in params and params[key] is not None:
             data[key] = params[key]
@@ -251,7 +263,7 @@ def handle_update_assignment(user_id: str, params: dict[str, Any], ctx: ToolHand
         return {"error": "No fields to update"}
 
     svc = _get_assignment_service(ctx)
-    svc.update_assignment(assignment_id, user_id, data)
+    await svc.update_assignment(assignment_id, user_id, data)
     return {
         "assignment_id": assignment_id,
         "updated_fields": list(data.keys()),
@@ -264,35 +276,35 @@ def handle_update_assignment(user_id: str, params: dict[str, Any], ctx: ToolHand
 # ---------------------------------------------------------------------------
 
 
-def handle_delete_assignment(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_delete_assignment(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Delete an assignment from workspace."""
     assignment_id = params.get("assignment_id")
     if not assignment_id:
         return {"error": "assignment_id is required"}
 
     svc = _get_assignment_service(ctx)
-    svc.delete_assignment(assignment_id, user_id)
+    await svc.delete_assignment(assignment_id, user_id)
     return {
         "assignment_id": assignment_id,
         "message": "Assignment deleted",
     }
 
 
-def handle_delete_document(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_delete_document(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Delete an uploaded document and its associated data."""
     document_id = params.get("document_id")
     if not document_id:
         return {"error": "document_id is required"}
 
     svc = _get_doc_service(ctx)
-    svc.delete_document(document_id, user_id)
+    await svc.delete_document(document_id, user_id)
     return {
         "document_id": document_id,
         "message": "Document deleted",
     }
 
 
-def handle_clear_conversation(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_clear_conversation(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Clear conversation history (memories retained)."""
     conversation_id = params.get("conversation_id")
     if not conversation_id:
@@ -301,9 +313,9 @@ def handle_clear_conversation(user_id: str, params: dict[str, Any], ctx: ToolHan
     from app.repositories.ai_repository import AIRepository
 
     repo = AIRepository(access_token=ctx.access_token)
-    messages = repo.get_messages(conversation_id)
+    messages = await repo.get_messages(conversation_id)
     for msg in messages:
-        repo.delete_message(msg["id"], user_id)
+        await repo.delete_message(msg["id"], user_id)
     return {
         "conversation_id": conversation_id,
         "message": "Conversation cleared. Memories retained.",
@@ -315,7 +327,7 @@ def handle_clear_conversation(user_id: str, params: dict[str, Any], ctx: ToolHan
 # ---------------------------------------------------------------------------
 
 
-def handle_create_study_plan(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_create_study_plan(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Generate a study plan for upcoming exams or goals."""
     subject = params.get("subject")
     if not subject:
@@ -325,7 +337,7 @@ def handle_create_study_plan(user_id: str, params: dict[str, Any], ctx: ToolHand
     hours_per_day = params.get("hours_per_day", 2)
 
     svc = _get_study_service(ctx)
-    stats = svc.get_statistics(user_id)
+    stats = await svc.get_statistics(user_id)
 
     plan = {
         "subject": subject,
@@ -368,13 +380,13 @@ def handle_add_to_planner(user_id: str, params: dict[str, Any], ctx: ToolHandler
     }
 
 
-def handle_start_pomodoro(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_start_pomodoro(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Start a Pomodoro timer for focused work."""
     duration = params.get("duration_minutes", 25)
     task = params.get("task_description", "Study session")
 
     svc = _get_pomodoro_service(ctx)
-    settings = svc.get_settings(user_id)
+    settings = await svc.get_settings(user_id)
 
     return {
         "duration_minutes": duration,
@@ -389,7 +401,7 @@ def handle_start_pomodoro(user_id: str, params: dict[str, Any], ctx: ToolHandler
 # ---------------------------------------------------------------------------
 
 
-def handle_web_search(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_web_search(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Search the web for current information."""
     query = params.get("query")
     if not query:
@@ -397,28 +409,24 @@ def handle_web_search(user_id: str, params: dict[str, Any], ctx: ToolHandlerCont
 
     num_results = params.get("num_results", 5)
     svc = _get_web_service()
-    results = svc.search(query, num_results=num_results)
+    results = await svc.search(query, num_results=num_results)
     return {
         "query": query,
         "results": [
-            {
-                "title": r.title if hasattr(r, "title") else r.get("title", ""),
-                "url": r.url if hasattr(r, "url") else r.get("url", ""),
-                "snippet": r.snippet if hasattr(r, "snippet") else r.get("snippet", ""),
-            }
+            {"title": r.title, "url": r.url, "snippet": r.snippet}
             for r in results
         ],
     }
 
 
-def handle_fetch_url(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_fetch_url(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Fetch and extract content from a URL."""
     url = params.get("url")
     if not url:
         return {"error": "url is required"}
 
     svc = _get_web_service()
-    content = svc.fetch_url(url)
+    content = await svc.fetch_url(url)
     return {
         "url": url,
         "title": content.title if hasattr(content, "title") else "",
@@ -449,14 +457,14 @@ def handle_save_opportunity(user_id: str, params: dict[str, Any], ctx: ToolHandl
         deadline=params.get("deadline"),
     )
     return {
-        "opportunity_id": opp.id if hasattr(opp, "id") else opp.get("id"),
+        "opportunity_id": opp.id,
         "title": title,
         "company": company,
         "message": f"Saved opportunity: {title} at {company}",
     }
 
 
-def handle_create_flashcards(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_create_flashcards(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Generate flashcards from document content."""
     topic = params.get("topic")
     if not topic:
@@ -467,7 +475,7 @@ def handle_create_flashcards(user_id: str, params: dict[str, Any], ctx: ToolHand
 
     svc = _get_doc_service(ctx)
     if doc_id:
-        result = svc.generate_document_content(user_id, doc_id, "flashcards", topic=topic, count=count)
+        result = await svc.generate_document_content(user_id, doc_id, "flashcards", topic=topic, count=count)
         return {
             "topic": topic,
             "document_id": doc_id,
@@ -483,7 +491,7 @@ def handle_create_flashcards(user_id: str, params: dict[str, Any], ctx: ToolHand
     }
 
 
-def handle_create_quiz(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_create_quiz(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Generate quiz questions from document content."""
     topic = params.get("topic")
     if not topic:
@@ -495,7 +503,7 @@ def handle_create_quiz(user_id: str, params: dict[str, Any], ctx: ToolHandlerCon
 
     svc = _get_doc_service(ctx)
     if doc_id:
-        result = svc.generate_document_content(
+        result = await svc.generate_document_content(
             user_id, doc_id, "quiz", topic=topic, count=count, difficulty=difficulty
         )
         return {
@@ -537,13 +545,13 @@ def handle_compose_email(user_id: str, params: dict[str, Any], ctx: ToolHandlerC
     }
 
 
-def handle_read_email(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_read_email(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Read and summarize recent emails."""
     from_address = params.get("from_address")
     unread_only = params.get("unread_only", False)
 
     svc = _get_email_service(ctx)
-    result = svc.get_messages(
+    result = await svc.get_messages(
         user_id=user_id,
         limit=params.get("limit", 10),
         unread_only=unread_only,
@@ -571,7 +579,7 @@ def handle_read_email(user_id: str, params: dict[str, Any], ctx: ToolHandlerCont
 # ---------------------------------------------------------------------------
 
 
-def handle_send_reminder(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
+async def handle_send_reminder(user_id: str, params: dict[str, Any], ctx: ToolHandlerContext) -> dict[str, Any]:
     """Create a reminder notification."""
     message = params.get("message")
     if not message:
@@ -579,7 +587,7 @@ def handle_send_reminder(user_id: str, params: dict[str, Any], ctx: ToolHandlerC
 
     when = params.get("when")
     svc = _get_notification_service(ctx)
-    notification = svc.notify(
+    notification = await svc.notify(
         user_id=user_id,
         ntype="ai_recommendation",
         title="Reminder",

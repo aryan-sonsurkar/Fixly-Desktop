@@ -136,7 +136,11 @@ async def update_memory(
         if not success:
             from app.core.exceptions import NotFoundError
             raise NotFoundError("Memory not found")
-        return service.get_memory(current_user.id, memory_id)
+        result = service.get_memory(current_user.id, memory_id)
+        if result is None:
+            from app.core.exceptions import NotFoundError
+            raise NotFoundError("Memory not found")
+        return result
     finally:
         service.close()
 

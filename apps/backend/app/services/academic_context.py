@@ -261,10 +261,10 @@ class AcademicContextService:
             doc_name = str(doc.get("name", "")).strip()
             if not doc_name:
                 continue
-            key = str(doc.get("id") or doc_name)
-            if key in seen_docs:
+            doc_key = str(doc.get("id") or doc_name)
+            if doc_key in seen_docs:
                 continue
-            seen_docs.add(key)
+            seen_docs.add(doc_key)
             doc_lines.append(f"- {doc_name} ({doc.get('pages', 0)} pages)")
         if doc_lines:
             lines.append("Documents:")

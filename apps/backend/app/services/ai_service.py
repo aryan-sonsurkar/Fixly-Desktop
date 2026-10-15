@@ -1,7 +1,7 @@
 import asyncio
 import re
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from app.core.exceptions import AIProviderUnavailableError, NotFoundError
 from app.core.logging import get_logger
@@ -14,6 +14,9 @@ from app.services.context_engine import ContextEngine
 from app.services.memory_service import MemoryService
 from app.services.token_counter import TokenCounter
 from app.services.workspace_context import WorkspaceContext
+
+if TYPE_CHECKING:
+    from app.services.tool_executor import ToolExecutor
 
 logger = get_logger(__name__)
 
@@ -47,9 +50,9 @@ class AIService:
         self.token_counter = TokenCounter()
         self.context_engine = ContextEngine()
         self.memory_service = MemoryService()
-        self._tool_executor = None
+        self._tool_executor: ToolExecutor | None = None
 
-    def _get_tool_executor(self):
+    def _get_tool_executor(self) -> "ToolExecutor":
         """Lazy-init tool executor with registered handlers."""
         if self._tool_executor is None:
             from app.services.tool_executor import ToolExecutor

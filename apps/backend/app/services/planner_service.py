@@ -1,7 +1,7 @@
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 from app.core.exceptions import ValidationError as FixlyValidationError
 from app.core.logging import get_logger
@@ -81,7 +81,9 @@ class PlannerService:
         to reject.
         """
         if not isinstance(item, dict):
-            return item
+            # Non-dict items cannot be normalized; pass through unchanged so
+            # downstream strict validation rejects them with a clear error.
+            return cast("dict[str, Any]", item)
         norm = dict(item)
         for key in ("priority", "type"):
             value = norm.get(key)
@@ -460,76 +462,76 @@ class PlannerService:
         act_type = norm.get("action")
         try:
             if act_type == "create_task":
-                validated = CreateTaskAction(**norm)
+                v_create = CreateTaskAction(**norm)
                 from app.services.assignment_service import AssignmentService
                 svc = AssignmentService(access_token=self.access_token)
                 created = await svc.create_assignment(user_id, {
-                    "title": validated.title,
-                    "description": validated.description or None,
-                    "priority": validated.priority,
-                    "due_date": validated.due_date,
-                    "estimated_study_time": validated.estimated_minutes,
-                    "subject_id": validated.subject_id,
+                    "title": v_create.title,
+                    "description": v_create.description or None,
+                    "priority": v_create.priority,
+                    "due_date": v_create.due_date,
+                    "estimated_study_time": v_create.estimated_minutes,
+                    "subject_id": v_create.subject_id,
                 })
                 res = {
                     "success": True,
-                    "action_id": validated.action_id,
+                    "action_id": v_create.action_id,
                     "action": "create_task",
-                    "message": f"Created task: {validated.title}",
+                    "message": f"Created task: {v_create.title}",
                     "result_data": created if isinstance(created, dict) else {},
                 }
             elif act_type == "schedule_task":
-                validated = ScheduleTaskAction(**norm)
+                v_sched = ScheduleTaskAction(**norm)
                 from app.services.assignment_service import AssignmentService
                 svc = AssignmentService(access_token=self.access_token)
-                if validated.task_id:
-                    updated = await svc.update_assignment(validated.task_id, user_id, {
-                        "due_date": validated.end_time,
-                        "priority": validated.priority,
+                if v_sched.task_id:
+                    updated = await svc.update_assignment(v_sched.task_id, user_id, {
+                        "due_date": v_sched.end_time,
+                        "priority": v_sched.priority,
                     })
                     res = {
                         "success": True,
-                        "action_id": validated.action_id,
+                        "action_id": v_sched.action_id,
                         "action": "schedule_task",
-                        "message": f"Scheduled task: {validated.title}",
+                        "message": f"Scheduled task: {v_sched.title}",
                         "result_data": updated if isinstance(updated, dict) else {},
                     }
                 else:
                     created = await svc.create_assignment(user_id, {
-                        "title": validated.title,
-                        "due_date": validated.end_time,
-                        "priority": validated.priority,
-                        "description": f"Scheduled for {validated.start_time} - {validated.end_time}",
+                        "title": v_sched.title,
+                        "due_date": v_sched.end_time,
+                        "priority": v_sched.priority,
+                        "description": f"Scheduled for {v_sched.start_time} - {v_sched.end_time}",
                     })
                     res = {
                         "success": True,
-                        "action_id": validated.action_id,
+                        "action_id": v_sched.action_id,
                         "action": "schedule_task",
-                        "message": f"Scheduled: {validated.title}",
+                        "message": f"Scheduled: {v_sched.title}",
                         "result_data": created if isinstance(created, dict) else {},
                     }
             elif act_type == "create_study_session":
-                validated = CreateStudySessionAction(**norm)
+                v_sess = CreateStudySessionAction(**norm)
                 res = {
                     "success": True,
-                    "action_id": validated.action_id,
+                    "action_id": v_sess.action_id,
                     "action": "create_study_session",
-                    "message": f"Study session ready: {validated.title} ({validated.duration_minutes}m)",
+                    "message": f"Study session ready: {v_sess.title} ({v_sess.duration_minutes}m)",
                     "result_data": {
-                        "title": validated.title,
-                        "duration_minutes": validated.duration_minutes,
-                        "priority": validated.priority,
-                        "scheduled_time": validated.scheduled_time,
-                        "subject_id": validated.subject_id,
+                        "title": v_sess.title,
+                        "duration_minutes": v_sess.duration_minutes,
+                        "priority": v_sess.priority,
+                        "scheduled_time": v_sess.scheduled_time,
+                        "subject_id": v_sess.subject_id,
                     },
                 }
             elif act_type == "reschedule_task":
-                validated = RescheduleTaskAction(**norm)
+                v_resched = RescheduleTaskAction(**norm)
                 from app.services.assignment_service import AssignmentService
                 svc = AssignmentService(access_token=self.access_token)
-                task_id = validated.task_id
+                task_id = v_resched.task_id
                 if not task_id:
-                    listing = await svc.list_assignments(user_id, {"search": validated.title})
+                    listing = await svc.list_assignments(user_id, {"search": v_resched.title})
                     items = listing.get("data", []) if isinstance(listing, dict) else []
                     if items:
                         task_id = items[0].get("id")
@@ -538,23 +540,23 @@ class PlannerService:
                     # exist must fail loudly instead of creating an unrelated
                     # assignment.
                     raise FixlyValidationError(
-                        detail=f"No matching task found for reschedule: '{validated.title}'"
+                        detail=f"No matching task found for reschedule: '{v_resched.title}'"
                     )
-                updated = await svc.update_assignment(str(task_id), user_id, {"due_date": validated.new_start_time})
+                updated = await svc.update_assignment(str(task_id), user_id, {"due_date": v_resched.new_start_time})
                 res = {
                     "success": True,
-                    "action_id": validated.action_id,
+                    "action_id": v_resched.action_id,
                     "action": "reschedule_task",
-                    "message": f"Rescheduled: {validated.title}",
+                    "message": f"Rescheduled: {v_resched.title}",
                     "result_data": updated if isinstance(updated, dict) else {},
                 }
             elif act_type == "prioritize_task":
-                validated = PrioritizeTaskAction(**norm)
+                v_prior = PrioritizeTaskAction(**norm)
                 from app.services.assignment_service import AssignmentService
                 svc = AssignmentService(access_token=self.access_token)
-                task_id = validated.task_id
+                task_id = v_prior.task_id
                 if not task_id:
-                    listing = await svc.list_assignments(user_id, {"search": validated.title})
+                    listing = await svc.list_assignments(user_id, {"search": v_prior.title})
                     items = listing.get("data", []) if isinstance(listing, dict) else []
                     if items:
                         task_id = items[0].get("id")
@@ -562,14 +564,14 @@ class PlannerService:
                     # Never invent state: reprioritizing a task that does not
                     # exist must fail loudly instead of creating one.
                     raise FixlyValidationError(
-                        detail=f"No matching task found to prioritize: '{validated.title}'"
+                        detail=f"No matching task found to prioritize: '{v_prior.title}'"
                     )
-                updated = await svc.update_assignment(str(task_id), user_id, {"priority": validated.priority})
+                updated = await svc.update_assignment(str(task_id), user_id, {"priority": v_prior.priority})
                 res = {
                     "success": True,
-                    "action_id": validated.action_id,
+                    "action_id": v_prior.action_id,
                     "action": "prioritize_task",
-                    "message": f"Updated priority for: {validated.title} to {validated.priority}",
+                    "message": f"Updated priority for: {v_prior.title} to {v_prior.priority}",
                     "result_data": updated if isinstance(updated, dict) else {},
                 }
             else:

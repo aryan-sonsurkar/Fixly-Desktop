@@ -62,9 +62,11 @@ class VectorStore:
 
     def _thread_conn(self) -> sqlite3.Connection:
         """Get or create a thread-local connection."""
-        if not hasattr(self._local, "conn") or self._local.conn is None:
-            self._local.conn = self._get_connection()
-        return self._local.conn
+        existing: sqlite3.Connection | None = getattr(self._local, "conn", None)
+        if existing is None:
+            existing = self._get_connection()
+            self._local.conn = existing
+        return existing
 
     def _ensure_schema(self) -> None:
         """Create the embeddings table if it doesn't exist."""

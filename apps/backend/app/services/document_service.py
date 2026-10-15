@@ -3,7 +3,7 @@ import os
 import re as _re
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from app.core.exceptions import NotFoundError, ValidationError
@@ -306,7 +306,11 @@ class DocumentService:
                 else "Document is still being processed. Try again in a moment."
             )
         name = doc.get("original_name", "Document")
-        pages = sorted({c.get("page_number") for c in all_chunks if c.get("page_number")})
+        raw_pages: list[int] = [
+            page for c in all_chunks
+            if isinstance((page := c.get("page_number")), int)
+        ]
+        pages = sorted(set(raw_pages))
         sources = [{
             "title": name,
             "pages": pages,
@@ -316,7 +320,7 @@ class DocumentService:
         structured_types = {"flashcards", "quiz"}
         if prompt_type == "flashcards":
             count = int(kwargs.get("count", 10))
-            prompt = (
+            prompt: str | None = (
                 f"Create {count} flashcards from the document '{name}'. "
                 "Reply with ONLY a JSON array (no fences, no preamble). "
                 'Each item: {"front": "<question or term>", "back": "<answer>"}. '
@@ -356,14 +360,18 @@ class DocumentService:
                 ),
             }
             prompt = prompts.get(prompt_type)
-            if not prompt:
+            selected = prompt
+            if not selected:
                 raise ValidationError(f"Unknown content type: {prompt_type}")
+            prompt = selected
 
         # Conversation-free generation: internal document actions must not
         # create AI Workspace conversations or persist chat messages.
+        # prompt is guaranteed non-None here: the flashcards/quiz branches
+        # build literals and the generic branch raises on unknown types.
         content = await self.ai_service.generate_text(
             user_id=user_id,
-            prompt=prompt,
+            prompt=cast("str", prompt),
             system_prompt=(
                 "You are Fixly AI helping a student study their document. "
                 "Use only the provided document content. "

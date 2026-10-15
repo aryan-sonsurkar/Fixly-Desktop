@@ -159,7 +159,9 @@ class MemoryService:
                 "last_reinforced_at": now,
             })
             logger.info("Reinforced memory %s (confidence: %.2f)", existing["id"], new_confidence)
-            return self.store.get_memory(existing["id"], user_id)
+            updated = self.store.get_memory(existing["id"], user_id)
+            assert updated is not None, "memory row just reinforced must exist"
+            return updated
 
         # Check for contradicting memory
         contradiction = self._find_contradiction(user_id, content, category)
@@ -398,9 +400,10 @@ class MemoryService:
     def _cosine_similarity(a: list[float], b: list[float]) -> float:
         if len(a) != len(b):
             return 0.0
-        dot = sum(x * y for x, y in zip(a, b))
-        norm_a = sum(x * x for x in a) ** 0.5
-        norm_b = sum(x * x for x in b) ** 0.5
+        dot: float = sum(x * y for x, y in zip(a, b))
+        norm_a: float = sum(x * x for x in a) ** 0.5
+        norm_b: float = sum(x * x for x in b) ** 0.5
         if norm_a == 0 or norm_b == 0:
             return 0.0
-        return dot / (norm_a * norm_b)
+        result: float = dot / (norm_a * norm_b)
+        return result

@@ -25,14 +25,16 @@ _thread_local = threading.local()
 
 
 def _get_conn() -> sqlite3.Connection:
-    if not hasattr(_thread_local, "conn") or _thread_local.conn is None:
+    existing: sqlite3.Connection | None = getattr(_thread_local, "conn", None)
+    if existing is None:
         os.makedirs(DB_DIR, exist_ok=True)
-        conn = sqlite3.connect(DB_PATH, timeout=10)
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=5000")
-        conn.row_factory = sqlite3.Row
-        _thread_local.conn = conn
-    return _thread_local.conn
+        created = sqlite3.connect(DB_PATH, timeout=10)
+        created.execute("PRAGMA journal_mode=WAL")
+        created.execute("PRAGMA busy_timeout=5000")
+        created.row_factory = sqlite3.Row
+        _thread_local.conn = created
+        return created
+    return existing
 
 
 def _ensure_tables() -> None:
@@ -90,6 +92,7 @@ class MemoryStore:
 
     def __init__(self, db_path: str | None = None) -> None:
         self._db_path = db_path
+        self._custom_conn: sqlite3.Connection | None = None
         if db_path:
             self._custom_conn = sqlite3.connect(db_path, timeout=10)
             self._custom_conn.execute("PRAGMA journal_mode=WAL")

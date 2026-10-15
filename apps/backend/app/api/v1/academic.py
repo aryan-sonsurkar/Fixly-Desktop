@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 
 from app.dependencies.auth import CurrentUser, get_current_user
@@ -17,7 +19,7 @@ def _get_service() -> AcademicProfileService:
 @router.get("/profile")
 async def get_profile(
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         profile = svc.get_profile(current_user.id)
@@ -28,9 +30,9 @@ async def get_profile(
 
 @router.post("/scores")
 async def update_score(
-    body: dict,
+    body: dict[str, Any],
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         profile = svc.update_score(
@@ -47,7 +49,7 @@ async def update_score(
 async def get_weak_subjects(
     threshold: float = 60.0,
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         weak = svc.get_weak_subjects(current_user.id, threshold=threshold)
@@ -59,7 +61,7 @@ async def get_weak_subjects(
 @router.get("/recommendations")
 async def get_recommendations(
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         recs = svc.get_study_recommendations(current_user.id)
@@ -71,7 +73,7 @@ async def get_recommendations(
 @router.get("/weaknesses")
 async def detect_weaknesses(
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         detector = WeaknessDetector(svc)
@@ -86,7 +88,7 @@ async def detect_weaknesses(
 @router.get("/health")
 async def get_subject_health(
     current_user: CurrentUser = Depends(get_current_user),
-):
+) -> Any:
     svc = _get_service()
     try:
         detector = WeaknessDetector(svc)
