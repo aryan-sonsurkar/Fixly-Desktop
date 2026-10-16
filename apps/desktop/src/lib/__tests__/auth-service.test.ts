@@ -122,4 +122,41 @@ describe("AuthService", () => {
     });
     expect(result.access_token).toBe("abc");
   });
+
+  it("requests a password reset email", async () => {
+    mockPost.mockResolvedValueOnce({ data: { message: "Password reset email sent" } });
+
+    const { forgotPassword } = await import("@/lib/auth-service");
+    const result = await forgotPassword("test@test.com");
+
+    expect(mockPost).toHaveBeenCalledWith("/api/v1/auth/forgot-password", {
+      email: "test@test.com",
+    });
+    expect(result.message).toBe("Password reset email sent");
+  });
+
+  it("resets the password with a recovery token", async () => {
+    mockPost.mockResolvedValueOnce({ data: { message: "Password reset successfully" } });
+
+    const { resetPassword } = await import("@/lib/auth-service");
+    const result = await resetPassword("recovery-token", "new-password-123");
+
+    expect(mockPost).toHaveBeenCalledWith("/api/v1/auth/reset-password", {
+      access_token: "recovery-token",
+      new_password: "new-password-123",
+    });
+    expect(result.message).toBe("Password reset successfully");
+  });
+
+  it("resends the verification email", async () => {
+    mockPost.mockResolvedValueOnce({ data: { message: "Verification email sent" } });
+
+    const { resendVerification } = await import("@/lib/auth-service");
+    const result = await resendVerification("test@test.com");
+
+    expect(mockPost).toHaveBeenCalledWith("/api/v1/auth/resend-verification", {
+      email: "test@test.com",
+    });
+    expect(result.message).toBe("Verification email sent");
+  });
 });

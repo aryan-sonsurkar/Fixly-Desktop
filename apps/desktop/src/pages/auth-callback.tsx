@@ -17,6 +17,10 @@ export function AuthCallbackPage() {
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState<string>("");
   const mountedRef = useRef(true);
+  // OAuth codes are single-use: never exchange twice for one mount sequence
+  // (StrictMode remounts and HMR would otherwise burn the code and then show
+  // a spurious failure after a real success).
+  const handledRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -25,6 +29,8 @@ export function AuthCallbackPage() {
 
   useEffect(() => {
     async function handleCallback() {
+      if (handledRef.current) return;
+      handledRef.current = true;
       try {
         const verified = searchParams.get("verified");
         const token = searchParams.get("token");
@@ -33,6 +39,23 @@ export function AuthCallbackPage() {
           setStatus("success");
           setMessage("Email verified successfully! Redirecting to login...");
           setTimeout(() => { if (mountedRef.current) navigate("/register"); }, 2000);
+          return;
+        }
+
+        // OAuth authorization-code flow (web Google sign-in and any
+        // provider that redirects back with ?code=): exchange the code for
+        // a session through the backend. redirect_uri must match the one
+        // used when the authorize URL was created.
+        const code = searchParams.get("code");
+        if (code) {
+          const redirectUri = `${window.location.origin}/auth/callback`;
+          const { googleCallback } = await import("@/lib/auth-service");
+          const data = await googleCallback(code, redirectUri);
+          await setTokens({ accessToken: data.access_token, refreshToken: data.refresh_token });
+          setAuth(data.access_token, data.user);
+          setStatus("success");
+          setMessage("Sign in successful! Redirecting to dashboard...");
+          setTimeout(() => { if (mountedRef.current) navigate("/dashboard", { replace: true }); }, 1500);
           return;
         }
 

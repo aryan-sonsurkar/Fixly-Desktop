@@ -8,6 +8,7 @@ import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts";
 
 const RegisterPage = lazy(() => import("@/pages/register").then((m) => ({ default: m.RegisterPage })));
 const AuthCallbackPage = lazy(() => import("@/pages/auth-callback").then((m) => ({ default: m.AuthCallbackPage })));
+const ResetPasswordPage = lazy(() => import("@/pages/reset-password").then((m) => ({ default: m.ResetPasswordPage })));
 const OnboardingPage = lazy(() => import("@/pages/onboarding").then((m) => ({ default: m.OnboardingPage })));
 const DashboardPage = lazy(() => import("@/pages/dashboard").then((m) => ({ default: m.DashboardPage })));
 const AssignmentsPage = lazy(() => import("@/pages/assignments").then((m) => ({ default: m.AssignmentsPage })));
@@ -69,6 +70,7 @@ const router = createMemoryRouter(
   [
     { path: "/register", element: <ErrorBoundary><LazyLoad><RegisterPage /></LazyLoad></ErrorBoundary> },
     { path: "/auth/callback", element: <ErrorBoundary><LazyLoad><AuthCallbackPage /></LazyLoad></ErrorBoundary> },
+    { path: "/reset-password", element: <ErrorBoundary><LazyLoad><ResetPasswordPage /></LazyLoad></ErrorBoundary> },
     { path: "/onboarding", element: <ErrorBoundary><LazyLoad><OnboardingPage /></LazyLoad></ErrorBoundary> },
     {
       path: "/",

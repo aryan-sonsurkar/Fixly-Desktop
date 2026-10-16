@@ -7,8 +7,11 @@ vi.mock("framer-motion", () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
+const mockSignIn = vi.fn();
+const mockSignUp = vi.fn();
+
 vi.mock("@/hooks/use-auth", () => ({
-  useAuth: () => ({ signIn: vi.fn(), signUp: vi.fn(), isAuthenticated: false }),
+  useAuth: () => ({ signIn: mockSignIn, signUp: mockSignUp, isAuthenticated: false }),
 }));
 
 vi.mock("@/stores/auth-store", () => ({
@@ -27,6 +30,7 @@ vi.mock("@/lib/api-client", () => ({
 
 vi.mock("@/lib/auth-service", () => ({
   getGoogleAuthStatus: vi.fn().mockResolvedValue({ enabled: false }),
+  forgotPassword: vi.fn().mockResolvedValue({ message: "Password reset email sent" }),
 }));
 
 import apiClient from "@/lib/api-client";
@@ -73,5 +77,64 @@ describe("RegisterPage saved-profile restore", () => {
       expect(screen.getByText(/Couldn't reach Fixly/)).toBeTruthy();
     });
     expect(screen.queryByText(/Could not restore this profile/)).toBeNull();
+  });
+});
+
+describe("RegisterPage password authentication", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (listProfiles as unknown as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+  });
+
+  it("signup submits a chosen password to signUp", async () => {
+    mockSignUp.mockResolvedValueOnce(undefined);
+    renderPage();
+    fireEvent.change(screen.getByPlaceholderText("John Doe"), { target: { value: "Test User" } });
+    fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: "new@x.com" } });
+    fireEvent.change(screen.getByPlaceholderText("At least 8 characters"), { target: { value: "password123" } });
+    fireEvent.change(screen.getByPlaceholderText("Repeat your password"), { target: { value: "password123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    await waitFor(() => {
+      expect(mockSignUp).toHaveBeenCalledWith("new@x.com", "password123", "Test User");
+    });
+  });
+
+  it("signup without a password creates a passwordless account", async () => {
+    mockSignUp.mockResolvedValueOnce(undefined);
+    renderPage();
+    fireEvent.change(screen.getByPlaceholderText("John Doe"), { target: { value: "Test User" } });
+    fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: "nopass@x.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    await waitFor(() => {
+      expect(mockSignUp).toHaveBeenCalledWith("nopass@x.com", undefined, "Test User");
+    });
+  });
+
+  it("signup rejects mismatched passwords before submitting", async () => {
+    renderPage();
+    fireEvent.change(screen.getByPlaceholderText("John Doe"), { target: { value: "Test User" } });
+    fireEvent.change(screen.getByPlaceholderText("you@example.com"), { target: { value: "new@x.com" } });
+    fireEvent.change(screen.getByPlaceholderText("At least 8 characters"), { target: { value: "password123" } });
+    fireEvent.change(screen.getByPlaceholderText("Repeat your password"), { target: { value: "different456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    await waitFor(() => {
+      expect(screen.getByText("Passwords do not match")).toBeTruthy();
+    });
+    expect(mockSignUp).not.toHaveBeenCalled();
+  });
+
+  it("forgot password sends a reset email", async () => {
+    const { forgotPassword } = await import("@/lib/auth-service");
+    renderPage();
+    fireEvent.click(screen.getByText("Sign in"));
+    fireEvent.click(await screen.findByText("Forgot password?"));
+    fireEvent.change(screen.getByLabelText("Reset your password"), { target: { value: "user@x.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send reset email" }));
+    await waitFor(() => {
+      expect(forgotPassword as unknown as ReturnType<typeof vi.fn>).toHaveBeenCalledWith("user@x.com");
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/Reset email sent/)).toBeTruthy();
+    });
   });
 });

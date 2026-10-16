@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -73,6 +73,77 @@ async def test_google_callback_returns_flattened_session_tokens() -> None:
         "refresh_token": "refresh",
         "user": {"id": "user-1"},
     }
+
+
+@pytest.mark.asyncio
+async def test_sign_up_with_password_passes_it_through() -> None:
+    service = AuthService()
+    service.repository.sign_up = AsyncMock(
+        return_value={
+            "session": {"access_token": "access", "refresh_token": "refresh"},
+            "user": {"id": "user-1", "email": "new@x.com"},
+        }
+    )
+
+    result = await service.sign_up("new@x.com", "password123", "New User")
+
+    assert result["access_token"] == "access"
+    service.repository.sign_up.assert_called_once_with("new@x.com", "password123", "New User")
+
+
+@pytest.mark.asyncio
+async def test_sign_up_without_password_generates_server_secret() -> None:
+    service = AuthService()
+    service.repository.sign_up = AsyncMock(
+        return_value={
+            "session": {"access_token": "access", "refresh_token": "refresh"},
+            "user": {"id": "user-2", "email": "nopass@x.com"},
+        }
+    )
+
+    result = await service.sign_up("nopass@x.com", None, "No Password")
+
+    assert result["access_token"] == "access"
+    _args, _kwargs = service.repository.sign_up.call_args
+    generated = _args[1]
+    assert isinstance(generated, str) and len(generated) >= 16
+
+
+@pytest.mark.asyncio
+async def test_sign_in_returns_flattened_session() -> None:
+    service = AuthService()
+    service.repository.sign_in = AsyncMock(
+        return_value={
+            "session": {"access_token": "access", "refresh_token": "refresh"},
+            "user": {"id": "user-1", "email": "user@x.com"},
+        }
+    )
+
+    result = await service.sign_in("user@x.com", "password123")
+
+    assert result["access_token"] == "access"
+    assert result["user"]["email"] == "user@x.com"
+    service.repository.sign_in.assert_called_once_with("user@x.com", "password123")
+
+
+@pytest.mark.asyncio
+async def test_sign_in_wrong_password_maps_to_credentials_error() -> None:
+    service = AuthService()
+    service.repository.sign_in = AsyncMock(side_effect=Exception("Invalid login credentials"))
+
+    with pytest.raises(AuthenticationError, match="check your credentials"):
+        await service.sign_in("user@x.com", "wrong-password")
+
+
+@pytest.mark.asyncio
+async def test_google_auth_url_disabled_provider_maps_to_friendly_error() -> None:
+    service = AuthService()
+    service.repository.get_google_auth_url = MagicMock(
+        side_effect=Exception("provider is disabled for this project")
+    )
+
+    with pytest.raises(AuthenticationError, match="not enabled"):
+        await service.get_google_auth_url("fixly://auth/callback")
 
 
 def test_planner_accepts_the_json_contract_requested_by_its_prompt() -> None:

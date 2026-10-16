@@ -23,6 +23,24 @@ export async function signOut(): Promise<void> {
   await apiClient.post("/api/v1/auth/signout");
 }
 
+export async function forgotPassword(email: string): Promise<{ message: string }> {
+  const response = await apiClient.post("/api/v1/auth/forgot-password", { email });
+  return response.data;
+}
+
+export async function resetPassword(accessToken: string, newPassword: string): Promise<{ message: string }> {
+  const response = await apiClient.post("/api/v1/auth/reset-password", {
+    access_token: accessToken,
+    new_password: newPassword,
+  });
+  return response.data;
+}
+
+export async function resendVerification(email: string): Promise<{ message: string }> {
+  const response = await apiClient.post("/api/v1/auth/resend-verification", { email });
+  return response.data;
+}
+
 export async function refreshToken(refresh_token: string): Promise<AuthResponse> {
   const response = await apiClient.post("/api/v1/auth/refresh", { refresh_token });
   return response.data;

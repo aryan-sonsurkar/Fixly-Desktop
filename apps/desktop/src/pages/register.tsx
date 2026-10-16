@@ -14,10 +14,33 @@ import apiClient from "@/lib/api-client";
 
 const logger = createLogger("register-page");
 
-const registerSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Please enter a valid email address"),
-});
+const registerSchema = z
+  .object({
+    name: z.string().min(2, "Name must be at least 2 characters"),
+    email: z.string().email("Please enter a valid email address"),
+    password: z.string().max(72, "Password must be at most 72 characters").optional(),
+    confirmPassword: z.string().optional(),
+  })
+  .superRefine((v, ctx) => {
+    // Password is optional: blank means a passwordless account. If either
+    // field is filled, both are required, must match, min 8 chars.
+    if (v.password || v.confirmPassword) {
+      if (!v.password || v.password.length < 8) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Password must be at least 8 characters",
+          path: ["password"],
+        });
+      }
+      if (v.password !== v.confirmPassword) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Passwords do not match",
+          path: ["confirmPassword"],
+        });
+      }
+    }
+  });
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
   password: z.string().optional(),
@@ -37,6 +60,10 @@ export function RegisterPage() {
   const [googleReason, setGoogleReason] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<SavedProfileSummary[]>([]);
   const [autoLoginAttempted, setAutoLoginAttempted] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotStatus, setForgotStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [forgotError, setForgotError] = useState<string | null>(null);
 
   const combinedSchema = mode === "signup" ? registerSchema : loginSchema;
   const {
@@ -47,14 +74,24 @@ export function RegisterPage() {
   } = useForm<RegisterForm | LoginForm>({
     // Re-create resolver when mode changes via key on form element is simpler than dynamic resolver – use shouldUnregister + manual check
     resolver: zodResolver(combinedSchema as unknown as typeof registerSchema),
-    defaultValues: mode === "signup" ? ({ name: "", email: "" } as RegisterForm) : ({ email: "", password: "" } as unknown as RegisterForm),
+    defaultValues:
+      mode === "signup"
+        ? ({ name: "", email: "", password: "", confirmPassword: "" } as unknown as RegisterForm)
+        : ({ email: "", password: "" } as unknown as RegisterForm),
   });
 
   const switchMode = (next: "signup" | "signin") => {
     setMode(next);
     setError(null);
+    setForgotMode(false);
+    setForgotStatus("idle");
+    setForgotError(null);
     // Reset with next mode defaults; resolver will be re-evaluated on next render via combinedSchema
-    reset(next === "signup" ? ({ name: "", email: "" } as unknown as RegisterForm) : ({ email: "", password: "" } as unknown as RegisterForm));
+    reset(
+      next === "signup"
+        ? ({ name: "", email: "", password: "", confirmPassword: "" } as unknown as RegisterForm)
+        : ({ email: "", password: "" } as unknown as RegisterForm)
+    );
   };
 
   useEffect(() => {
@@ -134,6 +171,28 @@ export function RegisterPage() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    const email = forgotEmail.trim();
+    if (!email || !email.includes("@")) {
+      setForgotError("Enter the email address of your account first.");
+      return;
+    }
+    setForgotError(null);
+    setForgotStatus("sending");
+    try {
+      const { forgotPassword } = await import("@/lib/auth-service");
+      await forgotPassword(email);
+      setForgotStatus("sent");
+    } catch (err: unknown) {
+      logger.error("Forgot password failed", err);
+      setForgotStatus("error");
+      const axiosErr = err as { response?: { data?: { error?: string } } };
+      setForgotError(
+        axiosErr?.response?.data?.error || "Could not send the reset email. Check the address and try again."
+      );
+    }
+  };
+
   const onSubmit = async (data: RegisterForm | LoginForm) => {
     setError(null);
     try {
@@ -157,7 +216,7 @@ export function RegisterPage() {
       }
       // signup
       const regData = data as RegisterForm;
-      await signUp(regData.email, undefined, regData.name);
+      await signUp(regData.email, regData.password || undefined, regData.name);
       if (!isAuthenticated) {
         navigate("/dashboard", { replace: true });
       }
@@ -284,11 +343,96 @@ export function RegisterPage() {
             <p className="text-xs text-destructive">{(errors as unknown as { email?: { message?: string } }).email?.message}</p>
           )}
         </div>
-        {mode === "signin" && (
+        {mode === "signup" && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="password">
+                Password <span className="text-muted-foreground font-normal">(optional — lets you sign in anywhere)</span>
+              </Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="At least 8 characters"
+                autoComplete="new-password"
+                {...register("password" as never)}
+              />
+              {(errors as unknown as { password?: { message?: string } }).password && (
+                <p className="text-xs text-destructive">
+                  {(errors as unknown as { password?: { message?: string } }).password?.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder="Repeat your password"
+                autoComplete="new-password"
+                {...register("confirmPassword" as never)}
+              />
+              {(errors as unknown as { confirmPassword?: { message?: string } }).confirmPassword && (
+                <p className="text-xs text-destructive">
+                  {(errors as unknown as { confirmPassword?: { message?: string } }).confirmPassword?.message}
+                </p>
+              )}
+            </div>
+          </>
+        )}
+        {mode === "signin" && !forgotMode && (
           <div className="space-y-2">
             <Label htmlFor="password">Password <span className="text-muted-foreground font-normal">(leave blank if you used passwordless signup)</span></Label>
             <Input id="password" type="password" placeholder="••••••••" autoComplete="current-password" {...register("password" as never)} />
-            <p className="text-[11px] text-muted-foreground">Fixly accounts created without a password work via “Previously used on this device”. Use that button below if you see your email there.</p>
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] text-muted-foreground">Fixly accounts created without a password work via “Previously used on this device”. Use that button below if you see your email there.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setForgotMode(true);
+                  setForgotStatus("idle");
+                  setForgotError(null);
+                }}
+                className="shrink-0 text-[11px] text-primary underline hover:no-underline"
+              >
+                Forgot password?
+              </button>
+            </div>
+          </div>
+        )}
+        {mode === "signin" && forgotMode && (
+          <div className="space-y-2 rounded-lg border bg-card p-4">
+            <Label htmlFor="forgot-email">Reset your password</Label>
+            <p className="text-[11px] text-muted-foreground">
+              Enter your account email. If it exists, a reset link is on its way — open it to set a new password, then sign in with it.
+            </p>
+            <Input
+              id="forgot-email"
+              type="email"
+              placeholder="you@example.com"
+              autoComplete="email"
+              value={forgotEmail}
+              onChange={(e) => setForgotEmail(e.target.value)}
+              disabled={forgotStatus === "sending" || forgotStatus === "sent"}
+            />
+            {forgotError && <p className="text-xs text-destructive">{forgotError}</p>}
+            {forgotStatus === "sent" && (
+              <p className="text-xs text-green-600 dark:text-green-400">
+                Reset email sent. Check your inbox (and spam), open the link, set a new password, then sign in here.
+              </p>
+            )}
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void handleForgotPassword()}
+                disabled={forgotStatus === "sending" || forgotStatus === "sent"}
+              >
+                {forgotStatus === "sending" ? "Sending…" : forgotStatus === "sent" ? "Sent ✓" : "Send reset email"}
+              </Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => setForgotMode(false)}>
+                Back to sign in
+              </Button>
+            </div>
           </div>
         )}
 
